@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.venv/
+venv/
+env/
+.env
+
+# Flask
+instance/
+
+# VS Code local settings
+.vscode/
+
+# Flutter / Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+build/
+
+# Dataset files - do not upload large image datasets to GitHub
+dataset/raw/
+dataset/processed/
+*.jpg
+*.jpeg
+*.png
+
+# AI model files - usually too large for GitHub
+*.h5
+*.keras
+*.tflite
+*.pt
+*.pth
+
+# System files
+.DS_Store
+Thumbs.db
