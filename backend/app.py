@@ -4,14 +4,12 @@ from flask_cors import CORS
 
 # Create the Flask application.
 app = Flask(__name__)
-app.json.ensure_ascii = False
-
-# Allow the frontend to call this backend from a different port/domain during development.
-CORS(app)
 
 # Keep Chinese characters readable in JSON responses instead of escaping them.
 app.json.ensure_ascii = False
 
+# Allow the frontend to call this backend from a different port/domain during development.
+CORS(app)
 
 # Temporary vocabulary data for frontend-backend connection testing.
 # Later, this can be replaced by database records or AI model prediction results.
