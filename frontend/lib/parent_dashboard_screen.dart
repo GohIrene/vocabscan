@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'theme/app_theme.dart';
 
 /// Screen 7 – Parent Dashboard
 /// Shows mock learning stats: words practised, mastered, accuracy, review list.
@@ -42,7 +43,7 @@ class ParentDashboardScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF1ECFF),
+      backgroundColor: AppTheme.background,
       body: SafeArea(
         child: Column(
           children: [
@@ -55,28 +56,24 @@ class ParentDashboardScreen extends StatelessWidget {
                     constraints: const BoxConstraints(maxWidth: 800),
                     child: Column(
                       children: [
-                        const Text(
-                          '👨‍👩‍👧‍👦',
-                          style: TextStyle(fontSize: 48),
-                        ),
+                        const Text('👨‍👩‍👧‍👦', style: TextStyle(fontSize: 48)),
                         const SizedBox(height: 6),
-                        const Text(
+                        Text(
                           'Parent Dashboard',
-                          style: TextStyle(
+                          style: AppTheme.heading.copyWith(
                             fontSize: 28,
                             fontWeight: FontWeight.w800,
-                            color: Color(0xFF17234D),
                           ),
                         ),
-                        const SizedBox(height: 4),
-                        const Text(
+                        const SizedBox(height: AppTheme.xs),
+                        Text(
                           "Track your child's learning progress",
-                          style: TextStyle(
+                          style: AppTheme.body.copyWith(
                             fontSize: 15,
-                            color: Color(0xFF65708C),
+                            color: AppTheme.textLight,
                           ),
                         ),
-                        const SizedBox(height: 24),
+                        const SizedBox(height: AppTheme.xl),
 
                         // ── Stat cards row ──
                         Wrap(
@@ -87,25 +84,25 @@ class ParentDashboardScreen extends StatelessWidget {
                               icon: '📖',
                               label: 'Words Practiced',
                               value: '10',
-                              color: Color(0xFF9B8CF2),
+                              color: AppTheme.primary,
                             ),
                             _StatCard(
                               icon: '🏆',
                               label: 'Mastered Words',
                               value: '6',
-                              color: Color(0xFF7EC8F2),
+                              color: AppTheme.secondary,
                             ),
                             _StatCard(
                               icon: '🎯',
                               label: 'Quiz Accuracy',
                               value: '78%',
-                              color: Color(0xFF80DFA7),
+                              color: AppTheme.success,
                             ),
                             _StatCard(
                               icon: '⏰',
                               label: 'To Review',
                               value: '3',
-                              color: Color(0xFFFFF3CD),
+                              color: AppTheme.warningLight,
                               dark: true,
                             ),
                           ],
@@ -120,7 +117,7 @@ class ParentDashboardScreen extends StatelessWidget {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Expanded(child: _recentlyLearnedPanel()),
-                                  const SizedBox(width: 16),
+                                  const SizedBox(width: AppTheme.lg),
                                   Expanded(child: _wordsToReviewPanel()),
                                 ],
                               );
@@ -128,13 +125,13 @@ class ParentDashboardScreen extends StatelessWidget {
                             return Column(
                               children: [
                                 _recentlyLearnedPanel(),
-                                const SizedBox(height: 16),
+                                const SizedBox(height: AppTheme.lg),
                                 _wordsToReviewPanel(),
                               ],
                             );
                           },
                         ),
-                        const SizedBox(height: 32),
+                        const SizedBox(height: AppTheme.xxl),
                       ],
                     ),
                   ),
@@ -150,27 +147,13 @@ class ParentDashboardScreen extends StatelessWidget {
   Widget _recentlyLearnedPanel() {
     return Container(
       padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x12000000),
-            blurRadius: 10,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
+      decoration: AppTheme.cardDecoration,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             '✨ Recently Learned',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-              color: Color(0xFF17234D),
-            ),
+            style: AppTheme.subheading.copyWith(fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 14),
           ..._recentlyLearned.asMap().entries.map((e) {
@@ -181,7 +164,7 @@ class ParentDashboardScreen extends StatelessWidget {
               margin: const EdgeInsets.only(bottom: 10),
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: const Color(0xFFF1ECFF),
+                color: AppTheme.primaryLight,
                 borderRadius: BorderRadius.circular(14),
               ),
               child: Column(
@@ -192,43 +175,41 @@ class ParentDashboardScreen extends StatelessWidget {
                       Expanded(
                         child: Text(
                           '${i + 1}. ${w['word']}',
-                          style: const TextStyle(
-                            fontSize: 16,
+                          style: AppTheme.body.copyWith(
                             fontWeight: FontWeight.w700,
-                            color: Color(0xFF7C6CF2),
+                            color: AppTheme.primary,
                           ),
                         ),
                       ),
                       Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 10,
-                          vertical: 4,
+                          vertical: AppTheme.xs,
                         ),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF80DFA7),
+                          color: AppTheme.success,
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(
                           '${w['accuracy']}%',
-                          style: const TextStyle(
-                            fontSize: 12,
+                          style: AppTheme.caption.copyWith(
                             fontWeight: FontWeight.w700,
-                            color: Colors.white,
+                            color: AppTheme.surface,
                           ),
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: AppTheme.sm),
                   Row(
                     children: [
                       _LangChip(
                         label: 'English',
                         value: w['english'] as String,
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: AppTheme.sm),
                       _LangChip(label: 'Malay', value: w['malay'] as String),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: AppTheme.sm),
                       _LangChip(
                         label: 'Chinese',
                         value: w['chinese'] as String,
@@ -247,27 +228,13 @@ class ParentDashboardScreen extends StatelessWidget {
   Widget _wordsToReviewPanel() {
     return Container(
       padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x12000000),
-            blurRadius: 10,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
+      decoration: AppTheme.cardDecoration,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             '📚 Words to Review',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-              color: Color(0xFF17234D),
-            ),
+            style: AppTheme.subheading.copyWith(fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 14),
           ..._wordsToReview.asMap().entries.map((e) {
@@ -275,9 +242,12 @@ class ParentDashboardScreen extends StatelessWidget {
             return Container(
               width: double.infinity,
               margin: const EdgeInsets.only(bottom: 10),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppTheme.lg,
+                vertical: 14,
+              ),
               decoration: BoxDecoration(
-                color: const Color(0xFFFFF8E1),
+                color: AppTheme.warningLight,
                 borderRadius: BorderRadius.circular(14),
               ),
               child: Row(
@@ -285,47 +255,45 @@ class ParentDashboardScreen extends StatelessWidget {
                   Container(
                     width: 32,
                     height: 32,
-                    decoration: const BoxDecoration(
-                      color: Color(0xFFFDD835),
+                    decoration: BoxDecoration(
+                      color: AppTheme.warning,
                       shape: BoxShape.circle,
                     ),
                     alignment: Alignment.center,
                     child: Text(
                       '${i + 1}',
-                      style: const TextStyle(
+                      style: AppTheme.caption.copyWith(
                         fontWeight: FontWeight.w700,
-                        color: Colors.white,
+                        color: AppTheme.surface,
                       ),
                     ),
                   ),
                   const SizedBox(width: 14),
                   Text(
                     e.value,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF17234D),
-                    ),
+                    style: AppTheme.body.copyWith(fontWeight: FontWeight.w600),
                   ),
                 ],
               ),
             );
           }),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppTheme.sm),
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppTheme.lg,
+              vertical: AppTheme.md,
+            ),
             decoration: BoxDecoration(
-              color: const Color(0xFFFFCCBC),
+              color: AppTheme.warningLight,
               borderRadius: BorderRadius.circular(14),
             ),
-            child: const Text(
+            child: Text(
               '💡 Practice these words again to improve!',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 13,
+              style: AppTheme.caption.copyWith(
                 fontWeight: FontWeight.w600,
-                color: Color(0xFF8B4513),
+                color: AppTheme.textDark,
               ),
             ),
           ),
@@ -338,18 +306,12 @@ class ParentDashboardScreen extends StatelessWidget {
     return Align(
       alignment: Alignment.topLeft,
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(AppTheme.md),
         child: TextButton.icon(
           onPressed: () => Navigator.pop(context),
           icon: const Icon(Icons.arrow_back, size: 18),
           label: const Text('Back'),
-          style: TextButton.styleFrom(
-            backgroundColor: Colors.white,
-            foregroundColor: const Color(0xFF17234D),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
-            ),
-          ),
+          style: AppTheme.backButtonStyle,
         ),
       ),
     );
@@ -367,24 +329,20 @@ class _LangChip extends StatelessWidget {
   Widget build(BuildContext context) {
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 8),
+        padding: const EdgeInsets.symmetric(vertical: AppTheme.sm),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: AppTheme.surface,
           borderRadius: BorderRadius.circular(10),
         ),
         child: Column(
           children: [
-            Text(
-              label,
-              style: const TextStyle(fontSize: 10, color: Color(0xFF65708C)),
-            ),
+            Text(label, style: AppTheme.caption.copyWith(fontSize: 10)),
             const SizedBox(height: 2),
             Text(
               value,
-              style: const TextStyle(
+              style: AppTheme.body.copyWith(
                 fontSize: 14,
                 fontWeight: FontWeight.w700,
-                color: Color(0xFF17234D),
               ),
             ),
           ],
@@ -412,7 +370,7 @@ class _StatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final textColor = dark ? const Color(0xFF17234D) : Colors.white;
+    final textColor = dark ? AppTheme.textDark : AppTheme.surface;
     return Container(
       width: 170,
       padding: const EdgeInsets.all(18),
@@ -425,16 +383,14 @@ class _StatCard extends StatelessWidget {
         children: [
           Text(
             '$icon $label',
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
+            style: AppTheme.caption.copyWith(
               color: textColor.withValues(alpha: 0.85),
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppTheme.sm),
           Text(
             value,
-            style: TextStyle(
+            style: AppTheme.heading.copyWith(
               fontSize: 36,
               fontWeight: FontWeight.w800,
               color: textColor,

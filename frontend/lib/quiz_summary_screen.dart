@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'mode_selection_screen.dart';
+import 'theme/app_theme.dart';
 
 /// Screen 6 – Quiz Summary
 /// Shows overall score and per-question results after completing the quiz.
@@ -20,47 +21,49 @@ class QuizSummaryScreen extends StatelessWidget {
     final pct = total > 0 ? (correct / total * 100).toStringAsFixed(0) : '0';
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF1ECFF),
+      backgroundColor: AppTheme.background,
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+          padding: const EdgeInsets.symmetric(
+            horizontal: 20,
+            vertical: AppTheme.xl,
+          ),
           child: Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 500),
               child: Column(
                 children: [
                   const Text('🏆', style: TextStyle(fontSize: 56)),
-                  const SizedBox(height: 8),
-                  const Text(
+                  const SizedBox(height: AppTheme.sm),
+                  Text(
                     'Quiz Complete!',
-                    style: TextStyle(
+                    style: AppTheme.heading.copyWith(
                       fontSize: 28,
                       fontWeight: FontWeight.w800,
-                      color: Color(0xFF17234D),
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: AppTheme.sm),
 
                   // ── Score badge ──
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 28,
-                      vertical: 16,
+                      vertical: AppTheme.lg,
                     ),
                     decoration: BoxDecoration(
                       color: correct == total
-                          ? const Color(0xFFE6FFED)
-                          : const Color(0xFFFFF8E1),
+                          ? AppTheme.successLight
+                          : AppTheme.warningLight,
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(
                       '$correct / $total correct ($pct%)',
-                      style: TextStyle(
+                      style: AppTheme.subheading.copyWith(
                         fontSize: 22,
                         fontWeight: FontWeight.w700,
                         color: correct == total
-                            ? const Color(0xFF2E9E5E)
-                            : const Color(0xFFD4A017),
+                            ? AppTheme.success
+                            : AppTheme.warning,
                       ),
                     ),
                   ),
@@ -73,17 +76,15 @@ class QuizSummaryScreen extends StatelessWidget {
                     final ok = r['is_correct'] == true;
                     return Container(
                       width: double.infinity,
-                      margin: const EdgeInsets.only(bottom: 12),
-                      padding: const EdgeInsets.all(16),
+                      margin: const EdgeInsets.only(bottom: AppTheme.md),
+                      padding: const EdgeInsets.all(AppTheme.lg),
                       decoration: BoxDecoration(
-                        color: ok
-                            ? const Color(0xFFE6FFED)
-                            : const Color(0xFFFFEBEB),
+                        color: ok ? AppTheme.successLight : AppTheme.errorLight,
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(
                           color: ok
-                              ? const Color(0xFFACE8C5)
-                              : const Color(0xFFF5BBB9),
+                              ? AppTheme.success.withValues(alpha: 0.4)
+                              : AppTheme.error.withValues(alpha: 0.4),
                         ),
                       ),
                       child: Row(
@@ -92,34 +93,31 @@ class QuizSummaryScreen extends StatelessWidget {
                             ok ? '✅' : '❌',
                             style: const TextStyle(fontSize: 22),
                           ),
-                          const SizedBox(width: 12),
+                          const SizedBox(width: AppTheme.md),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
                                   'Q${i + 1}: ${r['question']}',
-                                  style: const TextStyle(
+                                  style: AppTheme.body.copyWith(
                                     fontSize: 14,
                                     fontWeight: FontWeight.w600,
-                                    color: Color(0xFF17234D),
                                   ),
                                 ),
                                 if (!ok) ...[
-                                  const SizedBox(height: 4),
+                                  const SizedBox(height: AppTheme.xs),
                                   Text(
                                     'Your answer: ${r['chosen']}',
-                                    style: const TextStyle(
-                                      fontSize: 13,
-                                      color: Color(0xFF8B6E6E),
+                                    style: AppTheme.caption.copyWith(
+                                      color: AppTheme.textLight,
                                     ),
                                   ),
                                   Text(
                                     'Correct: ${r['correct_answer']}',
-                                    style: const TextStyle(
-                                      fontSize: 13,
+                                    style: AppTheme.caption.copyWith(
                                       fontWeight: FontWeight.w600,
-                                      color: Color(0xFF2E9E5E),
+                                      color: AppTheme.success,
                                     ),
                                   ),
                                 ],
@@ -136,7 +134,6 @@ class QuizSummaryScreen extends StatelessWidget {
                   // ── Actions ──
                   FilledButton.icon(
                     onPressed: () {
-                      // Pop back to the Mode Selection Screen
                       Navigator.of(context).pushAndRemoveUntil(
                         MaterialPageRoute(
                           builder: (_) => const ModeSelectionScreen(),
@@ -146,23 +143,9 @@ class QuizSummaryScreen extends StatelessWidget {
                     },
                     icon: const Icon(Icons.home_rounded, size: 18),
                     label: const Text('Back to Home'),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: const Color(0xFF9B8CF2),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 32,
-                        vertical: 16,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(30),
-                      ),
-                      textStyle: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
+                    style: AppTheme.primaryButton,
                   ),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: AppTheme.xxl),
                 ],
               ),
             ),

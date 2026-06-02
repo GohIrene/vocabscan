@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'mode_selection_screen.dart';
+import 'theme/app_theme.dart';
 
 void main() {
   runApp(const VocabScanApp());
@@ -13,11 +14,7 @@ class VocabScanApp extends StatelessWidget {
     return MaterialApp(
       title: 'VocabScan',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF7C6CF2)),
-        fontFamily: 'Arial',
-        useMaterial3: true,
-      ),
+      theme: AppTheme.themeData,
       home: const ModeSelectionScreen(),
     );
   }

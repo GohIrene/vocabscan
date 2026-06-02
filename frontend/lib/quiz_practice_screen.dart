@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'quiz_feedback_screen.dart';
+import 'theme/app_theme.dart';
 
 /// Screen 4 – Quiz Practice
 /// Presents a multiple-choice question for the scanned vocabulary word.
@@ -17,7 +18,6 @@ class _QuizPracticeScreenState extends State<QuizPracticeScreen> {
   int _currentQuestion = 0;
   final List<Map<String, dynamic>> _results = [];
 
-  // We create 3 mini-questions from the vocab data.
   late final List<_Question> _questions;
 
   @override
@@ -63,7 +63,6 @@ class _QuizPracticeScreenState extends State<QuizPracticeScreen> {
       'is_correct': correct,
     });
 
-    // Navigate to feedback screen
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -76,7 +75,7 @@ class _QuizPracticeScreenState extends State<QuizPracticeScreen> {
           results: _results,
           vocab: widget.vocab,
           onNext: () {
-            Navigator.pop(context); // pop feedback
+            Navigator.pop(context);
             setState(() {
               _currentQuestion++;
             });
@@ -89,13 +88,12 @@ class _QuizPracticeScreenState extends State<QuizPracticeScreen> {
   @override
   Widget build(BuildContext context) {
     if (_currentQuestion >= _questions.length) {
-      // safety – should not reach here
       return const SizedBox.shrink();
     }
     final q = _questions[_currentQuestion];
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF1ECFF),
+      backgroundColor: AppTheme.background,
       body: SafeArea(
         child: Column(
           children: [
@@ -108,35 +106,31 @@ class _QuizPracticeScreenState extends State<QuizPracticeScreen> {
                     constraints: const BoxConstraints(maxWidth: 480),
                     child: Column(
                       children: [
-                        const SizedBox(height: 12),
+                        const SizedBox(height: AppTheme.md),
                         const Text('🧠', style: TextStyle(fontSize: 48)),
-                        const SizedBox(height: 8),
-                        const Text(
+                        const SizedBox(height: AppTheme.sm),
+                        Text(
                           'Quiz Time!',
-                          style: TextStyle(
+                          style: AppTheme.heading.copyWith(
                             fontSize: 26,
                             fontWeight: FontWeight.w800,
-                            color: Color(0xFF17234D),
                           ),
                         ),
                         const SizedBox(height: 6),
                         Text(
                           'Question ${_currentQuestion + 1} of ${_questions.length}',
-                          style: const TextStyle(
-                            fontSize: 14,
-                            color: Color(0xFF65708C),
-                          ),
+                          style: AppTheme.caption,
                         ),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: AppTheme.sm),
 
                         // ── Progress bar ──
                         ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius: BorderRadius.circular(AppTheme.sm),
                           child: LinearProgressIndicator(
                             value: (_currentQuestion + 1) / _questions.length,
                             minHeight: 8,
-                            backgroundColor: const Color(0xFFE0DCF0),
-                            color: const Color(0xFF80DFA7),
+                            backgroundColor: AppTheme.primaryLight,
+                            color: AppTheme.success,
                           ),
                         ),
                         const SizedBox(height: 28),
@@ -144,53 +138,43 @@ class _QuizPracticeScreenState extends State<QuizPracticeScreen> {
                         // ── Question card ──
                         Container(
                           width: double.infinity,
-                          padding: const EdgeInsets.all(24),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(20),
-                            boxShadow: const [
-                              BoxShadow(
-                                color: Color(0x14000000),
-                                blurRadius: 14,
-                                offset: Offset(0, 5),
-                              ),
-                            ],
-                          ),
+                          padding: const EdgeInsets.all(AppTheme.xl),
+                          decoration: AppTheme.cardDecoration,
                           child: Column(
                             children: [
                               Text(
                                 q.prompt,
                                 textAlign: TextAlign.center,
-                                style: const TextStyle(
+                                style: AppTheme.subheading.copyWith(
                                   fontSize: 20,
                                   fontWeight: FontWeight.w700,
-                                  color: Color(0xFF17234D),
                                 ),
                               ),
-                              const SizedBox(height: 24),
+                              const SizedBox(height: AppTheme.xl),
                               ...q.options.map(
                                 (opt) => Padding(
-                                  padding: const EdgeInsets.only(bottom: 12),
+                                  padding: const EdgeInsets.only(
+                                    bottom: AppTheme.md,
+                                  ),
                                   child: SizedBox(
                                     width: double.infinity,
                                     child: OutlinedButton(
                                       onPressed: () => _answer(opt),
                                       style: OutlinedButton.styleFrom(
-                                        foregroundColor: const Color(
-                                          0xFF17234D,
-                                        ),
-                                        side: const BorderSide(
-                                          color: Color(0xFFD5D0E3),
-                                        ),
-                                        padding: const EdgeInsets.symmetric(
-                                          vertical: 16,
-                                        ),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            16,
+                                        foregroundColor: AppTheme.textDark,
+                                        side: BorderSide(
+                                          color: AppTheme.primary.withValues(
+                                            alpha: 0.3,
                                           ),
                                         ),
-                                        textStyle: const TextStyle(
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: AppTheme.lg,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(16),
+                                        ),
+                                        textStyle: AppTheme.body.copyWith(
                                           fontSize: 18,
                                           fontWeight: FontWeight.w600,
                                         ),
@@ -203,7 +187,7 @@ class _QuizPracticeScreenState extends State<QuizPracticeScreen> {
                             ],
                           ),
                         ),
-                        const SizedBox(height: 32),
+                        const SizedBox(height: AppTheme.xxl),
                       ],
                     ),
                   ),
@@ -220,18 +204,12 @@ class _QuizPracticeScreenState extends State<QuizPracticeScreen> {
     return Align(
       alignment: Alignment.topLeft,
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(AppTheme.md),
         child: TextButton.icon(
           onPressed: () => Navigator.pop(context),
           icon: const Icon(Icons.arrow_back, size: 18),
           label: const Text('Back'),
-          style: TextButton.styleFrom(
-            backgroundColor: Colors.white,
-            foregroundColor: const Color(0xFF17234D),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
-            ),
-          ),
+          style: AppTheme.backButtonStyle,
         ),
       ),
     );

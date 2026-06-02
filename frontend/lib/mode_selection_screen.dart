@@ -3,6 +3,7 @@ import 'scan_object_screen.dart';
 import 'parent_dashboard_screen.dart';
 import 'teacher_projection_screen.dart';
 import 'join_class_screen.dart';
+import 'theme/app_theme.dart';
 
 /// Screen 1 – Mode Selection
 /// Three big colourful cards: Home Mode, Teacher Mode, Join Class.
@@ -13,30 +14,35 @@ class ModeSelectionScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF1ECFF),
+      backgroundColor: AppTheme.background,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppTheme.xl,
+              vertical: AppTheme.xxl,
+            ),
             child: Column(
               children: [
                 // ── Rainbow + Title ──
                 const Text('🌈', style: TextStyle(fontSize: 56)),
-                const SizedBox(height: 8),
-                const Text(
+                const SizedBox(height: AppTheme.sm),
+                Text(
                   'VocabScan',
-                  style: TextStyle(
+                  style: AppTheme.heading.copyWith(
                     fontSize: 36,
                     fontWeight: FontWeight.w800,
-                    color: Color(0xFF17234D),
                   ),
                 ),
                 const SizedBox(height: 6),
-                const Text(
+                Text(
                   "Let's learn together!",
-                  style: TextStyle(fontSize: 17, color: Color(0xFF65708C)),
+                  style: AppTheme.body.copyWith(
+                    fontSize: 17,
+                    color: AppTheme.textLight,
+                  ),
                 ),
-                const SizedBox(height: 36),
+                const SizedBox(height: AppTheme.xxl + 4),
 
                 // ── Mode cards row ──
                 Wrap(
@@ -48,7 +54,7 @@ class ModeSelectionScreen extends StatelessWidget {
                       emoji: '🏠',
                       title: 'Home Mode',
                       subtitle: 'Learn at home with family',
-                      color: const Color(0xFF9B8CF2),
+                      color: AppTheme.primary,
                       onTap: () => Navigator.push(
                         context,
                         MaterialPageRoute(
@@ -60,7 +66,7 @@ class ModeSelectionScreen extends StatelessWidget {
                       emoji: '👩‍🏫',
                       title: 'Teacher Mode',
                       subtitle: 'Classroom activities',
-                      color: const Color(0xFF7EC8F2),
+                      color: AppTheme.secondary,
                       onTap: () => Navigator.push(
                         context,
                         MaterialPageRoute(
@@ -74,7 +80,7 @@ class ModeSelectionScreen extends StatelessWidget {
                       emoji: '🎓',
                       title: 'Join Class',
                       subtitle: 'Connect with your class',
-                      color: const Color(0xFF7EDDBA),
+                      color: AppTheme.success,
                       onTap: () => Navigator.push(
                         context,
                         MaterialPageRoute(
@@ -85,7 +91,7 @@ class ModeSelectionScreen extends StatelessWidget {
                   ],
                 ),
 
-                const SizedBox(height: 36),
+                const SizedBox(height: AppTheme.xxl + 4),
 
                 // ── Parent Dashboard button ──
                 ElevatedButton.icon(
@@ -95,14 +101,11 @@ class ModeSelectionScreen extends StatelessWidget {
                       builder: (_) => const ParentDashboardScreen(),
                     ),
                   ),
-                  icon: const Text(
-                    '👨‍👩‍👧‍👦',
-                    style: TextStyle(fontSize: 20),
-                  ),
+                  icon: const Text('👨‍👩‍👧‍👦', style: TextStyle(fontSize: 20)),
                   label: const Text('Parent Dashboard'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.white,
-                    foregroundColor: const Color(0xFF17234D),
+                    backgroundColor: AppTheme.surface,
+                    foregroundColor: AppTheme.textDark,
                     elevation: 2,
                     padding: const EdgeInsets.symmetric(
                       horizontal: 28,
@@ -111,8 +114,7 @@ class ModeSelectionScreen extends StatelessWidget {
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(30),
                     ),
-                    textStyle: const TextStyle(
-                      fontSize: 16,
+                    textStyle: AppTheme.body.copyWith(
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -160,7 +162,7 @@ class _ModeCardState extends State<_ModeCard> {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
           width: 220,
-          padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 16),
+          padding: const EdgeInsets.symmetric(vertical: 36, horizontal: AppTheme.lg),
           decoration: BoxDecoration(
             color: widget.color,
             borderRadius: BorderRadius.circular(24),
@@ -173,7 +175,7 @@ class _ModeCardState extends State<_ModeCard> {
             ],
           ),
           transform: _hovering
-              ? (Matrix4.identity()..translate(0.0, -4.0))
+              ? (Matrix4.identity()..translateByDouble(0.0, -4.0, 0.0, 1.0))
               : Matrix4.identity(),
           child: Column(
             children: [
@@ -182,7 +184,7 @@ class _ModeCardState extends State<_ModeCard> {
                 width: 64,
                 height: 64,
                 decoration: const BoxDecoration(
-                  color: Colors.white,
+                  color: AppTheme.surface,
                   shape: BoxShape.circle,
                 ),
                 alignment: Alignment.center,
@@ -192,8 +194,8 @@ class _ModeCardState extends State<_ModeCard> {
               Text(
                 widget.title,
                 textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: Colors.white,
+                style: AppTheme.body.copyWith(
+                  color: AppTheme.surface,
                   fontSize: 20,
                   fontWeight: FontWeight.w700,
                 ),
@@ -202,8 +204,8 @@ class _ModeCardState extends State<_ModeCard> {
               Text(
                 widget.subtitle,
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.88),
+                style: AppTheme.caption.copyWith(
+                  color: AppTheme.surface.withValues(alpha: 0.88),
                   fontSize: 14,
                 ),
               ),

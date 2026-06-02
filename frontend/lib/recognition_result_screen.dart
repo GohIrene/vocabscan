@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'quiz_practice_screen.dart';
+import 'theme/app_theme.dart';
 
 /// Screen 3 – Recognition Result
 /// Displays the object the AI recognised together with its trilingual vocabulary.
@@ -17,7 +18,7 @@ class RecognitionResultScreen extends StatelessWidget {
     final pct = ((confidence as num) * 100).toStringAsFixed(0);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF1ECFF),
+      backgroundColor: AppTheme.background,
       body: SafeArea(
         child: Column(
           children: [
@@ -30,23 +31,22 @@ class RecognitionResultScreen extends StatelessWidget {
                     constraints: const BoxConstraints(maxWidth: 480),
                     child: Column(
                       children: [
-                        const SizedBox(height: 8),
+                        const SizedBox(height: AppTheme.sm),
                         const Text('🎉', style: TextStyle(fontSize: 52)),
-                        const SizedBox(height: 8),
-                        const Text(
+                        const SizedBox(height: AppTheme.sm),
+                        Text(
                           'Object Recognised!',
-                          style: TextStyle(
+                          style: AppTheme.heading.copyWith(
                             fontSize: 28,
                             fontWeight: FontWeight.w800,
-                            color: Color(0xFF17234D),
                           ),
                         ),
                         const SizedBox(height: 6),
                         Text(
                           'Confidence: $pct%',
-                          style: const TextStyle(
+                          style: AppTheme.body.copyWith(
                             fontSize: 15,
-                            color: Color(0xFF65708C),
+                            color: AppTheme.textLight,
                           ),
                         ),
                         const SizedBox(height: 28),
@@ -54,35 +54,24 @@ class RecognitionResultScreen extends StatelessWidget {
                         // ── Vocabulary card ──
                         Container(
                           width: double.infinity,
-                          padding: const EdgeInsets.all(24),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(24),
-                            boxShadow: const [
-                              BoxShadow(
-                                color: Color(0x18000000),
-                                blurRadius: 16,
-                                offset: Offset(0, 6),
-                              ),
-                            ],
-                          ),
+                          padding: const EdgeInsets.all(AppTheme.xl),
+                          decoration: AppTheme.cardDecoration,
                           child: Column(
                             children: [
-                              // Big object emoji
                               const Text('📦', style: TextStyle(fontSize: 56)),
-                              const SizedBox(height: 16),
+                              const SizedBox(height: AppTheme.lg),
                               _VocabRow(
                                 flag: '🇬🇧',
                                 label: 'English',
                                 value: english,
                               ),
-                              const SizedBox(height: 12),
+                              const SizedBox(height: AppTheme.md),
                               _VocabRow(
                                 flag: '🇲🇾',
                                 label: 'Malay',
                                 value: malay,
                               ),
-                              const SizedBox(height: 12),
+                              const SizedBox(height: AppTheme.md),
                               _VocabRow(
                                 flag: '🇨🇳',
                                 label: 'Chinese',
@@ -102,24 +91,21 @@ class RecognitionResultScreen extends StatelessWidget {
                                   QuizPracticeScreen(vocab: predictionData),
                             ),
                           ),
-                          icon: const Text(
-                            '🎯',
-                            style: TextStyle(fontSize: 18),
-                          ),
+                          icon: const Text('🎯', style: TextStyle(fontSize: 18)),
                           label: const Text('Practice Quiz'),
                           style: FilledButton.styleFrom(
-                            backgroundColor: const Color(0xFF80DFA7),
-                            foregroundColor: const Color(0xFF17234D),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 32,
-                              vertical: 16,
-                            ),
+                            backgroundColor: AppTheme.success,
+                            foregroundColor: AppTheme.textDark,
+                            minimumSize: const Size(200, 52),
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(30),
+                              borderRadius: BorderRadius.circular(16),
                             ),
-                            textStyle: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
+                            textStyle: AppTheme.buttonText.copyWith(
+                              color: AppTheme.textDark,
+                            ),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: AppTheme.xxl,
+                              vertical: AppTheme.lg,
                             ),
                           ),
                         ),
@@ -131,26 +117,9 @@ class RecognitionResultScreen extends StatelessWidget {
                           onPressed: () => Navigator.pop(context),
                           icon: const Icon(Icons.camera_alt, size: 18),
                           label: const Text('Scan Another Object'),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: const Color(0xFF7C6CF2),
-                            side: const BorderSide(
-                              color: Color(0xFF7C6CF2),
-                              width: 2,
-                            ),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 28,
-                              vertical: 14,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(30),
-                            ),
-                            textStyle: const TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
+                          style: AppTheme.secondaryButton,
                         ),
-                        const SizedBox(height: 32),
+                        const SizedBox(height: AppTheme.xxl),
                       ],
                     ),
                   ),
@@ -167,18 +136,12 @@ class RecognitionResultScreen extends StatelessWidget {
     return Align(
       alignment: Alignment.topLeft,
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(AppTheme.md),
         child: TextButton.icon(
           onPressed: () => Navigator.pop(context),
           icon: const Icon(Icons.arrow_back, size: 18),
           label: const Text('Back'),
-          style: TextButton.styleFrom(
-            backgroundColor: Colors.white,
-            foregroundColor: const Color(0xFF17234D),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
-            ),
-          ),
+          style: AppTheme.backButtonStyle,
         ),
       ),
     );
@@ -200,29 +163,25 @@ class _VocabRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      padding: const EdgeInsets.symmetric(horizontal: AppTheme.lg, vertical: 14),
       decoration: BoxDecoration(
-        color: const Color(0xFFF1ECFF),
+        color: AppTheme.primaryLight,
         borderRadius: BorderRadius.circular(14),
       ),
       child: Row(
         children: [
           Text(flag, style: const TextStyle(fontSize: 22)),
-          const SizedBox(width: 12),
+          const SizedBox(width: AppTheme.md),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                label,
-                style: const TextStyle(fontSize: 12, color: Color(0xFF65708C)),
-              ),
+              Text(label, style: AppTheme.caption.copyWith(fontSize: 12)),
               const SizedBox(height: 2),
               Text(
                 value,
-                style: const TextStyle(
+                style: AppTheme.subheading.copyWith(
                   fontSize: 20,
                   fontWeight: FontWeight.w700,
-                  color: Color(0xFF17234D),
                 ),
               ),
             ],

@@ -3,6 +3,6 @@
 class AppConfig {
   /// The base URL for the Flask backend.
   /// - Local web development: 'http://127.0.0.1:5000'
-  /// - Phone on same Wi-Fi :   'http://<YOUR_PC_IP>:5000'
+  /// - Phone on same Wi-Fi :   'http://&lt;YOUR_PC_IP&gt;:5000'
   static const String baseUrl = 'http://127.0.0.1:5000';
 }

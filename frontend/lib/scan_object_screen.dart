@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'api_service.dart';
 import 'recognition_result_screen.dart';
+import 'theme/app_theme.dart';
 
 /// Screen 2 – Scan Object
 /// Shows a camera placeholder, a "Use Mock Scan" button to call the backend,
@@ -46,7 +47,7 @@ class _ScanObjectScreenState extends State<ScanObjectScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Error: $e'),
-          backgroundColor: const Color(0xFFE85D5D),
+          backgroundColor: AppTheme.error,
         ),
       );
     } finally {
@@ -57,7 +58,7 @@ class _ScanObjectScreenState extends State<ScanObjectScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF1ECFF),
+      backgroundColor: AppTheme.background,
       body: SafeArea(
         child: Column(
           children: [
@@ -65,18 +66,12 @@ class _ScanObjectScreenState extends State<ScanObjectScreen> {
             Align(
               alignment: Alignment.topLeft,
               child: Padding(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(AppTheme.md),
                 child: TextButton.icon(
                   onPressed: () => Navigator.pop(context),
                   icon: const Icon(Icons.arrow_back, size: 18),
                   label: const Text('Back'),
-                  style: TextButton.styleFrom(
-                    backgroundColor: Colors.white,
-                    foregroundColor: const Color(0xFF17234D),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                  ),
+                  style: AppTheme.backButtonStyle,
                 ),
               ),
             ),
@@ -92,20 +87,19 @@ class _ScanObjectScreenState extends State<ScanObjectScreen> {
                         // ── Header ──
                         const Text('📷', style: TextStyle(fontSize: 44)),
                         const SizedBox(height: 6),
-                        const Text(
+                        Text(
                           'Scan an Object',
-                          style: TextStyle(
+                          style: AppTheme.heading.copyWith(
                             fontSize: 28,
                             fontWeight: FontWeight.w800,
-                            color: Color(0xFF17234D),
                           ),
                         ),
-                        const SizedBox(height: 4),
-                        const Text(
+                        const SizedBox(height: AppTheme.xs),
+                        Text(
                           'Point your camera at an object!',
-                          style: TextStyle(
+                          style: AppTheme.body.copyWith(
                             fontSize: 15,
-                            color: Color(0xFF65708C),
+                            color: AppTheme.textLight,
                           ),
                         ),
                         const SizedBox(height: 20),
@@ -115,26 +109,26 @@ class _ScanObjectScreenState extends State<ScanObjectScreen> {
                           width: double.infinity,
                           height: 240,
                           decoration: BoxDecoration(
-                            color: const Color(0xFFE8E4F0),
+                            color: AppTheme.primaryLight,
                             borderRadius: BorderRadius.circular(20),
                             border: Border.all(
-                              color: const Color(0xFFD5D0E3),
+                              color: AppTheme.primary.withValues(alpha: 0.2),
                               width: 2,
                             ),
                           ),
-                          child: const Column(
+                          child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               Icon(
                                 Icons.camera_alt,
                                 size: 52,
-                                color: Color(0xFFADA6C0),
+                                color: AppTheme.textLight,
                               ),
-                              SizedBox(height: 10),
+                              const SizedBox(height: 10),
                               Text(
                                 'Camera preview',
-                                style: TextStyle(
-                                  color: Color(0xFFADA6C0),
+                                style: AppTheme.body.copyWith(
+                                  color: AppTheme.textLight,
                                   fontSize: 14,
                                 ),
                               ),
@@ -149,22 +143,20 @@ class _ScanObjectScreenState extends State<ScanObjectScreen> {
                           icon: const Icon(Icons.camera_alt, size: 18),
                           label: const Text('Start Camera'),
                           style: FilledButton.styleFrom(
-                            backgroundColor: const Color(0xFF80DFA7),
-                            foregroundColor: const Color(0xFF17234D),
+                            backgroundColor: AppTheme.success,
+                            foregroundColor: AppTheme.textDark,
+                            minimumSize: const Size(200, 52),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            textStyle: AppTheme.buttonText,
                             padding: const EdgeInsets.symmetric(
                               horizontal: 28,
                               vertical: 14,
                             ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(30),
-                            ),
-                            textStyle: const TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w700,
-                            ),
                           ),
                         ),
-                        const SizedBox(height: 12),
+                        const SizedBox(height: AppTheme.md),
 
                         // ── Use Mock Scan button ──
                         FilledButton.icon(
@@ -175,45 +167,20 @@ class _ScanObjectScreenState extends State<ScanObjectScreen> {
                                   height: 18,
                                   child: CircularProgressIndicator(
                                     strokeWidth: 2,
-                                    color: Colors.white,
+                                    color: AppTheme.surface,
                                   ),
                                 )
                               : const Icon(Icons.science, size: 18),
                           label: const Text('Use Mock Scan'),
-                          style: FilledButton.styleFrom(
-                            backgroundColor: const Color(0xFF9B8CF2),
-                            foregroundColor: Colors.white,
-                            disabledBackgroundColor: const Color(0xFFC4BCEE),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 28,
-                              vertical: 14,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(30),
-                            ),
-                            textStyle: const TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
+                          style: AppTheme.primaryButton,
                         ),
                         const SizedBox(height: 28),
 
                         // ── What can I scan? ──
                         Container(
                           width: double.infinity,
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(20),
-                            boxShadow: const [
-                              BoxShadow(
-                                color: Color(0x15000000),
-                                blurRadius: 12,
-                                offset: Offset(0, 4),
-                              ),
-                            ],
-                          ),
+                          padding: const EdgeInsets.all(AppTheme.lg),
+                          decoration: AppTheme.cardDecoration,
                           child: Column(
                             children: [
                               GestureDetector(
@@ -222,19 +189,17 @@ class _ScanObjectScreenState extends State<ScanObjectScreen> {
                                 ),
                                 child: Row(
                                   children: [
-                                    const Icon(
+                                    Icon(
                                       Icons.info_outline,
                                       size: 20,
-                                      color: Color(0xFF65708C),
+                                      color: AppTheme.textLight,
                                     ),
-                                    const SizedBox(width: 8),
-                                    const Expanded(
+                                    const SizedBox(width: AppTheme.sm),
+                                    Expanded(
                                       child: Text(
                                         'What can I scan?',
-                                        style: TextStyle(
-                                          fontSize: 16,
+                                        style: AppTheme.body.copyWith(
                                           fontWeight: FontWeight.w700,
-                                          color: Color(0xFF17234D),
                                         ),
                                       ),
                                     ),
@@ -242,30 +207,30 @@ class _ScanObjectScreenState extends State<ScanObjectScreen> {
                                       _showObjectList
                                           ? Icons.arrow_drop_up
                                           : Icons.arrow_drop_down,
-                                      color: const Color(0xFF17234D),
+                                      color: AppTheme.textDark,
                                     ),
                                   ],
                                 ),
                               ),
                               if (_showObjectList) ...[
-                                const SizedBox(height: 12),
+                                const SizedBox(height: AppTheme.md),
                                 Container(
                                   width: double.infinity,
                                   padding: const EdgeInsets.symmetric(
                                     vertical: 10,
-                                    horizontal: 12,
+                                    horizontal: AppTheme.md,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFFFFF3CD),
+                                    color: AppTheme.warningLight,
                                     borderRadius: BorderRadius.circular(14),
                                   ),
-                                  child: const Text(
+                                  child: Text(
                                     '⭐ Starter Learning Pack: Home & School Objects ⭐',
                                     textAlign: TextAlign.center,
-                                    style: TextStyle(
+                                    style: AppTheme.caption.copyWith(
                                       fontSize: 14,
                                       fontWeight: FontWeight.w600,
-                                      color: Color(0xFF7A6B30),
+                                      color: AppTheme.textDark,
                                     ),
                                   ),
                                 ),
@@ -287,26 +252,23 @@ class _ScanObjectScreenState extends State<ScanObjectScreen> {
                                   width: double.infinity,
                                   padding: const EdgeInsets.symmetric(
                                     vertical: 10,
-                                    horizontal: 12,
+                                    horizontal: AppTheme.md,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFFF1ECFF),
+                                    color: AppTheme.primaryLight,
                                     borderRadius: BorderRadius.circular(14),
                                   ),
-                                  child: const Text(
+                                  child: Text(
                                     '💡 More objects will be added in future versions!',
                                     textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      color: Color(0xFF65708C),
-                                    ),
+                                    style: AppTheme.caption,
                                   ),
                                 ),
                               ],
                             ],
                           ),
                         ),
-                        const SizedBox(height: 32),
+                        const SizedBox(height: AppTheme.xxl),
                       ],
                     ),
                   ),
@@ -333,18 +295,21 @@ class _ObjectChip extends StatelessWidget {
       width: 88,
       padding: const EdgeInsets.symmetric(vertical: 10),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppTheme.surface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE0DCF0)),
+        border: Border.all(color: AppTheme.primary.withValues(alpha: 0.2)),
       ),
       child: Column(
         children: [
           Text(emoji, style: const TextStyle(fontSize: 26)),
-          const SizedBox(height: 4),
+          const SizedBox(height: AppTheme.xs),
           Text(
             label,
             textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 12, color: Color(0xFF17234D)),
+            style: AppTheme.caption.copyWith(
+              fontSize: 12,
+              color: AppTheme.textDark,
+            ),
           ),
         ],
       ),

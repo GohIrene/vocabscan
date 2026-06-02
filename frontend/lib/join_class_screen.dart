@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'scan_object_screen.dart';
+import 'theme/app_theme.dart';
 
 /// Screen 9 – Join Class
 /// Lets a student enter a 6-character class code to join a teacher session.
@@ -39,7 +40,7 @@ class _JoinClassScreenState extends State<JoinClassScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF1ECFF),
+      backgroundColor: AppTheme.background,
       body: SafeArea(
         child: Column(
           children: [
@@ -47,18 +48,12 @@ class _JoinClassScreenState extends State<JoinClassScreen> {
             Align(
               alignment: Alignment.topLeft,
               child: Padding(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(AppTheme.md),
                 child: TextButton.icon(
                   onPressed: () => Navigator.pop(context),
                   icon: const Icon(Icons.arrow_back, size: 18),
                   label: const Text('Back'),
-                  style: TextButton.styleFrom(
-                    backgroundColor: Colors.white,
-                    foregroundColor: const Color(0xFF17234D),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                  ),
+                  style: AppTheme.backButtonStyle,
                 ),
               ),
             ),
@@ -72,18 +67,10 @@ class _JoinClassScreenState extends State<JoinClassScreen> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 28,
-                        vertical: 32,
+                        vertical: AppTheme.xxl,
                       ),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
+                      decoration: AppTheme.cardDecoration.copyWith(
                         borderRadius: BorderRadius.circular(28),
-                        boxShadow: const [
-                          BoxShadow(
-                            color: Color(0x14000000),
-                            blurRadius: 16,
-                            offset: Offset(0, 6),
-                          ),
-                        ],
                       ),
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
@@ -93,7 +80,7 @@ class _JoinClassScreenState extends State<JoinClassScreen> {
                             width: 64,
                             height: 64,
                             decoration: const BoxDecoration(
-                              color: Color(0xFF80DFA7),
+                              color: AppTheme.success,
                               shape: BoxShape.circle,
                             ),
                             alignment: Alignment.center,
@@ -105,31 +92,28 @@ class _JoinClassScreenState extends State<JoinClassScreen> {
                           const SizedBox(height: 14),
                           const Text('🎓', style: TextStyle(fontSize: 32)),
                           const SizedBox(height: 6),
-                          const Text(
+                          Text(
                             'Join a Class',
-                            style: TextStyle(
+                            style: AppTheme.heading.copyWith(
                               fontSize: 26,
                               fontWeight: FontWeight.w800,
-                              color: Color(0xFF17234D),
                             ),
                           ),
-                          const SizedBox(height: 4),
-                          const Text(
+                          const SizedBox(height: AppTheme.xs),
+                          Text(
                             "Enter your teacher's code",
-                            style: TextStyle(
+                            style: AppTheme.body.copyWith(
                               fontSize: 14,
-                              color: Color(0xFF7C6CF2),
+                              color: AppTheme.primary,
                             ),
                           ),
-                          const SizedBox(height: 24),
+                          const SizedBox(height: AppTheme.xl),
 
                           // ── Label ──
-                          const Text(
+                          Text(
                             'Class Code',
-                            style: TextStyle(
-                              fontSize: 15,
+                            style: AppTheme.body.copyWith(
                               fontWeight: FontWeight.w600,
-                              color: Color(0xFF17234D),
                             ),
                           ),
                           const SizedBox(height: 10),
@@ -145,46 +129,40 @@ class _JoinClassScreenState extends State<JoinClassScreen> {
                               ),
                               UpperCaseTextFormatter(),
                             ],
-                            style: const TextStyle(
+                            style: AppTheme.heading.copyWith(
                               fontSize: 28,
                               fontWeight: FontWeight.w700,
                               letterSpacing: 8,
-                              color: Color(0xFF17234D),
                             ),
                             decoration: InputDecoration(
                               hintText: 'ABC123',
-                              hintStyle: TextStyle(
+                              hintStyle: AppTheme.heading.copyWith(
                                 fontSize: 28,
                                 fontWeight: FontWeight.w700,
                                 letterSpacing: 8,
-                                color: const Color(
-                                  0xFF17234D,
-                                ).withValues(alpha: 0.25),
+                                color: AppTheme.textDark.withValues(alpha: 0.25),
                               ),
-                              suffixIcon: const Icon(
+                              suffixIcon: Icon(
                                 Icons.lock_outline,
-                                color: Color(0xFFADA6C0),
+                                color: AppTheme.textLight,
                               ),
                               filled: true,
-                              fillColor: const Color(0xFFF1ECFF),
+                              fillColor: AppTheme.primaryLight,
                               enabledBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(16),
-                                borderSide: const BorderSide(
-                                  color: Color(0xFFD5D0E3),
+                                borderSide: BorderSide(
+                                  color: AppTheme.primary.withValues(alpha: 0.3),
                                   width: 2,
                                 ),
                               ),
                               focusedBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(16),
                                 borderSide: const BorderSide(
-                                  color: Color(0xFF9B8CF2),
+                                  color: AppTheme.primary,
                                   width: 2,
                                 ),
                               ),
-                              counterStyle: const TextStyle(
-                                fontSize: 12,
-                                color: Color(0xFF65708C),
-                              ),
+                              counterStyle: AppTheme.caption,
                             ),
                             onChanged: (_) => setState(() {}),
                           ),
@@ -197,35 +175,32 @@ class _JoinClassScreenState extends State<JoinClassScreen> {
                               onPressed: () =>
                                   _joinClass(_controller.text.trim()),
                               style: FilledButton.styleFrom(
-                                backgroundColor: const Color(0xFF80DFA7),
-                                foregroundColor: const Color(0xFF17234D),
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 16,
-                                ),
+                                backgroundColor: AppTheme.success,
+                                foregroundColor: AppTheme.textDark,
+                                minimumSize: const Size(double.infinity, 52),
                                 shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(30),
+                                  borderRadius: BorderRadius.circular(16),
                                 ),
-                                textStyle: const TextStyle(
+                                textStyle: AppTheme.buttonText.copyWith(
+                                  color: AppTheme.textDark,
                                   fontSize: 17,
-                                  fontWeight: FontWeight.w700,
                                 ),
                               ),
                               child: const Text('Join Class 🎉'),
                             ),
                           ),
-                          const SizedBox(height: 24),
+                          const SizedBox(height: AppTheme.xl),
 
                           // ── Divider ──
-                          const Divider(color: Color(0xFFE0DCF0)),
-                          const SizedBox(height: 12),
-                          const Text(
-                            'Quick Access (Demo)',
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: Color(0xFF65708C),
-                            ),
+                          Divider(
+                            color: AppTheme.primary.withValues(alpha: 0.15),
                           ),
-                          const SizedBox(height: 12),
+                          const SizedBox(height: AppTheme.md),
+                          Text(
+                            'Quick Access (Demo)',
+                            style: AppTheme.caption,
+                          ),
+                          const SizedBox(height: AppTheme.md),
 
                           // ── Quick code chips ──
                           Wrap(
@@ -237,19 +212,10 @@ class _JoinClassScreenState extends State<JoinClassScreen> {
                                       _controller.text = code;
                                       setState(() {});
                                     },
-                                    style: FilledButton.styleFrom(
-                                      backgroundColor: const Color(0xFF7EC8F2),
-                                      foregroundColor: Colors.white,
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 20,
-                                        vertical: 10,
-                                      ),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(20),
-                                      ),
-                                      textStyle: const TextStyle(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w600,
+                                    style: AppTheme.smallButton.copyWith(
+                                      backgroundColor:
+                                          const WidgetStatePropertyAll(
+                                        AppTheme.secondary,
                                       ),
                                     ),
                                     child: Text(code),
@@ -264,19 +230,21 @@ class _JoinClassScreenState extends State<JoinClassScreen> {
                             width: double.infinity,
                             padding: const EdgeInsets.all(14),
                             decoration: BoxDecoration(
-                              color: const Color(0xFFFFF8E1),
+                              color: AppTheme.warningLight,
                               borderRadius: BorderRadius.circular(16),
                             ),
-                            child: const Column(
+                            child: Column(
                               children: [
-                                Text('💡', style: TextStyle(fontSize: 22)),
-                                SizedBox(height: 4),
+                                const Text(
+                                  '💡',
+                                  style: TextStyle(fontSize: 22),
+                                ),
+                                const SizedBox(height: AppTheme.xs),
                                 Text(
                                   'Ask your teacher for the class code!',
                                   textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    color: Color(0xFF7A6B30),
+                                  style: AppTheme.caption.copyWith(
+                                    color: AppTheme.textDark,
                                     fontWeight: FontWeight.w500,
                                   ),
                                 ),

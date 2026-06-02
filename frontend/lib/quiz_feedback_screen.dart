@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'quiz_summary_screen.dart';
+import 'theme/app_theme.dart';
 
 /// Screen 5 – Quiz Feedback
 /// Shows whether the answer was correct and the right answer if wrong.
@@ -28,15 +29,11 @@ class QuizFeedbackScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isLast = questionIndex >= totalQuestions - 1;
-    final bgColor = isCorrect
-        ? const Color(0xFFE6FFED)
-        : const Color(0xFFFFEBEB);
-    final accentColor = isCorrect
-        ? const Color(0xFF2E9E5E)
-        : const Color(0xFFD9534F);
+    final bgColor = isCorrect ? AppTheme.successLight : AppTheme.errorLight;
+    final accentColor = isCorrect ? AppTheme.success : AppTheme.error;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF1ECFF),
+      backgroundColor: AppTheme.background,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -44,14 +41,14 @@ class QuizFeedbackScreen extends StatelessWidget {
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 440),
               child: Container(
-                padding: const EdgeInsets.all(32),
+                padding: const EdgeInsets.all(AppTheme.xxl),
                 decoration: BoxDecoration(
                   color: bgColor,
                   borderRadius: BorderRadius.circular(28),
                   boxShadow: const [
                     BoxShadow(
                       color: Color(0x14000000),
-                      blurRadius: 16,
+                      blurRadius: AppTheme.lg,
                       offset: Offset(0, 6),
                     ),
                   ],
@@ -63,10 +60,10 @@ class QuizFeedbackScreen extends StatelessWidget {
                       isCorrect ? '🎉' : '😢',
                       style: const TextStyle(fontSize: 56),
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: AppTheme.md),
                     Text(
                       isCorrect ? 'Correct!' : 'Not quite…',
-                      style: TextStyle(
+                      style: AppTheme.heading.copyWith(
                         fontSize: 28,
                         fontWeight: FontWeight.w800,
                         color: accentColor,
@@ -76,15 +73,12 @@ class QuizFeedbackScreen extends StatelessWidget {
                     if (!isCorrect) ...[
                       Text(
                         'Your answer: $chosenAnswer',
-                        style: const TextStyle(
-                          fontSize: 16,
-                          color: Color(0xFF65708C),
-                        ),
+                        style: AppTheme.body.copyWith(color: AppTheme.textLight),
                       ),
                       const SizedBox(height: 6),
                       Text(
                         'Correct answer: $correctAnswer',
-                        style: TextStyle(
+                        style: AppTheme.body.copyWith(
                           fontSize: 18,
                           fontWeight: FontWeight.w700,
                           color: accentColor,
@@ -93,18 +87,14 @@ class QuizFeedbackScreen extends StatelessWidget {
                       const SizedBox(height: 18),
                     ],
                     if (isCorrect)
-                      const Text(
+                      Text(
                         'Great job! Keep going! 🌟',
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: Color(0xFF2E9E5E),
-                        ),
+                        style: AppTheme.body.copyWith(color: AppTheme.success),
                       ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: AppTheme.xl),
                     FilledButton.icon(
                       onPressed: isLast
                           ? () {
-                              // Pop feedback, then push summary
                               Navigator.pop(context);
                               Navigator.pushReplacement(
                                 context,
@@ -124,17 +114,15 @@ class QuizFeedbackScreen extends StatelessWidget {
                       label: Text(isLast ? 'See Results' : 'Next Question'),
                       style: FilledButton.styleFrom(
                         backgroundColor: accentColor,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 32,
-                          vertical: 16,
-                        ),
+                        foregroundColor: AppTheme.surface,
+                        minimumSize: const Size(200, 52),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(30),
+                          borderRadius: BorderRadius.circular(16),
                         ),
-                        textStyle: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
+                        textStyle: AppTheme.buttonText,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppTheme.xxl,
+                          vertical: AppTheme.lg,
                         ),
                       ),
                     ),
