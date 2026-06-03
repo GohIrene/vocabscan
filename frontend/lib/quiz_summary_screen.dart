@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'mode_selection_screen.dart';
+import 'welcome_screen.dart';
 import 'theme/app_theme.dart';
 
 /// Screen 6 – Quiz Summary
@@ -136,7 +136,7 @@ class QuizSummaryScreen extends StatelessWidget {
                     onPressed: () {
                       Navigator.of(context).pushAndRemoveUntil(
                         MaterialPageRoute(
-                          builder: (_) => const ModeSelectionScreen(),
+                          builder: (_) => const WelcomeScreen(),
                         ),
                         (route) => false,
                       );

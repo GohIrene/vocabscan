@@ -1,4 +1,4 @@
-// ignore_for_file: avoid_web_libraries_in_flutter
+// ignore_for_file: avoid_web_libraries_in_flutter, deprecated_member_use
 
 import 'dart:async';
 import 'dart:convert';
@@ -17,7 +17,8 @@ const double _focusW = 0.70;
 const double _focusH = 0.50;
 
 class ScanObjectScreen extends StatefulWidget {
-  const ScanObjectScreen({super.key});
+  final String? childId;
+  const ScanObjectScreen({super.key, this.childId});
 
   @override
   State<ScanObjectScreen> createState() => _ScanObjectScreenState();
@@ -199,7 +200,10 @@ class _ScanObjectScreenState extends State<ScanObjectScreen> {
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) => RecognitionResultScreen(predictionData: data),
+          builder: (_) => RecognitionResultScreen(
+            predictionData: data,
+            childId: widget.childId,
+          ),
         ),
       );
     } catch (e) {

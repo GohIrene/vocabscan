@@ -5,8 +5,13 @@ import 'theme/app_theme.dart';
 /// Displays classroom stats, leaderboard, and class progress on a projector.
 class TeacherProjectionScreen extends StatelessWidget {
   final String classCode;
+  final String? teacherId;
 
-  const TeacherProjectionScreen({super.key, required this.classCode});
+  const TeacherProjectionScreen({
+    super.key,
+    required this.classCode,
+    this.teacherId,
+  });
 
   // ── Mock data ──
   static const _leaderboard = [

@@ -4,7 +4,14 @@ import 'theme/app_theme.dart';
 /// Screen 7 – Parent Dashboard
 /// Shows mock learning stats: words practised, mastered, accuracy, review list.
 class ParentDashboardScreen extends StatelessWidget {
-  const ParentDashboardScreen({super.key});
+  final String? parentUsername;
+  final String? childId;
+
+  const ParentDashboardScreen({
+    super.key,
+    this.parentUsername,
+    this.childId,
+  });
 
   // ── Mock data ──
   static const _recentlyLearned = [
@@ -59,7 +66,9 @@ class ParentDashboardScreen extends StatelessWidget {
                         const Text('👨‍👩‍👧‍👦', style: TextStyle(fontSize: 48)),
                         const SizedBox(height: 6),
                         Text(
-                          'Parent Dashboard',
+                          childId != null
+                              ? "$childId's Progress"
+                              : 'Parent Dashboard',
                           style: AppTheme.heading.copyWith(
                             fontSize: 28,
                             fontWeight: FontWeight.w800,
@@ -67,7 +76,9 @@ class ParentDashboardScreen extends StatelessWidget {
                         ),
                         const SizedBox(height: AppTheme.xs),
                         Text(
-                          "Track your child's learning progress",
+                          parentUsername != null
+                              ? 'Logged in as $parentUsername'
+                              : "Track your child's learning progress",
                           style: AppTheme.body.copyWith(
                             fontSize: 15,
                             color: AppTheme.textLight,

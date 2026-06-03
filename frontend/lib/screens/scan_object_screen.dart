@@ -1,4 +1,4 @@
-// ignore_for_file: avoid_web_libraries_in_flutter
+// ignore_for_file: avoid_web_libraries_in_flutter, deprecated_member_use
 
 import 'dart:async';
 import 'dart:convert';
@@ -72,7 +72,7 @@ class _ScanObjectScreenState extends State<ScanObjectScreen> {
   }
 
   void _stopCamera() {
-    final stream = _video.srcObject as html.MediaStream?;
+    final stream = _video.srcObject;
     if (stream != null) {
       for (final track in stream.getTracks()) {
         track.stop();
@@ -662,7 +662,7 @@ class _PreviewDialog extends StatelessWidget {
                 imageBytes,
                 fit: BoxFit.contain,
                 height: 200,
-                errorBuilder: (_, __, ___) => const Icon(Icons.broken_image, size: 80),
+                errorBuilder: (_, _, _) => const Icon(Icons.broken_image, size: 80),
               ),
             ),
             const SizedBox(height: 20),

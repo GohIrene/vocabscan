@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'mode_selection_screen.dart';
+import 'welcome_screen.dart';
 import 'theme/app_theme.dart';
 
 void main() {
@@ -15,7 +15,7 @@ class VocabScanApp extends StatelessWidget {
       title: 'VocabScan',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.themeData,
-      home: const ModeSelectionScreen(),
+      home: const WelcomeScreen(),
     );
   }
 }

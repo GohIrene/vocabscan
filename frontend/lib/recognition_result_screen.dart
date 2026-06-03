@@ -6,8 +6,13 @@ import 'theme/app_theme.dart';
 /// Displays the object the AI recognised together with its trilingual vocabulary.
 class RecognitionResultScreen extends StatelessWidget {
   final Map<String, dynamic> predictionData;
+  final String? childId;
 
-  const RecognitionResultScreen({super.key, required this.predictionData});
+  const RecognitionResultScreen({
+    super.key,
+    required this.predictionData,
+    this.childId,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -87,8 +92,10 @@ class RecognitionResultScreen extends StatelessWidget {
                           onPressed: () => Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (_) =>
-                                  QuizPracticeScreen(vocab: predictionData),
+                              builder: (_) => QuizPracticeScreen(
+                                  vocab: predictionData,
+                                  childId: childId,
+                                ),
                             ),
                           ),
                           icon: const Text('🎯', style: TextStyle(fontSize: 18)),

@@ -7,8 +7,9 @@ import 'theme/app_theme.dart';
 /// Presents a multiple-choice question for the scanned vocabulary word.
 class QuizPracticeScreen extends StatefulWidget {
   final Map<String, dynamic> vocab;
+  final String? childId;
 
-  const QuizPracticeScreen({super.key, required this.vocab});
+  const QuizPracticeScreen({super.key, required this.vocab, this.childId});
 
   @override
   State<QuizPracticeScreen> createState() => _QuizPracticeScreenState();
