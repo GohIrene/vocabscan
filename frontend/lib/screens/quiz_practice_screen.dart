@@ -1,7 +1,7 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'quiz_feedback_screen.dart';
-import 'theme/app_theme.dart';
+import '../theme/app_theme.dart';
 
 /// Screen 4 – Quiz Practice
 /// Presents a multiple-choice question for the scanned vocabulary word.

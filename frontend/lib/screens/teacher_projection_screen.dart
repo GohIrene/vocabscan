@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'theme/app_theme.dart';
+import '../theme/app_theme.dart';
 
 /// Screen 8 – Teacher Projection Mode
 /// Displays classroom stats, leaderboard, and class progress on a projector.

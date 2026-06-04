@@ -1,10 +1,10 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
-import 'auth_service.dart';
+import '../auth_service.dart';
 import 'scan_object_screen.dart';
 import 'teacher_projection_screen.dart';
 import 'welcome_screen.dart';
-import 'theme/app_theme.dart';
+import '../theme/app_theme.dart';
 
 class TeacherHomeScreen extends StatelessWidget {
   const TeacherHomeScreen({super.key});

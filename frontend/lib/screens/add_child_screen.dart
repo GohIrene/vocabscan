@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'auth_service.dart';
-import 'theme/app_theme.dart';
+import '../auth_service.dart';
+import '../theme/app_theme.dart';
 
 class AddChildScreen extends StatefulWidget {
   const AddChildScreen({super.key});

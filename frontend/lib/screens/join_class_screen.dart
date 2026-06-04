@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'scan_object_screen.dart';
-import 'theme/app_theme.dart';
+import '../theme/app_theme.dart';
 
 /// Screen 9 – Join Class
 /// Lets a student enter a 6-character class code to join a teacher session.

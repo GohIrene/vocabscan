@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'welcome_screen.dart';
-import 'theme/app_theme.dart';
+import '../theme/app_theme.dart';
 
 /// Screen 6 – Quiz Summary
 /// Shows overall score and per-question results after completing the quiz.

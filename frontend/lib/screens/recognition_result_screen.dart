@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'quiz_practice_screen.dart';
-import 'theme/app_theme.dart';
+import '../theme/app_theme.dart';
 
 /// Screen 3 – Recognition Result
 /// Displays the object the AI recognised together with its trilingual vocabulary.

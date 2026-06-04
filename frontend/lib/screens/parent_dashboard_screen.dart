@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'theme/app_theme.dart';
+import '../theme/app_theme.dart';
 
 /// Screen 7 – Parent Dashboard
 /// Shows mock learning stats: words practised, mastered, accuracy, review list.

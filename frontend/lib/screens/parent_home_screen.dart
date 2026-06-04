@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'auth_service.dart';
+import '../auth_service.dart';
 import 'add_child_screen.dart';
 import 'scan_object_screen.dart';
 import 'parent_dashboard_screen.dart';
 import 'welcome_screen.dart';
-import 'theme/app_theme.dart';
+import '../theme/app_theme.dart';
 
 class ParentHomeScreen extends StatefulWidget {
   const ParentHomeScreen({super.key});

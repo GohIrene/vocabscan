@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'quiz_summary_screen.dart';
-import 'theme/app_theme.dart';
+import '../theme/app_theme.dart';
 
 /// Screen 5 – Quiz Feedback
 /// Shows whether the answer was correct and the right answer if wrong.

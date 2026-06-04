@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'auth_service.dart';
+import '../auth_service.dart';
 import 'login_screen.dart';
 import 'parent_home_screen.dart';
 import 'teacher_home_screen.dart';
-import 'theme/app_theme.dart';
+import '../theme/app_theme.dart';
 
 class RegisterScreen extends StatefulWidget {
   final String role; // 'parent' or 'teacher'

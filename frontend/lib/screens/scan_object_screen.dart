@@ -10,14 +10,15 @@ import 'dart:ui_web' as ui_web;
 import 'package:flutter/material.dart';
 
 import '../api_service.dart';
-import '../recognition_result_screen.dart';
+import 'recognition_result_screen.dart';
 import '../theme/app_theme.dart';
 
 const double _focusW = 0.70;
 const double _focusH = 0.50;
 
 class ScanObjectScreen extends StatefulWidget {
-  const ScanObjectScreen({super.key});
+  final String? childId;
+  const ScanObjectScreen({super.key, this.childId});
 
   @override
   State<ScanObjectScreen> createState() => _ScanObjectScreenState();
@@ -50,7 +51,7 @@ class _ScanObjectScreenState extends State<ScanObjectScreen> {
   @override
   void initState() {
     super.initState();
-    // Unique view type per screen instance so re-navigation works cleanly.
+    // Unique view type per instance so re-navigating to this screen works cleanly.
     _viewType = 'vocabscan-webcam-${DateTime.now().millisecondsSinceEpoch}';
     _video = html.VideoElement()
       ..autoplay = true
@@ -108,8 +109,7 @@ class _ScanObjectScreenState extends State<ScanObjectScreen> {
     }
   }
 
-  // Draws the current video frame to a canvas and crops to the focus box,
-  // returning JPEG bytes.
+  // Draws the current video frame to a canvas and crops to the focus-box region.
   Future<Uint8List?> _captureFrame() async {
     final vw = _video.videoWidth;
     final vh = _video.videoHeight;
@@ -139,7 +139,8 @@ class _ScanObjectScreenState extends State<ScanObjectScreen> {
     if (bytes == null) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Camera not ready — please wait a moment.')),
+        const SnackBar(
+            content: Text('Camera not ready — please wait a moment.')),
       );
       return;
     }
@@ -164,7 +165,7 @@ class _ScanObjectScreenState extends State<ScanObjectScreen> {
     await _previewAndNavigate(bytes);
   }
 
-  // Center-crops an image (from a data URL) to a 224×224 square.
+  // Center-crops the image at `dataUrl` to a 224×224 square.
   Future<Uint8List> _cropCenterFromDataUrl(String dataUrl) async {
     final img = html.ImageElement(src: dataUrl);
     await img.onLoad.first;
@@ -182,6 +183,7 @@ class _ScanObjectScreenState extends State<ScanObjectScreen> {
     return _canvasToBytes(canvas);
   }
 
+  // Shows a preview dialog; navigates to results if user confirms.
   Future<void> _previewAndNavigate(Uint8List bytes) async {
     if (!mounted) return;
     final confirmed = await showDialog<bool>(
@@ -198,13 +200,17 @@ class _ScanObjectScreenState extends State<ScanObjectScreen> {
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) => RecognitionResultScreen(predictionData: data),
+          builder: (_) => RecognitionResultScreen(
+            predictionData: data,
+            childId: widget.childId,
+          ),
         ),
       );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e'), backgroundColor: AppTheme.error),
+        SnackBar(
+            content: Text('Error: $e'), backgroundColor: AppTheme.error),
       );
     } finally {
       if (mounted) setState(() => _isScanning = false);
@@ -262,15 +268,12 @@ class _ScanObjectScreenState extends State<ScanObjectScreen> {
                         ),
                         const SizedBox(height: 20),
 
-                        // Camera preview
                         _buildCameraArea(),
                         const SizedBox(height: 18),
 
-                        // Action buttons
                         _buildActionButtons(),
                         const SizedBox(height: 28),
 
-                        // What can I scan?
                         _buildObjectList(),
                         const SizedBox(height: AppTheme.xxl),
                       ],
@@ -337,7 +340,8 @@ class _ScanObjectScreenState extends State<ScanObjectScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.error_outline, color: Colors.redAccent, size: 36),
+              const Icon(Icons.error_outline,
+                  color: Colors.redAccent, size: 36),
               const SizedBox(height: 8),
               const Text(
                 'Camera access denied',
@@ -351,14 +355,17 @@ class _ScanObjectScreenState extends State<ScanObjectScreen> {
               Text(
                 'Allow camera access in your browser settings and try again.',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.white.withValues(alpha: 0.65), fontSize: 13),
+                style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.65), fontSize: 13),
               ),
               if (_camError.isNotEmpty) ...[
                 const SizedBox(height: 6),
                 Text(
                   _camError,
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 11),
+                  style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.4),
+                      fontSize: 11),
                 ),
               ],
             ],
@@ -366,21 +373,24 @@ class _ScanObjectScreenState extends State<ScanObjectScreen> {
         ),
       );
     }
-    // Idle state
+    // Idle
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.camera_alt, size: 52, color: Colors.white.withValues(alpha: 0.35)),
+          Icon(Icons.camera_alt,
+              size: 52, color: Colors.white.withValues(alpha: 0.35)),
           const SizedBox(height: 10),
           Text(
             'Camera preview',
-            style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 14),
+            style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.5), fontSize: 14),
           ),
           const SizedBox(height: 4),
           Text(
             'Tap "Start Camera" below',
-            style: TextStyle(color: Colors.white.withValues(alpha: 0.3), fontSize: 12),
+            style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.3), fontSize: 12),
           ),
         ],
       ),
@@ -390,15 +400,17 @@ class _ScanObjectScreenState extends State<ScanObjectScreen> {
   Widget _buildActionButtons() {
     return Column(
       children: [
-        // Start Camera / Scan Object (toggles based on camera state)
+        // Toggles between "Start Camera" and "Scan Object"
         if (_camState != _CamState.running)
           FilledButton.icon(
-            onPressed: _camState == _CamState.starting ? null : _startCamera,
+            onPressed:
+                _camState == _CamState.starting ? null : _startCamera,
             icon: _camState == _CamState.starting
                 ? const SizedBox(
                     width: 18,
                     height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: Colors.white),
                   )
                 : const Icon(Icons.camera_alt, size: 18),
             label: Text(
@@ -409,10 +421,10 @@ class _ScanObjectScreenState extends State<ScanObjectScreen> {
               foregroundColor: AppTheme.textDark,
               minimumSize: const Size(200, 52),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
+                  borderRadius: BorderRadius.circular(16)),
               textStyle: AppTheme.buttonText,
-              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
             ),
           )
         else
@@ -422,7 +434,8 @@ class _ScanObjectScreenState extends State<ScanObjectScreen> {
                 ? const SizedBox(
                     width: 18,
                     height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: Colors.white),
                   )
                 : const Icon(Icons.center_focus_strong, size: 20),
             label: const Text('Scan Object'),
@@ -431,7 +444,6 @@ class _ScanObjectScreenState extends State<ScanObjectScreen> {
 
         const SizedBox(height: AppTheme.md),
 
-        // Upload Photo fallback
         OutlinedButton.icon(
           onPressed: _isScanning ? null : _uploadPhoto,
           icon: const Icon(Icons.upload_file, size: 18),
@@ -453,16 +465,20 @@ class _ScanObjectScreenState extends State<ScanObjectScreen> {
             onTap: () => setState(() => _showObjectList = !_showObjectList),
             child: Row(
               children: [
-                Icon(Icons.info_outline, size: 20, color: AppTheme.textLight),
+                Icon(Icons.info_outline,
+                    size: 20, color: AppTheme.textLight),
                 const SizedBox(width: AppTheme.sm),
                 Expanded(
                   child: Text(
                     'What can I scan?',
-                    style: AppTheme.body.copyWith(fontWeight: FontWeight.w700),
+                    style:
+                        AppTheme.body.copyWith(fontWeight: FontWeight.w700),
                   ),
                 ),
                 Icon(
-                  _showObjectList ? Icons.arrow_drop_up : Icons.arrow_drop_down,
+                  _showObjectList
+                      ? Icons.arrow_drop_up
+                      : Icons.arrow_drop_down,
                   color: AppTheme.textDark,
                 ),
               ],
@@ -473,9 +489,7 @@ class _ScanObjectScreenState extends State<ScanObjectScreen> {
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(
-                vertical: 10,
-                horizontal: AppTheme.md,
-              ),
+                  vertical: 10, horizontal: AppTheme.md),
               decoration: BoxDecoration(
                 color: AppTheme.warningLight,
                 borderRadius: BorderRadius.circular(14),
@@ -495,16 +509,15 @@ class _ScanObjectScreenState extends State<ScanObjectScreen> {
               spacing: 10,
               runSpacing: 10,
               children: _objects
-                  .map((o) => _ObjectChip(emoji: o['emoji']!, label: o['label']!))
+                  .map((o) =>
+                      _ObjectChip(emoji: o['emoji']!, label: o['label']!))
                   .toList(),
             ),
             const SizedBox(height: 14),
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(
-                vertical: 10,
-                horizontal: AppTheme.md,
-              ),
+                  vertical: 10, horizontal: AppTheme.md),
               decoration: BoxDecoration(
                 color: AppTheme.primaryLight,
                 borderRadius: BorderRadius.circular(14),
@@ -533,12 +546,14 @@ class _FocusBoxPainter extends CustomPainter {
     final top = (size.height - boxH) / 2;
     final rect = Rect.fromLTWH(left, top, boxW, boxH);
 
-    // Dim everything outside the focus box
+    // Dim area outside the focus box
     canvas.drawPath(
       Path.combine(
         PathOperation.difference,
         Path()..addRect(Rect.fromLTWH(0, 0, size.width, size.height)),
-        Path()..addRRect(RRect.fromRectAndRadius(rect, const Radius.circular(8))),
+        Path()
+          ..addRRect(
+              RRect.fromRectAndRadius(rect, const Radius.circular(8))),
       ),
       Paint()..color = Colors.black.withValues(alpha: 0.45),
     );
@@ -563,20 +578,20 @@ class _FocusBoxPainter extends CustomPainter {
       ..strokeCap = StrokeCap.round;
     const cl = 22.0;
 
-    // Top-left
     canvas.drawLine(Offset(left, top + cl), Offset(left, top), corner);
     canvas.drawLine(Offset(left, top), Offset(left + cl, top), corner);
-    // Top-right
-    canvas.drawLine(Offset(left + boxW - cl, top), Offset(left + boxW, top), corner);
-    canvas.drawLine(Offset(left + boxW, top), Offset(left + boxW, top + cl), corner);
-    // Bottom-left
-    canvas.drawLine(Offset(left, top + boxH - cl), Offset(left, top + boxH), corner);
-    canvas.drawLine(Offset(left, top + boxH), Offset(left + cl, top + boxH), corner);
-    // Bottom-right
     canvas.drawLine(
-        Offset(left + boxW - cl, top + boxH), Offset(left + boxW, top + boxH), corner);
+        Offset(left + boxW - cl, top), Offset(left + boxW, top), corner);
     canvas.drawLine(
-        Offset(left + boxW, top + boxH), Offset(left + boxW, top + boxH - cl), corner);
+        Offset(left + boxW, top), Offset(left + boxW, top + cl), corner);
+    canvas.drawLine(
+        Offset(left, top + boxH - cl), Offset(left, top + boxH), corner);
+    canvas.drawLine(
+        Offset(left, top + boxH), Offset(left + cl, top + boxH), corner);
+    canvas.drawLine(Offset(left + boxW - cl, top + boxH),
+        Offset(left + boxW, top + boxH), corner);
+    canvas.drawLine(Offset(left + boxW, top + boxH),
+        Offset(left + boxW, top + boxH - cl), corner);
 
     // Hint label below the box
     final tp = TextPainter(
@@ -591,10 +606,7 @@ class _FocusBoxPainter extends CustomPainter {
       ),
       textDirection: TextDirection.ltr,
     )..layout();
-    tp.paint(
-      canvas,
-      Offset(left + (boxW - tp.width) / 2, top + boxH + 7),
-    );
+    tp.paint(canvas, Offset(left + (boxW - tp.width) / 2, top + boxH + 7));
   }
 
   void _drawDashedRect(
@@ -653,7 +665,8 @@ class _PreviewDialog extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               'Does this look good?',
-              style: AppTheme.body.copyWith(color: AppTheme.textLight, fontSize: 14),
+              style: AppTheme.body
+                  .copyWith(color: AppTheme.textLight, fontSize: 14),
             ),
             const SizedBox(height: 14),
             ClipRRect(
@@ -662,7 +675,8 @@ class _PreviewDialog extends StatelessWidget {
                 imageBytes,
                 fit: BoxFit.contain,
                 height: 200,
-                errorBuilder: (_, _, _) => const Icon(Icons.broken_image, size: 80),
+                errorBuilder: (_, _, _) =>
+                    const Icon(Icons.broken_image, size: 80),
               ),
             ),
             const SizedBox(height: 20),
@@ -675,10 +689,10 @@ class _PreviewDialog extends StatelessWidget {
                   label: const Text('Retake'),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppTheme.textLight,
-                    side: BorderSide(color: AppTheme.textLight.withValues(alpha: 0.5)),
+                    side: BorderSide(
+                        color: AppTheme.textLight.withValues(alpha: 0.5)),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+                        borderRadius: BorderRadius.circular(12)),
                   ),
                 ),
                 FilledButton.icon(
