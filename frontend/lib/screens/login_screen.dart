@@ -33,21 +33,22 @@ class _LoginScreenState extends State<LoginScreen> {
       _error = null;
       _loading = true;
     });
-    final err = AuthService.instance.login(
+    final result = await AuthService.instance.login(
       _usernameCtrl.text,
       _pinCtrl.text,
     );
     if (!mounted) return;
     setState(() => _loading = false);
-    if (err != null) {
-      setState(() => _error = err);
+    if (result['status'] == 'error') {
+      setState(() => _error = result['message'] as String? ?? 'Login failed');
       return;
     }
+    final role = result['role'] as String? ?? widget.role;
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
         builder: (_) =>
-            _isParent ? const ParentHomeScreen() : const TeacherHomeScreen(),
+            role == 'parent' ? const ParentHomeScreen() : const TeacherHomeScreen(),
       ),
     );
   }

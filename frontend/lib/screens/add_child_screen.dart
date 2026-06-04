@@ -13,6 +13,7 @@ class _AddChildScreenState extends State<AddChildScreen> {
   final _nicknameCtrl = TextEditingController();
   int _age = 5;
   String? _error;
+  bool _loading = false;
 
   @override
   void dispose() {
@@ -20,13 +21,31 @@ class _AddChildScreenState extends State<AddChildScreen> {
     super.dispose();
   }
 
-  void _addChild() {
+  Future<void> _addChild() async {
     final nickname = _nicknameCtrl.text.trim();
     if (nickname.isEmpty) {
       setState(() => _error = 'Please enter a nickname');
       return;
     }
-    AuthService.instance.addChild(nickname, _age);
+    final user = AuthService.instance.currentUser;
+    if (user == null) return;
+    setState(() {
+      _error = null;
+      _loading = true;
+    });
+    final result = await AuthService.instance.addChild(
+      user['user_id'] as String,
+      nickname,
+      _age,
+    );
+    if (!mounted) return;
+    if (result['status'] == 'error') {
+      setState(() {
+        _error = result['message'] as String? ?? 'Failed to add child';
+        _loading = false;
+      });
+      return;
+    }
     Navigator.pop(context);
   }
 
@@ -175,9 +194,18 @@ class _AddChildScreenState extends State<AddChildScreen> {
 
                         const SizedBox(height: AppTheme.xl),
                         FilledButton(
-                          onPressed: _addChild,
+                          onPressed: _loading ? null : _addChild,
                           style: AppTheme.primaryButton,
-                          child: const Text('Add Child'),
+                          child: _loading
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Text('Add Child'),
                         ),
                         const SizedBox(height: AppTheme.xxl),
                       ],

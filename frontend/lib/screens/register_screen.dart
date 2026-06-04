@@ -39,22 +39,24 @@ class _RegisterScreenState extends State<RegisterScreen> {
       _error = null;
       _loading = true;
     });
-    final err = AuthService.instance.register(
+    final result = await AuthService.instance.register(
       _usernameCtrl.text,
       _pinCtrl.text,
       widget.role,
     );
     if (!mounted) return;
     setState(() => _loading = false);
-    if (err != null) {
-      setState(() => _error = err);
+    if (result['status'] == 'error') {
+      setState(() =>
+          _error = result['message'] as String? ?? 'Registration failed');
       return;
     }
+    final role = result['role'] as String? ?? widget.role;
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
         builder: (_) =>
-            _isParent ? const ParentHomeScreen() : const TeacherHomeScreen(),
+            role == 'parent' ? const ParentHomeScreen() : const TeacherHomeScreen(),
       ),
     );
   }

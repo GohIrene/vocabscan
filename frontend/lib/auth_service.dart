@@ -1,56 +1,78 @@
-class Child {
-  final String nickname;
-  final int age;
-  Child({required this.nickname, required this.age});
-}
-
-class AppUser {
-  final String username;
-  final String pin;
-  final String role; // 'parent' or 'teacher'
-  final List<Child> children;
-
-  AppUser({
-    required this.username,
-    required this.pin,
-    required this.role,
-  }) : children = [];
-}
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'config.dart';
 
 class AuthService {
   static final AuthService _instance = AuthService._();
   AuthService._();
   static AuthService get instance => _instance;
 
-  final Map<String, AppUser> _users = {};
-  AppUser? _currentUser;
+  Map<String, dynamic>? _currentUser;
 
-  AppUser? get currentUser => _currentUser;
+  Map<String, dynamic>? get currentUser => _currentUser;
+  bool get isLoggedIn => _currentUser != null;
 
-  /// Returns null on success, an error message on failure.
-  String? register(String username, String pin, String role) {
-    final u = username.trim();
-    if (u.isEmpty) return 'Username cannot be empty';
-    if (pin.length < 4) return 'PIN must be at least 4 digits';
-    if (_users.containsKey(u)) return 'Username already taken';
-    final user = AppUser(username: u, pin: pin, role: role);
-    _users[u] = user;
-    _currentUser = user;
-    return null;
+  Future<Map<String, dynamic>> register(
+      String username, String pin, String role) async {
+    try {
+      final response = await http.post(
+        Uri.parse('${AppConfig.baseUrl}/auth/register'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'username': username, 'pin': pin, 'role': role}),
+      );
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      if (data['status'] == 'ok') _currentUser = data;
+      return data;
+    } catch (e) {
+      return {'status': 'error', 'message': 'Network error: $e'};
+    }
   }
 
-  /// Returns null on success, an error message on failure.
-  String? login(String username, String pin) {
-    final user = _users[username.trim()];
-    if (user == null) return 'Username not found';
-    if (user.pin != pin) return 'Incorrect PIN';
-    _currentUser = user;
-    return null;
+  Future<Map<String, dynamic>> login(String username, String pin) async {
+    try {
+      final response = await http.post(
+        Uri.parse('${AppConfig.baseUrl}/auth/login'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'username': username, 'pin': pin}),
+      );
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      if (data['status'] == 'ok') _currentUser = data;
+      return data;
+    } catch (e) {
+      return {'status': 'error', 'message': 'Network error: $e'};
+    }
   }
 
   void logout() => _currentUser = null;
 
-  void addChild(String nickname, int age) {
-    _currentUser?.children.add(Child(nickname: nickname, age: age));
+  Future<Map<String, dynamic>> addChild(
+      String parentId, String nickname, int age) async {
+    try {
+      final response = await http.post(
+        Uri.parse('${AppConfig.baseUrl}/children'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(
+            {'parent_id': parentId, 'nickname': nickname, 'age': age}),
+      );
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    } catch (e) {
+      return {'status': 'error', 'message': 'Network error: $e'};
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getChildren(String parentId) async {
+    try {
+      final response = await http.get(
+        Uri.parse('${AppConfig.baseUrl}/children/$parentId'),
+      );
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      final list = data['children'];
+      if (list is List) {
+        return list.cast<Map<String, dynamic>>();
+      }
+      return [];
+    } catch (e) {
+      return [];
+    }
   }
 }

@@ -27,6 +27,28 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
     '😊', '😄', '🌟', '🦋', '🐣', '🌈',
   ];
 
+  List<Map<String, dynamic>> _children = [];
+  bool _loadingChildren = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadChildren();
+  }
+
+  Future<void> _loadChildren() async {
+    final user = AuthService.instance.currentUser;
+    if (user == null) return;
+    setState(() => _loadingChildren = true);
+    final kids =
+        await AuthService.instance.getChildren(user['user_id'] as String);
+    if (!mounted) return;
+    setState(() {
+      _children = kids;
+      _loadingChildren = false;
+    });
+  }
+
   void _goToScan(String childNickname) {
     Navigator.push(
       context,
@@ -40,7 +62,7 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const AddChildScreen()),
-    ).then((_) => setState(() {}));
+    ).then((_) => _loadChildren());
   }
 
   void _logout() {
@@ -55,7 +77,6 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
   @override
   Widget build(BuildContext context) {
     final user = AuthService.instance.currentUser!;
-    final children = user.children;
 
     return Scaffold(
       backgroundColor: AppTheme.background,
@@ -72,7 +93,7 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
                 children: [
                   Expanded(
                     child: Text(
-                      'Hi, ${user.username}!',
+                      'Hi, ${user['username']}!',
                       style: AppTheme.body.copyWith(
                         fontWeight: FontWeight.w700,
                         color: AppTheme.textDark,
@@ -120,28 +141,34 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
                         const SizedBox(height: AppTheme.lg),
 
                         // Children grid
-                        Wrap(
-                          spacing: 14,
-                          runSpacing: 14,
-                          children: [
-                            ...children.asMap().entries.map((e) {
-                              final i = e.key;
-                              final child = e.value;
-                              final color =
-                                  _childColors[i % _childColors.length];
-                              final emoji =
-                                  _childEmojis[i % _childEmojis.length];
-                              return _ChildCard(
-                                emoji: emoji,
-                                nickname: child.nickname,
-                                age: child.age,
-                                color: color,
-                                onTap: () => _goToScan(child.nickname),
-                              );
-                            }),
-                            _AddChildCard(onTap: _addChild),
-                          ],
-                        ),
+                        if (_loadingChildren)
+                          const Center(child: CircularProgressIndicator())
+                        else
+                          Wrap(
+                            spacing: 14,
+                            runSpacing: 14,
+                            children: [
+                              ..._children.asMap().entries.map((e) {
+                                final i = e.key;
+                                final child = e.value;
+                                final color =
+                                    _childColors[i % _childColors.length];
+                                final emoji =
+                                    _childEmojis[i % _childEmojis.length];
+                                final nickname =
+                                    child['nickname'] as String? ?? '';
+                                final age = child['age'] as int? ?? 0;
+                                return _ChildCard(
+                                  emoji: emoji,
+                                  nickname: nickname,
+                                  age: age,
+                                  color: color,
+                                  onTap: () => _goToScan(nickname),
+                                );
+                              }),
+                              _AddChildCard(onTap: _addChild),
+                            ],
+                          ),
                         const SizedBox(height: AppTheme.xxl),
 
                         // Parent Dashboard button
@@ -153,7 +180,8 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
                                 context,
                                 MaterialPageRoute(
                                   builder: (_) => ParentDashboardScreen(
-                                    parentUsername: user.username,
+                                    parentUsername:
+                                        user['username'] as String? ?? '',
                                   ),
                                 ),
                               );
