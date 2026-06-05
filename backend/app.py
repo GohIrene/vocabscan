@@ -61,30 +61,42 @@ def health_check():
     return jsonify({"status": "ok", "service": "VocabScan Flask API"})
 
 
+def _audio_urls(english_key):
+    return {
+        "en": f"/static/audio/{english_key}_en.mp3",
+        "ms": f"/static/audio/{english_key}_ms.mp3",
+        "zh": f"/static/audio/{english_key}_zh.mp3",
+    }
+
+
 @app.get("/vocabulary/<english_key>")
 def get_vocabulary(english_key):
     if db is not None:
         try:
             doc = db.vocab.find_one({"english_key": english_key})
             if doc:
-                return jsonify(_clean(doc))
+                cleaned = _clean(doc)
+                cleaned["audio"] = _audio_urls(english_key)
+                return jsonify(cleaned)
         except PyMongoError as e:
             print(f"MongoDB query failed, falling back to in-memory: {e}")
 
     item = VOCABULARY.get(english_key)
     if item is None:
         return jsonify({"error": "Vocabulary item not found", "english_key": english_key}), 404
-    return jsonify({"english_key": english_key, **item})
+    return jsonify({"english_key": english_key, **item, "audio": _audio_urls(english_key)})
 
 
 @app.post("/predict-mock")
 def predict_mock():
+    english_key = "book"
     return jsonify({
-        "english_key": "book",
+        "english_key": english_key,
         "confidence": 0.95,
         "english_word": "Book",
         "malay_word": "Buku",
         "chinese_word": "书",
+        "audio": _audio_urls(english_key),
     })
 
 
