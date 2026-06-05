@@ -1,10 +1,16 @@
+// ignore_for_file: avoid_web_libraries_in_flutter, deprecated_member_use
+import 'dart:html' as html;
+
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
+
 import 'quiz_practice_screen.dart';
+import '../config.dart';
 import '../theme/app_theme.dart';
 
 /// Screen 3 – Recognition Result
 /// Displays the object the AI recognised together with its trilingual vocabulary.
-class RecognitionResultScreen extends StatelessWidget {
+class RecognitionResultScreen extends StatefulWidget {
   final Map<String, dynamic> predictionData;
   final String? childId;
 
@@ -15,11 +21,69 @@ class RecognitionResultScreen extends StatelessWidget {
   });
 
   @override
+  State<RecognitionResultScreen> createState() =>
+      _RecognitionResultScreenState();
+}
+
+class _RecognitionResultScreenState extends State<RecognitionResultScreen> {
+  final AudioPlayer _player = AudioPlayer();
+  String? _playingLang;
+
+  @override
+  void initState() {
+    super.initState();
+    _player.onPlayerComplete.listen((_) {
+      if (mounted) setState(() => _playingLang = null);
+    });
+  }
+
+  @override
+  void dispose() {
+    _player.dispose();
+    super.dispose();
+  }
+
+  Future<void> _playAudio(String langCode, String wordText) async {
+    // Tap again while playing → stop
+    if (_playingLang == langCode) {
+      await _player.stop();
+      setState(() => _playingLang = null);
+      return;
+    }
+
+    await _player.stop();
+    setState(() => _playingLang = langCode);
+
+    final audioMap = widget.predictionData['audio'] as Map<String, dynamic>?;
+    final path = audioMap?[langCode] as String?;
+
+    try {
+      if (path == null) throw Exception('no audio path');
+      await _player.play(UrlSource('${AppConfig.baseUrl}$path'));
+    } catch (_) {
+      _speakFallback(wordText, _speechLang(langCode));
+    }
+  }
+
+  static String _speechLang(String code) => switch (code) {
+        'ms' => 'ms-MY',
+        'zh' => 'zh-CN',
+        _ => 'en-US',
+      };
+
+  void _speakFallback(String text, String lang) {
+    try {
+      final utterance = html.SpeechSynthesisUtterance(text)..lang = lang;
+      html.window.speechSynthesis?.speak(utterance);
+    } catch (_) {}
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final english = predictionData['english_word'] ?? '';
-    final malay = predictionData['malay_word'] ?? '';
-    final chinese = predictionData['chinese_word'] ?? '';
-    final confidence = predictionData['confidence'] ?? 0.0;
+    final english = widget.predictionData['english_word'] ?? '';
+    final malay = widget.predictionData['malay_word'] ?? '';
+    final chinese = widget.predictionData['chinese_word'] ?? '';
+    final confidence = widget.predictionData['confidence'] ?? 0.0;
     final pct = ((confidence as num) * 100).toStringAsFixed(0);
 
     return Scaffold(
@@ -63,24 +127,31 @@ class RecognitionResultScreen extends StatelessWidget {
                           decoration: AppTheme.cardDecoration,
                           child: Column(
                             children: [
-                              const Text('📦', style: TextStyle(fontSize: 56)),
+                              const Text('📦',
+                                  style: TextStyle(fontSize: 56)),
                               const SizedBox(height: AppTheme.lg),
                               _VocabRow(
                                 flag: '🇬🇧',
                                 label: 'English',
                                 value: english,
+                                isPlaying: _playingLang == 'en',
+                                onPlay: () => _playAudio('en', english),
                               ),
                               const SizedBox(height: AppTheme.md),
                               _VocabRow(
                                 flag: '🇲🇾',
                                 label: 'Malay',
                                 value: malay,
+                                isPlaying: _playingLang == 'ms',
+                                onPlay: () => _playAudio('ms', malay),
                               ),
                               const SizedBox(height: AppTheme.md),
                               _VocabRow(
                                 flag: '🇨🇳',
                                 label: 'Chinese',
                                 value: chinese,
+                                isPlaying: _playingLang == 'zh',
+                                onPlay: () => _playAudio('zh', chinese),
                               ),
                             ],
                           ),
@@ -93,12 +164,13 @@ class RecognitionResultScreen extends StatelessWidget {
                             context,
                             MaterialPageRoute(
                               builder: (_) => QuizPracticeScreen(
-                                  vocab: predictionData,
-                                  childId: childId,
-                                ),
+                                vocab: widget.predictionData,
+                                childId: widget.childId,
+                              ),
                             ),
                           ),
-                          icon: const Text('🎯', style: TextStyle(fontSize: 18)),
+                          icon: const Text('🎯',
+                              style: TextStyle(fontSize: 18)),
                           label: const Text('Practice Quiz'),
                           style: FilledButton.styleFrom(
                             backgroundColor: AppTheme.success,
@@ -155,43 +227,74 @@ class RecognitionResultScreen extends StatelessWidget {
   }
 }
 
-/// One row inside the vocabulary card.
+/// One row inside the vocabulary card with a speaker button.
 class _VocabRow extends StatelessWidget {
   final String flag;
   final String label;
   final String value;
+  final bool isPlaying;
+  final VoidCallback onPlay;
 
   const _VocabRow({
     required this.flag,
     required this.label,
     required this.value,
+    required this.isPlaying,
+    required this.onPlay,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: AppTheme.lg, vertical: 14),
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppTheme.lg, vertical: 14),
       decoration: BoxDecoration(
-        color: AppTheme.primaryLight,
+        color: isPlaying
+            ? AppTheme.primary.withValues(alpha: 0.12)
+            : AppTheme.primaryLight,
         borderRadius: BorderRadius.circular(14),
+        border: isPlaying
+            ? Border.all(color: AppTheme.primary.withValues(alpha: 0.4))
+            : null,
       ),
       child: Row(
         children: [
           Text(flag, style: const TextStyle(fontSize: 22)),
           const SizedBox(width: AppTheme.md),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(label, style: AppTheme.caption.copyWith(fontSize: 12)),
-              const SizedBox(height: 2),
-              Text(
-                value,
-                style: AppTheme.subheading.copyWith(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label,
+                    style: AppTheme.caption.copyWith(fontSize: 12)),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  style: AppTheme.subheading.copyWith(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
+              ],
+            ),
+          ),
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            decoration: BoxDecoration(
+              color: isPlaying
+                  ? AppTheme.primary.withValues(alpha: 0.15)
+                  : Colors.transparent,
+              shape: BoxShape.circle,
+            ),
+            child: IconButton(
+              onPressed: onPlay,
+              tooltip: isPlaying ? 'Stop' : 'Play audio',
+              icon: Icon(
+                isPlaying ? Icons.volume_up : Icons.volume_up_outlined,
+                color:
+                    isPlaying ? AppTheme.primary : AppTheme.textLight,
               ),
-            ],
+            ),
           ),
         ],
       ),

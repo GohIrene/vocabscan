@@ -195,7 +195,7 @@ class _ScanObjectScreenState extends State<ScanObjectScreen> {
 
     setState(() => _isScanning = true);
     try {
-      final data = await ApiService.predictMock();
+      final data = await ApiService.predictObject(bytes);
       if (!mounted) return;
       Navigator.push(
         context,
@@ -209,8 +209,10 @@ class _ScanObjectScreenState extends State<ScanObjectScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-            content: Text('Error: $e'), backgroundColor: AppTheme.error),
+        const SnackBar(
+          content: Text('Something went wrong, please try again'),
+          backgroundColor: AppTheme.error,
+        ),
       );
     } finally {
       if (mounted) setState(() => _isScanning = false);
@@ -223,7 +225,9 @@ class _ScanObjectScreenState extends State<ScanObjectScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.background,
-      body: SafeArea(
+      body: Stack(
+        children: [
+          SafeArea(
         child: Column(
           children: [
             // Back button
@@ -284,6 +288,29 @@ class _ScanObjectScreenState extends State<ScanObjectScreen> {
             ),
           ],
         ),
+      ),
+          if (_isScanning)
+            Container(
+              color: Colors.black54,
+              child: const Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircularProgressIndicator(color: Colors.white),
+                    SizedBox(height: 16),
+                    Text(
+                      'Recognising...',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
