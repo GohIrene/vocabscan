@@ -84,7 +84,7 @@ class TeacherHomeScreen extends StatelessWidget {
                 children: [
                   Expanded(
                     child: Text(
-                      'Hi, ${user.username}!',
+                      'Hi, ${user['username']}!',
                       style: AppTheme.body.copyWith(
                         fontWeight: FontWeight.w700,
                         color: AppTheme.textDark,
@@ -156,7 +156,7 @@ class TeacherHomeScreen extends StatelessWidget {
                             MaterialPageRoute(
                               builder: (_) => TeacherProjectionScreen(
                                 classCode: 'My Class',
-                                teacherId: user.username,
+                                teacherId: user['username'] as String,
                               ),
                             ),
                           ),
