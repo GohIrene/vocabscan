@@ -206,6 +206,19 @@ class _ScanObjectScreenState extends State<ScanObjectScreen> {
           ),
         ),
       );
+      // Fire and forget — don't block navigation
+      final cid = widget.childId;
+      final englishKey = data['english_key'] as String? ?? '';
+      // ignore: avoid_print
+      print('LOG SCAN: childId=$cid, key=$englishKey');
+      if (cid != null) {
+        ApiService.logScan(
+          cid,
+          englishKey,
+          (data['confidence'] as num? ?? 0).toDouble(),
+          'home',
+        );
+      }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

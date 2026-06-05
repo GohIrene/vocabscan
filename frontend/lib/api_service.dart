@@ -40,4 +40,49 @@ class ApiService {
       throw Exception('predict-mock failed (${streamed.statusCode}): $body');
     }
   }
+
+  /// Fire-and-forget scan event log. Never throws.
+  static Future<void> logScan(
+    String childId,
+    String englishKey,
+    double confidence,
+    String mode,
+  ) async {
+    try {
+      await http.post(
+        Uri.parse('${AppConfig.baseUrl}/log/scan'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'child_id': childId,
+          'english_key': englishKey,
+          'confidence': confidence,
+          'mode': mode,
+        }),
+      );
+    } catch (e) {
+      // ignore_for_file: avoid_print
+      print('logScan error: $e');
+    }
+  }
+
+  /// Fire-and-forget quiz answer log. Never throws.
+  static Future<void> logQuiz(
+    String childId,
+    String englishKey,
+    bool correct,
+  ) async {
+    try {
+      await http.post(
+        Uri.parse('${AppConfig.baseUrl}/log/quiz'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'child_id': childId,
+          'english_key': englishKey,
+          'correct': correct,
+        }),
+      );
+    } catch (e) {
+      print('logQuiz error: $e');
+    }
+  }
 }

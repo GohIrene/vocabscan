@@ -157,13 +157,15 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
                                     _childEmojis[i % _childEmojis.length];
                                 final nickname =
                                     child['nickname'] as String? ?? '';
+                                final childId =
+                                    child['child_id'] as String? ?? '';
                                 final age = child['age'] as int? ?? 0;
                                 return _ChildCard(
                                   emoji: emoji,
                                   nickname: nickname,
                                   age: age,
                                   color: color,
-                                  onTap: () => _goToScan(nickname),
+                                  onTap: () => _goToScan(childId),
                                 );
                               }),
                               _AddChildCard(onTap: _addChild),

@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'quiz_feedback_screen.dart';
+import '../api_service.dart';
 import '../theme/app_theme.dart';
 
 /// Screen 4 – Quiz Practice
@@ -63,6 +64,15 @@ class _QuizPracticeScreenState extends State<QuizPracticeScreen> {
       'correct_answer': q.correctAnswer,
       'is_correct': correct,
     });
+
+    // Fire and forget — don't block UI
+    final cid = widget.childId;
+    final englishKey = widget.vocab['english_key'] as String? ?? '';
+    // ignore: avoid_print
+    print('LOG QUIZ: childId=$cid, key=$englishKey, correct=$correct');
+    if (cid != null) {
+      ApiService.logQuiz(cid, englishKey, correct);
+    }
 
     Navigator.push(
       context,
