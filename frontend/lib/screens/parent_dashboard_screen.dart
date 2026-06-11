@@ -1,51 +1,46 @@
 import 'package:flutter/material.dart';
+import '../api_service.dart';
 import '../theme/app_theme.dart';
 
-/// Screen 7 – Parent Dashboard
-/// Shows mock learning stats: words practised, mastered, accuracy, review list.
-class ParentDashboardScreen extends StatelessWidget {
+class ParentDashboardScreen extends StatefulWidget {
+  final String childId;
+  final String childNickname;
   final String? parentUsername;
-  final String? childId;
 
   const ParentDashboardScreen({
     super.key,
+    required this.childId,
+    required this.childNickname,
     this.parentUsername,
-    this.childId,
   });
 
-  // ── Mock data ──
-  static const _recentlyLearned = [
-    {
-      'word': 'Book',
-      'english': 'Book',
-      'malay': 'Buku',
-      'chinese': '书',
-      'accuracy': 100,
-    },
-    {
-      'word': 'Pencil',
-      'english': 'Pencil',
-      'malay': 'Pensel',
-      'chinese': '铅笔',
-      'accuracy': 75,
-    },
-    {
-      'word': 'Bottle',
-      'english': 'Bottle',
-      'malay': 'Botol',
-      'chinese': '水瓶',
-      'accuracy': 80,
-    },
-    {
-      'word': 'Cup',
-      'english': 'Cup',
-      'malay': 'Cawan',
-      'chinese': '杯子',
-      'accuracy': 60,
-    },
-  ];
+  @override
+  State<ParentDashboardScreen> createState() => _ParentDashboardScreenState();
+}
 
-  static const _wordsToReview = ['Cup', 'Ruler', 'Remote Control'];
+class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
+  Map<String, dynamic>? _data;
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadReport();
+  }
+
+  Future<void> _loadReport() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final data = await ApiService.getReport(widget.childId);
+      if (mounted) setState(() { _data = data; _loading = false; });
+    } catch (e) {
+      if (mounted) setState(() { _error = e.toString(); _loading = false; });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -56,98 +51,11 @@ class ParentDashboardScreen extends StatelessWidget {
           children: [
             _backButton(context),
             Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 800),
-                    child: Column(
-                      children: [
-                        const Text('👨‍👩‍👧‍👦', style: TextStyle(fontSize: 48)),
-                        const SizedBox(height: 6),
-                        Text(
-                          childId != null
-                              ? "$childId's Progress"
-                              : 'Parent Dashboard',
-                          style: AppTheme.heading.copyWith(
-                            fontSize: 28,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        const SizedBox(height: AppTheme.xs),
-                        Text(
-                          parentUsername != null
-                              ? 'Logged in as $parentUsername'
-                              : "Track your child's learning progress",
-                          style: AppTheme.body.copyWith(
-                            fontSize: 15,
-                            color: AppTheme.textLight,
-                          ),
-                        ),
-                        const SizedBox(height: AppTheme.xl),
-
-                        // ── Stat cards row ──
-                        Wrap(
-                          spacing: 14,
-                          runSpacing: 14,
-                          children: const [
-                            _StatCard(
-                              icon: '📖',
-                              label: 'Words Practiced',
-                              value: '10',
-                              color: AppTheme.primary,
-                            ),
-                            _StatCard(
-                              icon: '🏆',
-                              label: 'Mastered Words',
-                              value: '6',
-                              color: AppTheme.secondary,
-                            ),
-                            _StatCard(
-                              icon: '🎯',
-                              label: 'Quiz Accuracy',
-                              value: '78%',
-                              color: AppTheme.success,
-                            ),
-                            _StatCard(
-                              icon: '⏰',
-                              label: 'To Review',
-                              value: '3',
-                              color: AppTheme.warningLight,
-                              dark: true,
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 28),
-
-                        // ── Two-column layout ──
-                        LayoutBuilder(
-                          builder: (context, constraints) {
-                            if (constraints.maxWidth > 580) {
-                              return Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Expanded(child: _recentlyLearnedPanel()),
-                                  const SizedBox(width: AppTheme.lg),
-                                  Expanded(child: _wordsToReviewPanel()),
-                                ],
-                              );
-                            }
-                            return Column(
-                              children: [
-                                _recentlyLearnedPanel(),
-                                const SizedBox(height: AppTheme.lg),
-                                _wordsToReviewPanel(),
-                              ],
-                            );
-                          },
-                        ),
-                        const SizedBox(height: AppTheme.xxl),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
+              child: _loading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _error != null
+                      ? _buildError()
+                      : _buildContent(),
             ),
           ],
         ),
@@ -155,7 +63,174 @@ class ParentDashboardScreen extends StatelessWidget {
     );
   }
 
-  Widget _recentlyLearnedPanel() {
+  Widget _buildError() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('⚠️', style: TextStyle(fontSize: 48)),
+            const SizedBox(height: 16),
+            Text('Failed to load report', style: AppTheme.subheading),
+            const SizedBox(height: 8),
+            Text(
+              _error!,
+              style: AppTheme.caption,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            FilledButton.icon(
+              onPressed: _loadReport,
+              icon: const Icon(Icons.refresh, size: 18),
+              label: const Text('Retry'),
+              style: AppTheme.primaryButton,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildContent() {
+    final data = _data!;
+    final totalWords = (data['total_words'] as num? ?? 0).toInt();
+    final totalScans = (data['total_scans'] as num? ?? 0).toInt();
+    final quizAccuracy = (data['quiz_accuracy'] as num? ?? 0.0).toDouble();
+    final words = (data['words'] as List? ?? [])
+        .whereType<Map<String, dynamic>>()
+        .toList();
+    final mistakes = (data['common_mistakes'] as List? ?? [])
+        .whereType<Map<String, dynamic>>()
+        .toList();
+    final recentActivity = (data['recent_activity'] as List? ?? [])
+        .whereType<Map<String, dynamic>>()
+        .toList();
+
+    if (totalWords == 0) return _buildEmpty();
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 800),
+          child: Column(
+            children: [
+              const Text('👨‍👩‍👧‍👦', style: TextStyle(fontSize: 48)),
+              const SizedBox(height: 6),
+              Text(
+                "${widget.childNickname}'s Progress",
+                style: AppTheme.heading.copyWith(
+                  fontSize: 28,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              if (widget.parentUsername != null) ...[
+                const SizedBox(height: AppTheme.xs),
+                Text(
+                  'Logged in as ${widget.parentUsername}',
+                  style: AppTheme.body.copyWith(
+                    fontSize: 15,
+                    color: AppTheme.textLight,
+                  ),
+                ),
+              ],
+              const SizedBox(height: AppTheme.xl),
+
+              // ── Stat cards ──
+              Wrap(
+                spacing: 14,
+                runSpacing: 14,
+                children: [
+                  _StatCard(
+                    icon: '📚',
+                    label: 'Words Learned',
+                    value: '$totalWords',
+                    color: AppTheme.primary,
+                  ),
+                  _StatCard(
+                    icon: '📷',
+                    label: 'Total Scans',
+                    value: '$totalScans',
+                    color: AppTheme.secondary,
+                  ),
+                  _StatCard(
+                    icon: '🎯',
+                    label: 'Quiz Accuracy',
+                    value: '${quizAccuracy.toStringAsFixed(0)}%',
+                    color: AppTheme.success,
+                  ),
+                  _StatCard(
+                    icon: '⚠️',
+                    label: 'To Review',
+                    value: '${mistakes.length}',
+                    color: AppTheme.warningLight,
+                    dark: true,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 28),
+
+              // ── Two-column panels ──
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final left = _buildWordsPanel(words);
+                  final right = _buildMistakesPanel(mistakes);
+                  if (constraints.maxWidth > 580) {
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(child: left),
+                        const SizedBox(width: AppTheme.lg),
+                        Expanded(child: right),
+                      ],
+                    );
+                  }
+                  return Column(children: [
+                    left,
+                    const SizedBox(height: AppTheme.lg),
+                    right,
+                  ]);
+                },
+              ),
+
+              // ── Recent activity ──
+              if (recentActivity.isNotEmpty) ...[
+                const SizedBox(height: AppTheme.lg),
+                _buildRecentActivity(recentActivity),
+              ],
+
+              const SizedBox(height: AppTheme.xxl),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmpty() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('📚', style: TextStyle(fontSize: 64)),
+            const SizedBox(height: 16),
+            Text('No learning data yet!', style: AppTheme.subheading),
+            const SizedBox(height: 8),
+            Text(
+              'Start scanning objects to track ${widget.childNickname}\'s progress.',
+              textAlign: TextAlign.center,
+              style: AppTheme.body.copyWith(color: AppTheme.textLight),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWordsPanel(List<Map<String, dynamic>> words) {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: AppTheme.cardDecoration,
@@ -163,13 +238,17 @@ class ParentDashboardScreen extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '✨ Recently Learned',
+            '✨ Words Learned',
             style: AppTheme.subheading.copyWith(fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 14),
-          ..._recentlyLearned.asMap().entries.map((e) {
+          ...words.asMap().entries.map((e) {
             final i = e.key;
             final w = e.value;
+            final key = w['english_key'] as String? ?? '';
+            final accuracy = (w['accuracy'] as num? ?? 0).toDouble();
+            final mastery = w['mastery'] as String? ?? 'learning';
+            final isMastered = mastery == 'mastered';
             return Container(
               width: double.infinity,
               margin: const EdgeInsets.only(bottom: 10),
@@ -178,54 +257,26 @@ class ParentDashboardScreen extends StatelessWidget {
                 color: AppTheme.primaryLight,
                 borderRadius: BorderRadius.circular(14),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              child: Row(
                 children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          '${i + 1}. ${w['word']}',
-                          style: AppTheme.body.copyWith(
-                            fontWeight: FontWeight.w700,
-                            color: AppTheme.primary,
-                          ),
-                        ),
+                  Expanded(
+                    child: Text(
+                      '${i + 1}. ${_label(key)}',
+                      style: AppTheme.body.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: AppTheme.primary,
                       ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: AppTheme.xs,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppTheme.success,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          '${w['accuracy']}%',
-                          style: AppTheme.caption.copyWith(
-                            fontWeight: FontWeight.w700,
-                            color: AppTheme.surface,
-                          ),
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
-                  const SizedBox(height: AppTheme.sm),
-                  Row(
-                    children: [
-                      _LangChip(
-                        label: 'English',
-                        value: w['english'] as String,
-                      ),
-                      const SizedBox(width: AppTheme.sm),
-                      _LangChip(label: 'Malay', value: w['malay'] as String),
-                      const SizedBox(width: AppTheme.sm),
-                      _LangChip(
-                        label: 'Chinese',
-                        value: w['chinese'] as String,
-                      ),
-                    ],
+                  const SizedBox(width: 6),
+                  _Badge(
+                    label: isMastered ? '⭐ Mastered' : '📖 Learning',
+                    color: isMastered ? AppTheme.success : AppTheme.warning,
+                  ),
+                  const SizedBox(width: 6),
+                  _Badge(
+                    label: '${accuracy.toStringAsFixed(0)}%',
+                    color: AppTheme.primary,
                   ),
                 ],
               ),
@@ -236,7 +287,7 @@ class ParentDashboardScreen extends StatelessWidget {
     );
   }
 
-  Widget _wordsToReviewPanel() {
+  Widget _buildMistakesPanel(List<Map<String, dynamic>> mistakes) {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: AppTheme.cardDecoration,
@@ -248,70 +299,149 @@ class ParentDashboardScreen extends StatelessWidget {
             style: AppTheme.subheading.copyWith(fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 14),
-          ..._wordsToReview.asMap().entries.map((e) {
-            final i = e.key;
-            return Container(
+          if (mistakes.isEmpty)
+            Container(
               width: double.infinity,
-              margin: const EdgeInsets.only(bottom: 10),
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppTheme.lg,
-                vertical: 14,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: AppTheme.primaryLight,
+                borderRadius: BorderRadius.circular(14),
               ),
+              child: Text(
+                '🎉 Great job! No words to review.',
+                textAlign: TextAlign.center,
+                style: AppTheme.body,
+              ),
+            )
+          else ...[
+            ...mistakes.asMap().entries.map((e) {
+              final i = e.key;
+              final w = e.value;
+              final key = w['english_key'] as String? ?? '';
+              final accuracy = (w['accuracy'] as num? ?? 0).toDouble();
+              return Container(
+                width: double.infinity,
+                margin: const EdgeInsets.only(bottom: 10),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: AppTheme.lg, vertical: 14),
+                decoration: BoxDecoration(
+                  color: AppTheme.warningLight,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: AppTheme.warning,
+                        shape: BoxShape.circle,
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        '${i + 1}',
+                        style: AppTheme.caption.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: AppTheme.surface,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Text(
+                        _label(key),
+                        style: AppTheme.body.copyWith(fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                    _Badge(
+                      label: '${accuracy.toStringAsFixed(0)}%',
+                      color: AppTheme.warning,
+                    ),
+                  ],
+                ),
+              );
+            }),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(
+                  horizontal: AppTheme.lg, vertical: AppTheme.md),
               decoration: BoxDecoration(
                 color: AppTheme.warningLight,
                 borderRadius: BorderRadius.circular(14),
               ),
+              child: Text(
+                '💡 Practice these words again to improve!',
+                textAlign: TextAlign.center,
+                style: AppTheme.caption.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.textDark,
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRecentActivity(List<Map<String, dynamic>> activity) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: AppTheme.cardDecoration,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '🕐 Recent Activity',
+            style: AppTheme.subheading.copyWith(fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 14),
+          ...activity.map((a) {
+            final key = a['english_key'] as String? ?? '';
+            final confidence = (a['confidence'] as num? ?? 0).toDouble();
+            final createdAt = a['created_at'] as String? ?? '';
+            return Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppTheme.primaryLight,
+                borderRadius: BorderRadius.circular(12),
+              ),
               child: Row(
                 children: [
-                  Container(
-                    width: 32,
-                    height: 32,
-                    decoration: BoxDecoration(
-                      color: AppTheme.warning,
-                      shape: BoxShape.circle,
+                  const Text('📷', style: TextStyle(fontSize: 20)),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _label(key),
+                          style: AppTheme.body
+                              .copyWith(fontWeight: FontWeight.w600),
+                        ),
+                        Text(
+                          'Confidence: ${(confidence * 100).toStringAsFixed(0)}%  •  $createdAt',
+                          style: AppTheme.caption.copyWith(fontSize: 11),
+                        ),
+                      ],
                     ),
-                    alignment: Alignment.center,
-                    child: Text(
-                      '${i + 1}',
-                      style: AppTheme.caption.copyWith(
-                        fontWeight: FontWeight.w700,
-                        color: AppTheme.surface,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  Text(
-                    e.value,
-                    style: AppTheme.body.copyWith(fontWeight: FontWeight.w600),
                   ),
                 ],
               ),
             );
           }),
-          const SizedBox(height: AppTheme.sm),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppTheme.lg,
-              vertical: AppTheme.md,
-            ),
-            decoration: BoxDecoration(
-              color: AppTheme.warningLight,
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Text(
-              '💡 Practice these words again to improve!',
-              textAlign: TextAlign.center,
-              style: AppTheme.caption.copyWith(
-                fontWeight: FontWeight.w600,
-                color: AppTheme.textDark,
-              ),
-            ),
-          ),
         ],
       ),
     );
   }
+
+  /// Converts "remote_control" → "Remote Control".
+  static String _label(String key) => key
+      .split('_')
+      .map((w) => w.isEmpty ? '' : '${w[0].toUpperCase()}${w.substring(1)}')
+      .join(' ');
 
   static Widget _backButton(BuildContext context) {
     return Align(
@@ -329,41 +459,33 @@ class ParentDashboardScreen extends StatelessWidget {
   }
 }
 
-/// Small language chip with label + value.
-class _LangChip extends StatelessWidget {
-  final String label;
-  final String value;
+// ── Shared widgets ────────────────────────────────────────────────────────────
 
-  const _LangChip({required this.label, required this.value});
+class _Badge extends StatelessWidget {
+  final String label;
+  final Color color;
+  const _Badge({required this.label, required this.color});
 
   @override
   Widget build(BuildContext context) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: AppTheme.sm),
-        decoration: BoxDecoration(
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Text(
+        label,
+        style: AppTheme.caption.copyWith(
           color: AppTheme.surface,
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Column(
-          children: [
-            Text(label, style: AppTheme.caption.copyWith(fontSize: 10)),
-            const SizedBox(height: 2),
-            Text(
-              value,
-              style: AppTheme.body.copyWith(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ],
+          fontWeight: FontWeight.w700,
+          fontSize: 11,
         ),
       ),
     );
   }
 }
 
-/// Stat card for the top row.
 class _StatCard extends StatelessWidget {
   final String icon;
   final String label;
@@ -394,9 +516,8 @@ class _StatCard extends StatelessWidget {
         children: [
           Text(
             '$icon $label',
-            style: AppTheme.caption.copyWith(
-              color: textColor.withValues(alpha: 0.85),
-            ),
+            style: AppTheme.caption
+                .copyWith(color: textColor.withValues(alpha: 0.85)),
           ),
           const SizedBox(height: AppTheme.sm),
           Text(

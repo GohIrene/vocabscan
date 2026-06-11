@@ -65,6 +65,19 @@ class ApiService {
     }
   }
 
+  /// Fetches the learning report for a child. GET /report/<childId>
+  static Future<Map<String, dynamic>> getReport(String childId) async {
+    final response = await http.get(
+      Uri.parse('${AppConfig.baseUrl}/report/$childId'),
+    );
+    final body = utf8.decode(response.bodyBytes);
+    if (response.statusCode == 200) {
+      return jsonDecode(body) as Map<String, dynamic>;
+    } else {
+      throw Exception('getReport failed (${response.statusCode}): $body');
+    }
+  }
+
   /// Fire-and-forget quiz answer log. Never throws.
   static Future<void> logQuiz(
     String childId,

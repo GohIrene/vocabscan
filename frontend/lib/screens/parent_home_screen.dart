@@ -49,11 +49,86 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
     });
   }
 
-  void _goToScan(String childNickname) {
+  void _goToScan(String childId) {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => ScanObjectScreen(childId: childNickname),
+        builder: (_) => ScanObjectScreen(childId: childId),
+      ),
+    );
+  }
+
+  void _goToDashboard(String childId, String nickname) {
+    final user = AuthService.instance.currentUser;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ParentDashboardScreen(
+          childId: childId,
+          childNickname: nickname,
+          parentUsername: user?['username'] as String?,
+        ),
+      ),
+    );
+  }
+
+  void _onChildTap(String childId, String nickname) {
+    showModalBottomSheet<void>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 20, 24, 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppTheme.textLight.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(nickname, style: AppTheme.subheading),
+              const SizedBox(height: 4),
+              Text(
+                'What would you like to do?',
+                style: AppTheme.caption,
+              ),
+              const SizedBox(height: 16),
+              ListTile(
+                leading: const Text('🎓', style: TextStyle(fontSize: 26)),
+                title: const Text('Start Learning'),
+                subtitle: const Text('Scan objects and practise quizzes'),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14)),
+                tileColor: AppTheme.primaryLight,
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _goToScan(childId);
+                },
+              ),
+              const SizedBox(height: 10),
+              ListTile(
+                leading: const Text('📊', style: TextStyle(fontSize: 26)),
+                title: const Text('View Progress'),
+                subtitle: const Text('See stats, accuracy and reports'),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14)),
+                tileColor: AppTheme.primaryLight,
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _goToDashboard(childId, nickname);
+                },
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -165,48 +240,12 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
                                   nickname: nickname,
                                   age: age,
                                   color: color,
-                                  onTap: () => _goToScan(childId),
+                                  onTap: () => _onChildTap(childId, nickname),
                                 );
                               }),
                               _AddChildCard(onTap: _addChild),
                             ],
                           ),
-                        const SizedBox(height: AppTheme.xxl),
-
-                        // Parent Dashboard button
-                        SizedBox(
-                          width: double.infinity,
-                          child: OutlinedButton.icon(
-                            onPressed: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => ParentDashboardScreen(
-                                    parentUsername:
-                                        user['username'] as String? ?? '',
-                                  ),
-                                ),
-                              );
-                            },
-                            icon: const Text('📊',
-                                style: TextStyle(fontSize: 18)),
-                            label: const Text('Parent Dashboard'),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: AppTheme.primary,
-                              side: BorderSide(
-                                  color:
-                                      AppTheme.primary.withValues(alpha: 0.4)),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: AppTheme.xl,
-                                vertical: AppTheme.lg,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(16)),
-                              textStyle: AppTheme.body
-                                  .copyWith(fontWeight: FontWeight.w600),
-                            ),
-                          ),
-                        ),
                         const SizedBox(height: AppTheme.xxl),
                       ],
                     ),
