@@ -49,90 +49,6 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
     });
   }
 
-  void _goToScan(String childId) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => ScanObjectScreen(childId: childId),
-      ),
-    );
-  }
-
-  void _goToDashboard(String childId, String nickname) {
-    final user = AuthService.instance.currentUser;
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => ParentDashboardScreen(
-          childId: childId,
-          childNickname: nickname,
-          parentUsername: user?['username'] as String?,
-        ),
-      ),
-    );
-  }
-
-  void _onChildTap(String childId, String nickname) {
-    showModalBottomSheet<void>(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (ctx) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 20, 24, 8),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: AppTheme.textLight.withValues(alpha: 0.3),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text(nickname, style: AppTheme.subheading),
-              const SizedBox(height: 4),
-              Text(
-                'What would you like to do?',
-                style: AppTheme.caption,
-              ),
-              const SizedBox(height: 16),
-              ListTile(
-                leading: const Text('🎓', style: TextStyle(fontSize: 26)),
-                title: const Text('Start Learning'),
-                subtitle: const Text('Scan objects and practise quizzes'),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14)),
-                tileColor: AppTheme.primaryLight,
-                onTap: () {
-                  Navigator.pop(ctx);
-                  _goToScan(childId);
-                },
-              ),
-              const SizedBox(height: 10),
-              ListTile(
-                leading: const Text('📊', style: TextStyle(fontSize: 26)),
-                title: const Text('View Progress'),
-                subtitle: const Text('See stats, accuracy and reports'),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14)),
-                tileColor: AppTheme.primaryLight,
-                onTap: () {
-                  Navigator.pop(ctx);
-                  _goToDashboard(childId, nickname);
-                },
-              ),
-              const SizedBox(height: 16),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   void _addChild() {
     Navigator.push(
       context,
@@ -217,7 +133,34 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
 
                         // Children grid
                         if (_loadingChildren)
-                          const Center(child: CircularProgressIndicator())
+                          Wrap(
+                            spacing: 14,
+                            runSpacing: 14,
+                            children: List.generate(
+                              3,
+                              (_) => Column(
+                                children: [
+                                  Container(
+                                    width: 150,
+                                    height: 140,
+                                    decoration: BoxDecoration(
+                                      color: Colors.grey.shade200,
+                                      borderRadius: BorderRadius.circular(20),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Container(
+                                    width: 100,
+                                    height: 20,
+                                    decoration: BoxDecoration(
+                                      color: Colors.grey.shade200,
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          )
                         else
                           Wrap(
                             spacing: 14,
@@ -240,7 +183,31 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
                                   nickname: nickname,
                                   age: age,
                                   color: color,
-                                  onTap: () => _onChildTap(childId, nickname),
+                                  onTap: () => Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      settings: const RouteSettings(
+                                        name: '/parentHome',
+                                      ),
+                                      builder: (_) =>
+                                          ScanObjectScreen(childId: childId),
+                                    ),
+                                  ),
+                                  onStatsTap: () {
+                                    final user =
+                                        AuthService.instance.currentUser;
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => ParentDashboardScreen(
+                                          childId: childId,
+                                          childNickname: nickname,
+                                          parentUsername: user?['username']
+                                              as String?,
+                                        ),
+                                      ),
+                                    );
+                                  },
                                 );
                               }),
                               _AddChildCard(onTap: _addChild),
@@ -266,6 +233,7 @@ class _ChildCard extends StatefulWidget {
   final int age;
   final Color color;
   final VoidCallback onTap;
+  final VoidCallback onStatsTap;
 
   const _ChildCard({
     required this.emoji,
@@ -273,6 +241,7 @@ class _ChildCard extends StatefulWidget {
     required this.age,
     required this.color,
     required this.onTap,
+    required this.onStatsTap,
   });
 
   @override
@@ -284,57 +253,83 @@ class _ChildCardState extends State<_ChildCard> {
 
   @override
   Widget build(BuildContext context) {
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hovering = true),
-      onExit: (_) => setState(() => _hovering = false),
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          width: 110,
-          padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 12),
-          decoration: BoxDecoration(
-            color: widget.color,
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: [
-              BoxShadow(
-                color:
-                    widget.color.withValues(alpha: _hovering ? 0.50 : 0.25),
-                blurRadius: _hovering ? 20 : 10,
-                offset: const Offset(0, 6),
+    return Column(
+      children: [
+        MouseRegion(
+          onEnter: (_) => setState(() => _hovering = true),
+          onExit: (_) => setState(() => _hovering = false),
+          cursor: SystemMouseCursors.click,
+          child: GestureDetector(
+            onTap: widget.onTap,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              width: 150,
+              constraints: const BoxConstraints(minHeight: 140),
+              decoration: BoxDecoration(
+                color: widget.color,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color:
+                        widget.color.withValues(alpha: _hovering ? 0.50 : 0.25),
+                    blurRadius: _hovering ? 20 : 10,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
               ),
-            ],
-          ),
-          transform: _hovering
-              ? (Matrix4.identity()..translateByDouble(0.0, -4.0, 0.0, 1.0))
-              : Matrix4.identity(),
-          child: Column(
-            children: [
-              Text(widget.emoji, style: const TextStyle(fontSize: 30)),
-              const SizedBox(height: 8),
-              Text(
-                widget.nickname,
-                textAlign: TextAlign.center,
-                style: AppTheme.body.copyWith(
-                  color: AppTheme.surface,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
+              transform: _hovering
+                  ? (Matrix4.identity()..translateByDouble(0.0, -4.0, 0.0, 1.0))
+                  : Matrix4.identity(),
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      widget.emoji,
+                      style: const TextStyle(fontSize: 40),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      widget.nickname,
+                      textAlign: TextAlign.center,
+                      style: AppTheme.body.copyWith(
+                        color: AppTheme.surface,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Tap to learn! 🎯',
+                      style: AppTheme.caption.copyWith(
+                        color: AppTheme.surface.withValues(alpha: 0.85),
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
                 ),
-                overflow: TextOverflow.ellipsis,
               ),
-              const SizedBox(height: 2),
-              Text(
-                'Age ${widget.age}',
-                style: AppTheme.caption.copyWith(
-                  color: AppTheme.surface.withValues(alpha: 0.80),
-                  fontSize: 12,
-                ),
-              ),
-            ],
+            ),
           ),
         ),
-      ),
+        const SizedBox(height: 6),
+        TextButton.icon(
+          onPressed: widget.onStatsTap,
+          icon: const Text('📊', style: TextStyle(fontSize: 14)),
+          label: const Text('View Progress'),
+          style: TextButton.styleFrom(
+            foregroundColor: AppTheme.textDark,
+            textStyle: AppTheme.caption.copyWith(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -360,8 +355,9 @@ class _AddChildCardState extends State<_AddChildCard> {
         onTap: widget.onTap,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
-          width: 110,
-          padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 12),
+          width: 150,
+          constraints: const BoxConstraints(minHeight: 140),
+          padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
           decoration: BoxDecoration(
             color: _hovering
                 ? AppTheme.primary.withValues(alpha: 0.08)
@@ -374,10 +370,11 @@ class _AddChildCardState extends State<_AddChildCard> {
             ),
           ),
           child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(Icons.add_circle_outline,
-                  size: 32, color: AppTheme.primary.withValues(alpha: 0.7)),
-              const SizedBox(height: 8),
+                  size: 40, color: AppTheme.primary.withValues(alpha: 0.7)),
+              const SizedBox(height: 10),
               Text(
                 'Add\nChild',
                 textAlign: TextAlign.center,

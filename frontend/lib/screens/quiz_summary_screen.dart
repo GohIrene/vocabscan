@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'welcome_screen.dart';
+import 'scan_object_screen.dart';
 import '../theme/app_theme.dart';
 
 /// Screen 6 – Quiz Summary
@@ -7,11 +7,13 @@ import '../theme/app_theme.dart';
 class QuizSummaryScreen extends StatelessWidget {
   final List<Map<String, dynamic>> results;
   final Map<String, dynamic> vocab;
+  final String? childId;
 
   const QuizSummaryScreen({
     super.key,
     required this.results,
     required this.vocab,
+    this.childId,
   });
 
   @override
@@ -134,16 +136,40 @@ class QuizSummaryScreen extends StatelessWidget {
                   // ── Actions ──
                   FilledButton.icon(
                     onPressed: () {
-                      Navigator.of(context).pushAndRemoveUntil(
+                      // Pop quiz + result screens back to ScanObjectScreen,
+                      // then replace it with a fresh one for the same child.
+                      Navigator.of(context).popUntil(
+                        (route) => route.settings.name == '/parentHome',
+                      );
+                      Navigator.of(context).pushReplacement(
                         MaterialPageRoute(
-                          builder: (_) => const WelcomeScreen(),
+                          settings:
+                              const RouteSettings(name: '/parentHome'),
+                          builder: (_) => ScanObjectScreen(childId: childId),
                         ),
-                        (route) => false,
                       );
                     },
-                    icon: const Icon(Icons.home_rounded, size: 18),
-                    label: const Text('Back to Home'),
+                    icon: const Icon(Icons.camera_alt_rounded, size: 18),
+                    label: const Text('Scan Another Object'),
                     style: AppTheme.primaryButton,
+                  ),
+                  const SizedBox(height: AppTheme.md),
+                  OutlinedButton(
+                    onPressed: () {
+                      // Pop to ScanObjectScreen (named '/parentHome'), then
+                      // pop once more to reach ParentHomeScreen.
+                      Navigator.of(context).popUntil(
+                        (route) => route.settings.name == '/parentHome',
+                      );
+                      Navigator.of(context).pop();
+                    },
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size(200, 48),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    child: const Text('Done'),
                   ),
                   const SizedBox(height: AppTheme.xxl),
                 ],

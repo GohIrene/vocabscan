@@ -12,7 +12,9 @@ class ApiService {
   /// Calls POST /predict-mock and returns the decoded JSON map.
   /// Uses utf8 decoding so Chinese characters display correctly.
   static Future<Map<String, dynamic>> predictMock() async {
-    final response = await http.post(_predictMockUrl);
+    final response = await http
+        .post(_predictMockUrl)
+        .timeout(const Duration(seconds: 10));
     final body = utf8.decode(response.bodyBytes);
     if (response.statusCode == 200) {
       return jsonDecode(body) as Map<String, dynamic>;
@@ -31,7 +33,8 @@ class ApiService {
       imageBytes,
       filename: 'capture.jpg',
     ));
-    final streamed = await request.send();
+    final streamed =
+        await request.send().timeout(const Duration(seconds: 30));
     final rawBytes = await streamed.stream.toBytes();
     final body = utf8.decode(rawBytes);
     if (streamed.statusCode == 200) {
@@ -65,11 +68,11 @@ class ApiService {
     }
   }
 
-  /// Fetches the learning report for a child. GET /report/<childId>
+  /// Fetches the learning report for a child. GET /report/`childId`
   static Future<Map<String, dynamic>> getReport(String childId) async {
-    final response = await http.get(
-      Uri.parse('${AppConfig.baseUrl}/report/$childId'),
-    );
+    final response = await http
+        .get(Uri.parse('${AppConfig.baseUrl}/report/$childId'))
+        .timeout(const Duration(seconds: 10));
     final body = utf8.decode(response.bodyBytes);
     if (response.statusCode == 200) {
       return jsonDecode(body) as Map<String, dynamic>;

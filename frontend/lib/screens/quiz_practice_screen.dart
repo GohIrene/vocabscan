@@ -85,6 +85,7 @@ class _QuizPracticeScreenState extends State<QuizPracticeScreen> {
           totalQuestions: _questions.length,
           results: _results,
           vocab: widget.vocab,
+          childId: widget.childId,
           onNext: () {
             Navigator.pop(context);
             setState(() {

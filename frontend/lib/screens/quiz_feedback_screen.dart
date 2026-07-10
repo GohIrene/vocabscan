@@ -13,6 +13,7 @@ class QuizFeedbackScreen extends StatelessWidget {
   final List<Map<String, dynamic>> results;
   final Map<String, dynamic> vocab;
   final VoidCallback onNext;
+  final String? childId;
 
   const QuizFeedbackScreen({
     super.key,
@@ -24,6 +25,7 @@ class QuizFeedbackScreen extends StatelessWidget {
     required this.results,
     required this.vocab,
     required this.onNext,
+    this.childId,
   });
 
   @override
@@ -102,6 +104,7 @@ class QuizFeedbackScreen extends StatelessWidget {
                                   builder: (_) => QuizSummaryScreen(
                                     results: results,
                                     vocab: vocab,
+                                    childId: childId,
                                   ),
                                 ),
                               );
