@@ -44,9 +44,9 @@ from PIL import Image
 # -----------------------------------------------------------------------
 # Config
 # -----------------------------------------------------------------------
-SOURCE_DIR   = "dataset_v3"
+SOURCE_DIR   = "dataset_v4_old"
 OUTPUT_DIR   = "dataset_v4"
-TARGET_TOTAL = 600           # target total images per class (buffer for cleaning losses)
+TARGET_TOTAL = 300           # target total images per class (buffer for cleaning losses)
 SEED         = 99            # different from v3 seed (42) - different images
 
 # OIv7 splits to pull from (v3 used "train" only)

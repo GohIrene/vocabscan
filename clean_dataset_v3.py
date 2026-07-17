@@ -39,6 +39,14 @@ from PIL import Image
 TARGET_SIZE = (224, 224)          # resize all images to this
 MIN_ASPECT = 0.3                 # width/height ratio; below this = too narrow
 MAX_ASPECT = 3.3                 # above this = too wide
+
+# Some object classes are naturally thin/elongated even in a correctly
+# cropped image (a ruler or knife tightly cropped is a long sliver by
+# design). The default 0.3-3.3 band rejects a lot of legitimately good
+# crops for these classes, so they get a wider allowance.
+ELONGATED_CLASSES = {"ruler", "knife", "pen", "spoon", "fork", "glasses"}
+ELONGATED_MIN_ASPECT = 0.12
+ELONGATED_MAX_ASPECT = 8.0
 BLACK_WHITE_THRESHOLD = 10       # mean pixel value below this = black, above 245 = white
 MIN_STD_THRESHOLD = 5            # std dev below this = nearly uniform color (useless)
 MIN_IMAGES_PER_CLASS = 80        # flag classes below this count
@@ -54,7 +62,7 @@ def md5_hash(filepath: str) -> str:
     return h.hexdigest()
 
 
-def check_image(filepath: str) -> dict:
+def check_image(filepath: str, cls: str = None) -> dict:
     """
     Validate a single image. Returns a dict with:
       - valid: bool
@@ -62,6 +70,10 @@ def check_image(filepath: str) -> dict:
       - width, height, aspect_ratio, mean_pixel, std_pixel
     """
     result = {"filepath": filepath, "valid": True, "issue": None}
+    min_aspect, max_aspect = (
+        (ELONGATED_MIN_ASPECT, ELONGATED_MAX_ASPECT)
+        if cls in ELONGATED_CLASSES else (MIN_ASPECT, MAX_ASPECT)
+    )
 
     try:
         img = Image.open(filepath)
@@ -86,9 +98,9 @@ def check_image(filepath: str) -> dict:
     # --- aspect ratio check ---
     aspect = w / h if h > 0 else 0
     result["aspect_ratio"] = round(aspect, 2)
-    if aspect < MIN_ASPECT or aspect > MAX_ASPECT:
+    if aspect < min_aspect or aspect > max_aspect:
         result["valid"] = False
-        result["issue"] = f"extreme aspect ratio: {aspect:.2f} (allowed {MIN_ASPECT}-{MAX_ASPECT})"
+        result["issue"] = f"extreme aspect ratio: {aspect:.2f} (allowed {min_aspect}-{max_aspect})"
         return result
 
     # --- black / white / uniform color check ---
@@ -202,7 +214,8 @@ def main():
     valid_images = []
 
     for i, filepath in enumerate(all_images):
-        result = check_image(filepath)
+        cls = Path(filepath).parent.name
+        result = check_image(filepath, cls=cls)
         if not result["valid"]:
             issues.append(result)
         else:

@@ -1,0 +1,195 @@
+{
+  "source": "dataset_v4",
+  "supplement_dir": "external_supplement",
+  "output": "dataset_v6",
+  "target_per_class": 300,
+  "merge_detail": {
+    "toothbrush": {
+      "needed": 190,
+      "collected": 190,
+      "added_train": 133,
+      "added_val": 28,
+      "added_test": 29
+    },
+    "ruler": {
+      "needed": 162,
+      "collected": 162,
+      "added_train": 113,
+      "added_val": 24,
+      "added_test": 25
+    },
+    "scissors": {
+      "needed": 148,
+      "collected": 148,
+      "added_train": 104,
+      "added_val": 22,
+      "added_test": 22
+    },
+    "remote_control": {
+      "needed": 125,
+      "collected": 125,
+      "added_train": 88,
+      "added_val": 19,
+      "added_test": 18
+    },
+    "banana": {
+      "needed": 92,
+      "collected": 92,
+      "added_train": 64,
+      "added_val": 14,
+      "added_test": 14
+    }
+  },
+  "final_counts": {
+    "apple": {
+      "train": 209,
+      "val": 44,
+      "test": 46
+    },
+    "backpack": {
+      "train": 195,
+      "val": 44,
+      "test": 46
+    },
+    "ball": {
+      "train": 209,
+      "val": 44,
+      "test": 45
+    },
+    "banana": {
+      "train": 209,
+      "val": 44,
+      "test": 47
+    },
+    "book": {
+      "train": 207,
+      "val": 43,
+      "test": 44
+    },
+    "bottle": {
+      "train": 190,
+      "val": 47,
+      "test": 47
+    },
+    "bowl": {
+      "train": 206,
+      "val": 46,
+      "test": 46
+    },
+    "bread": {
+      "train": 210,
+      "val": 43,
+      "test": 46
+    },
+    "chair": {
+      "train": 210,
+      "val": 45,
+      "test": 44
+    },
+    "clock": {
+      "train": 207,
+      "val": 45,
+      "test": 46
+    },
+    "cup": {
+      "train": 213,
+      "val": 43,
+      "test": 44
+    },
+    "fork": {
+      "train": 181,
+      "val": 48,
+      "test": 46
+    },
+    "glasses": {
+      "train": 189,
+      "val": 45,
+      "test": 46
+    },
+    "keyboard": {
+      "train": 190,
+      "val": 40,
+      "test": 50
+    },
+    "knife": {
+      "train": 196,
+      "val": 42,
+      "test": 45
+    },
+    "lamp": {
+      "train": 207,
+      "val": 45,
+      "test": 47
+    },
+    "laptop": {
+      "train": 204,
+      "val": 46,
+      "test": 44
+    },
+    "mobile_phone": {
+      "train": 209,
+      "val": 45,
+      "test": 46
+    },
+    "orange": {
+      "train": 210,
+      "val": 44,
+      "test": 45
+    },
+    "pen": {
+      "train": 185,
+      "val": 45,
+      "test": 47
+    },
+    "plate": {
+      "train": 203,
+      "val": 44,
+      "test": 43
+    },
+    "remote_control": {
+      "train": 210,
+      "val": 44,
+      "test": 46
+    },
+    "ruler": {
+      "train": 209,
+      "val": 45,
+      "test": 46
+    },
+    "scissors": {
+      "train": 210,
+      "val": 45,
+      "test": 45
+    },
+    "shoe": {
+      "train": 210,
+      "val": 45,
+      "test": 45
+    },
+    "spoon": {
+      "train": 181,
+      "val": 44,
+      "test": 47
+    },
+    "table": {
+      "train": 206,
+      "val": 45,
+      "test": 45
+    },
+    "teddy_bear": {
+      "train": 192,
+      "val": 44,
+      "test": 44
+    },
+    "toothbrush": {
+      "train": 208,
+      "val": 47,
+      "test": 45
+    },
+    "umbrella": {
+      "train": 204,
+      "val": 45,
+      "test": 45
+    }
+  }
+}
