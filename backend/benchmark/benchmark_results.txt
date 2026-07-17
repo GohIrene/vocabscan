@@ -1,0 +1,9 @@
+VocabScan CP2 — Model Latency Benchmark Results
+Platform: CPU | Images: 60 | Warmup: 5 | Runs: 60
+======================================================================
+Model                Size(MB)  Load(ms)  Mean(ms) Median(ms)  Std(ms)
+----------------------------------------------------------------------
+MobileNetV2              23.8      3021     299.2      302.6     40.2
+MobileNetV3Large         33.4      3222     275.7      280.7     27.0
+EfficientNetV2-S        189.5      8208     602.6      589.7     46.2
+YOLO11n-cls               3.1     11215      21.1       19.8      4.7
