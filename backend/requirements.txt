@@ -2,3 +2,7 @@ Flask
 Flask-CORS
 pymongo
 werkzeug
+tensorflow
+tf-keras
+Pillow
+numpy

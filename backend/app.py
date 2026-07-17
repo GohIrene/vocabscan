@@ -4,23 +4,76 @@ from pymongo import MongoClient
 from pymongo.errors import PyMongoError
 from werkzeug.security import generate_password_hash, check_password_hash
 import uuid
+import os
+import io
+import json
+import time
 from datetime import datetime
+
+# The model was trained/saved with Keras 2. TensorFlow 2.16+ bundles Keras 3,
+# which cannot deserialize the Keras 2 format, so route tf.keras through the
+# legacy tf-keras package. Must be set before importing tensorflow/keras.
+os.environ.setdefault("TF_USE_LEGACY_KERAS", "1")
+
+import numpy as np
+from PIL import Image
+from model_loader import load_trained_model
 
 app = Flask(__name__)
 app.json.ensure_ascii = False
 CORS(app)
 
+# ---------------------------------------------------------------------------
+# Model loading (once at startup)
+# ---------------------------------------------------------------------------
+
+_BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+_MODEL_PATH = os.path.join(_BASE_DIR, "mobilenetv3_final.keras")
+_CLASSES_PATH = os.path.join(_BASE_DIR, "mobilenetv3_classes.json")
+
+CONFIDENCE_THRESHOLD = 0.6
+
+model = None
+class_names = []
+try:
+    with open(_CLASSES_PATH, "r", encoding="utf-8") as f:
+        class_names = json.load(f)
+    model = load_trained_model(_MODEL_PATH, len(class_names))
+    print(f"Loaded model with {len(class_names)} classes.")
+except Exception as e:
+    print(f"WARNING: Could not load model: {e}")
+
 VOCABULARY = {
+    "apple": {"english_word": "Apple", "malay_word": "Epal", "chinese_word": "苹果"},
+    "backpack": {"english_word": "Backpack", "malay_word": "Beg Galas", "chinese_word": "书包"},
+    "ball": {"english_word": "Ball", "malay_word": "Bola", "chinese_word": "球"},
+    "banana": {"english_word": "Banana", "malay_word": "Pisang", "chinese_word": "香蕉"},
+    "book": {"english_word": "Book", "malay_word": "Buku", "chinese_word": "书"},
     "bottle": {"english_word": "Bottle", "malay_word": "Botol", "chinese_word": "瓶子"},
+    "bowl": {"english_word": "Bowl", "malay_word": "Mangkuk", "chinese_word": "碗"},
+    "bread": {"english_word": "Bread", "malay_word": "Roti", "chinese_word": "面包"},
+    "chair": {"english_word": "Chair", "malay_word": "Kerusi", "chinese_word": "椅子"},
+    "clock": {"english_word": "Clock", "malay_word": "Jam", "chinese_word": "时钟"},
     "cup": {"english_word": "Cup", "malay_word": "Cawan", "chinese_word": "杯子"},
-    "spoon": {"english_word": "Spoon", "malay_word": "Sudu", "chinese_word": "勺子"},
+    "fork": {"english_word": "Fork", "malay_word": "Garpu", "chinese_word": "叉子"},
+    "glasses": {"english_word": "Glasses", "malay_word": "Cermin Mata", "chinese_word": "眼镜"},
+    "keyboard": {"english_word": "Keyboard", "malay_word": "Papan Kekunci", "chinese_word": "键盘"},
+    "knife": {"english_word": "Knife", "malay_word": "Pisau", "chinese_word": "刀"},
+    "lamp": {"english_word": "Lamp", "malay_word": "Lampu", "chinese_word": "灯"},
+    "laptop": {"english_word": "Laptop", "malay_word": "Komputer Riba", "chinese_word": "笔记本电脑"},
+    "mobile_phone": {"english_word": "Mobile Phone", "malay_word": "Telefon Bimbit", "chinese_word": "手机"},
+    "orange": {"english_word": "Orange", "malay_word": "Oren", "chinese_word": "橙"},
+    "pen": {"english_word": "Pen", "malay_word": "Pen", "chinese_word": "钢笔"},
     "plate": {"english_word": "Plate", "malay_word": "Pinggan", "chinese_word": "盘子"},
     "remote_control": {"english_word": "Remote Control", "malay_word": "Alat Kawalan Jauh", "chinese_word": "遥控器"},
-    "book": {"english_word": "Book", "malay_word": "Buku", "chinese_word": "书"},
-    "pencil": {"english_word": "Pencil", "malay_word": "Pensel", "chinese_word": "铅笔"},
-    "pen": {"english_word": "Pen", "malay_word": "Pen", "chinese_word": "笔"},
     "ruler": {"english_word": "Ruler", "malay_word": "Pembaris", "chinese_word": "尺子"},
-    "backpack": {"english_word": "Backpack", "malay_word": "Beg Galas", "chinese_word": "背包"},
+    "scissors": {"english_word": "Scissors", "malay_word": "Gunting", "chinese_word": "剪刀"},
+    "shoe": {"english_word": "Shoe", "malay_word": "Kasut", "chinese_word": "鞋子"},
+    "spoon": {"english_word": "Spoon", "malay_word": "Sudu", "chinese_word": "勺子"},
+    "table": {"english_word": "Table", "malay_word": "Meja", "chinese_word": "桌子"},
+    "teddy_bear": {"english_word": "Teddy Bear", "malay_word": "Teddy Bear", "chinese_word": "泰迪熊"},
+    "toothbrush": {"english_word": "Toothbrush", "malay_word": "Berus Gigi", "chinese_word": "牙刷"},
+    "umbrella": {"english_word": "Umbrella", "malay_word": "Payung", "chinese_word": "雨伞"},
 }
 
 db = None
@@ -98,6 +151,83 @@ def predict_mock():
         "chinese_word": "书",
         "audio": _audio_urls(english_key),
     })
+
+
+def _resolve_vocab(english_key):
+    """Look up a word's translations, DB-first with the in-memory fallback."""
+    if db is not None:
+        try:
+            doc = db.vocab.find_one({"english_key": english_key})
+            if doc:
+                return {
+                    "english_word": doc.get("english_word", english_key),
+                    "malay_word": doc.get("malay_word", ""),
+                    "chinese_word": doc.get("chinese_word", ""),
+                }
+        except PyMongoError as e:
+            print(f"MongoDB vocab lookup failed, falling back to in-memory: {e}")
+
+    item = VOCABULARY.get(english_key)
+    if item is None:
+        return {"english_word": english_key, "malay_word": "", "chinese_word": ""}
+    return item
+
+
+@app.post("/predict")
+def predict():
+    if model is None:
+        return jsonify({
+            "success": False,
+            "reason": "error",
+            "message": "Model not loaded",
+        })
+
+    # Flutter posts the image under "image"; the curl test uses "file".
+    file = request.files.get("image") or request.files.get("file")
+    if file is None:
+        return jsonify({
+            "success": False,
+            "reason": "error",
+            "message": "No image file provided",
+        })
+
+    try:
+        start = time.perf_counter()
+
+        img = Image.open(io.BytesIO(file.read())).convert("RGB").resize((224, 224))
+        # Raw 0-255 pixels; MobileNetV3 has include_preprocessing=True built in.
+        arr = np.expand_dims(np.array(img, dtype=np.float32), axis=0)  # (1, 224, 224, 3)
+
+        preds = model.predict(arr, verbose=0)[0]
+        idx = int(np.argmax(preds))
+        confidence = float(preds[idx])
+        inference_time_ms = round((time.perf_counter() - start) * 1000, 1)
+
+        if confidence < CONFIDENCE_THRESHOLD:
+            return jsonify({
+                "success": False,
+                "reason": "low_confidence",
+                "confidence": confidence,
+                "inference_time_ms": inference_time_ms,
+            })
+
+        english_key = class_names[idx]
+        vocab = _resolve_vocab(english_key)
+        return jsonify({
+            "success": True,
+            "predicted_class": english_key,
+            "english_key": english_key,
+            "confidence": confidence,
+            "inference_time_ms": inference_time_ms,
+            "audio": _audio_urls(english_key),
+            **vocab,
+        })
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "reason": "error",
+            "message": str(e),
+        })
 
 
 # ---------------------------------------------------------------------------
