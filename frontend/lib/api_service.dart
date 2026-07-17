@@ -9,6 +9,10 @@ class ApiService {
     '${AppConfig.baseUrl}/predict-mock',
   );
 
+  static final Uri _predictUrl = Uri.parse(
+    '${AppConfig.baseUrl}/predict',
+  );
+
   /// Calls POST /predict-mock and returns the decoded JSON map.
   /// Uses utf8 decoding so Chinese characters display correctly.
   static Future<Map<String, dynamic>> predictMock() async {
@@ -23,11 +27,11 @@ class ApiService {
     }
   }
 
-  /// Sends image bytes to POST /predict-mock as multipart form-data.
+  /// Sends image bytes to POST /predict as multipart form-data.
   /// Returns the full decoded JSON map including vocab and audio fields.
   static Future<Map<String, dynamic>> predictObject(
       Uint8List imageBytes) async {
-    final request = http.MultipartRequest('POST', _predictMockUrl);
+    final request = http.MultipartRequest('POST', _predictUrl);
     request.files.add(http.MultipartFile.fromBytes(
       'image',
       imageBytes,
@@ -40,7 +44,7 @@ class ApiService {
     if (streamed.statusCode == 200) {
       return jsonDecode(body) as Map<String, dynamic>;
     } else {
-      throw Exception('predict-mock failed (${streamed.statusCode}): $body');
+      throw Exception('predict failed (${streamed.statusCode}): $body');
     }
   }
 
