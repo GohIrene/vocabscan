@@ -378,6 +378,67 @@ def log_quiz():
         return jsonify({"status": "error", "message": "Database error"}), 500
 
 
+@app.post("/log/speech")
+def log_speech():
+    err = _db_required()
+    if err:
+        return err
+
+    data = request.get_json() or {}
+    child_id = data.get("child_id")
+    english_key = data.get("english_key", "")
+    language = data.get("language", "en")
+    correct = bool(data.get("correct", False))
+
+    if not child_id:
+        return jsonify({"status": "error", "message": "child_id required"}), 400
+
+    try:
+        db.speech_logs.insert_one({
+            "child_id": child_id,
+            "english_key": english_key,
+            "language": language,
+            "correct": correct,
+            "activity_type": "speech_practice",
+            "created_at": datetime.utcnow(),
+        })
+
+        # Combined mastery: quiz + speech attempts
+        quiz_total = db.quiz_logs.count_documents({
+            "child_id": child_id,
+            "english_key": english_key,
+        })
+        speech_total = db.speech_logs.count_documents({
+            "child_id": child_id,
+            "english_key": english_key,
+        })
+        quiz_correct = db.quiz_logs.count_documents({
+            "child_id": child_id,
+            "english_key": english_key,
+            "correct": True,
+        })
+        speech_correct = db.speech_logs.count_documents({
+            "child_id": child_id,
+            "english_key": english_key,
+            "correct": True,
+        })
+
+        combined_total = quiz_total + speech_total
+        combined_correct = quiz_correct + speech_correct
+        mastered = (
+            combined_total >= 3 and
+            (combined_correct / combined_total) >= 0.8
+        )
+
+        db.children.update_one(
+            {"child_id": child_id},
+            {"$set": {f"mastery.{english_key}": mastered}},
+        )
+        return jsonify({"logged": True, "mastered": mastered})
+    except PyMongoError as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
 # ---------------------------------------------------------------------------
 # Report
 # ---------------------------------------------------------------------------
@@ -391,6 +452,7 @@ def get_report(child_id):
     try:
         scan_logs = list(db.scan_logs.find({"child_id": child_id}))
         quiz_logs = list(db.quiz_logs.find({"child_id": child_id}))
+        speech_logs = list(db.speech_logs.find({"child_id": child_id}))
 
         # Per-word scan counts
         scan_counts = {}
@@ -408,26 +470,52 @@ def get_report(child_id):
             if log.get("correct"):
                 quiz_stats[key]["correct"] += 1
 
+        # Per-word speech stats
+        speech_stats = {}
+        for log in speech_logs:
+            key = log["english_key"]
+            if key not in speech_stats:
+                speech_stats[key] = {"attempts": 0, "correct": 0}
+            speech_stats[key]["attempts"] += 1
+            if log.get("correct"):
+                speech_stats[key]["correct"] += 1
+
         # Build per-word breakdown
-        all_keys = set(scan_counts.keys()) | set(quiz_stats.keys())
+        all_keys = set(scan_counts.keys()) | set(quiz_stats.keys()) | set(speech_stats.keys())
         words = []
         for key in all_keys:
             attempts = quiz_stats.get(key, {}).get("attempts", 0)
             correct = quiz_stats.get(key, {}).get("correct", 0)
             accuracy = round(correct / attempts * 100, 1) if attempts > 0 else 0.0
+
+            sp_attempts = speech_stats.get(key, {}).get("attempts", 0)
+            sp_correct = speech_stats.get(key, {}).get("correct", 0)
+
+            # Combined mastery: quiz + speech attempts (same logic as /log/speech)
+            combined_total = attempts + sp_attempts
+            combined_correct = correct + sp_correct
+            mastered = combined_total >= 3 and (combined_correct / combined_total) >= 0.8
+
             words.append({
                 "english_key": key,
                 "scan_count": scan_counts.get(key, 0),
                 "quiz_attempts": attempts,
                 "quiz_correct": correct,
                 "accuracy": accuracy,
-                "mastery": "mastered" if attempts >= 3 and accuracy >= 80 else "learning",
+                "speech_attempts": sp_attempts,
+                "speech_correct": sp_correct,
+                "mastery": "mastered" if mastered else "learning",
             })
 
         # Overall quiz accuracy
         total_attempts = sum(s["attempts"] for s in quiz_stats.values())
         total_correct = sum(s["correct"] for s in quiz_stats.values())
         quiz_accuracy = round(total_correct / total_attempts * 100, 1) if total_attempts > 0 else 0.0
+
+        # Overall speech accuracy
+        speech_attempts = sum(s["attempts"] for s in speech_stats.values())
+        speech_correct = sum(s["correct"] for s in speech_stats.values())
+        speech_accuracy = round(speech_correct / speech_attempts * 100, 1) if speech_attempts > 0 else 0.0
 
         # Bottom 3 words by accuracy (words with at least 1 quiz attempt)
         words_with_attempts = [w for w in words if w["quiz_attempts"] >= 1]
@@ -441,6 +529,9 @@ def get_report(child_id):
             "total_words": len(scan_counts),
             "total_scans": len(scan_logs),
             "quiz_accuracy": quiz_accuracy,
+            "speech_attempts": speech_attempts,
+            "speech_correct": speech_correct,
+            "speech_accuracy": speech_accuracy,
             "words": words,
             "common_mistakes": common_mistakes,
             "recent_activity": [_clean(d) for d in recent_docs],

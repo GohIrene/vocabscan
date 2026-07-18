@@ -105,4 +105,25 @@ class ApiService {
       print('logQuiz error: $e');
     }
   }
+
+  /// Fire-and-forget speech-practice attempt log. Never throws.
+  static Future<void> logSpeech(
+    String childId,
+    String englishKey,
+    String language,
+    bool correct,
+  ) async {
+    try {
+      await http.post(
+        Uri.parse('${AppConfig.baseUrl}/log/speech'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'child_id': childId,
+          'english_key': englishKey,
+          'language': language,
+          'correct': correct,
+        }),
+      );
+    } catch (_) {}
+  }
 }

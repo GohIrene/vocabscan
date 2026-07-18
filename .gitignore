@@ -37,4 +37,5 @@ dataset/processed/
 
 # System files
 .DS_Store
-Thumbs.db*.cache
+Thumbs.db
+*.cache

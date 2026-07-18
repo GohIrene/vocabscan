@@ -5,6 +5,7 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 
 import 'quiz_practice_screen.dart';
+import 'speech_practice_screen.dart';
 import '../config.dart';
 import '../theme/app_theme.dart';
 
@@ -182,6 +183,37 @@ class _RecognitionResultScreenState extends State<RecognitionResultScreen> {
                             textStyle: AppTheme.buttonText.copyWith(
                               color: AppTheme.textDark,
                             ),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: AppTheme.xxl,
+                              vertical: AppTheme.lg,
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(height: 14),
+
+                        // ── Speech Practice ──
+                        FilledButton.icon(
+                          onPressed: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => SpeechPracticeScreen(
+                                vocab: widget.predictionData,
+                                childId: widget.childId,
+                              ),
+                            ),
+                          ),
+                          icon: const Text('🎤',
+                              style: TextStyle(fontSize: 18)),
+                          label: const Text('Speech Practice'),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: AppTheme.primary,
+                            foregroundColor: Colors.white,
+                            minimumSize: const Size(200, 52),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            textStyle: AppTheme.buttonText,
                             padding: const EdgeInsets.symmetric(
                               horizontal: AppTheme.xxl,
                               vertical: AppTheme.lg,
