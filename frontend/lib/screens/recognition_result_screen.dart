@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'quiz_practice_screen.dart';
 import 'speech_practice_screen.dart';
 import '../config.dart';
+import '../socket_service.dart';
 import '../theme/app_theme.dart';
 
 /// Screen 3 – Recognition Result
@@ -15,10 +16,14 @@ class RecognitionResultScreen extends StatefulWidget {
   final Map<String, dynamic> predictionData;
   final String? childId;
 
+  /// Non-null only in Class Code mode (teacher scanning to push a quiz).
+  final ClassSessionContext? classSession;
+
   const RecognitionResultScreen({
     super.key,
     required this.predictionData,
     this.childId,
+    this.classSession,
   });
 
   @override
@@ -42,6 +47,16 @@ class _RecognitionResultScreenState extends State<RecognitionResultScreen> {
   void dispose() {
     _player.dispose();
     super.dispose();
+  }
+
+  void _sendQuizToClass() {
+    final cs = widget.classSession;
+    if (cs == null) return;
+    final englishKey = widget.predictionData['english_key'] as String? ?? '';
+    cs.socket.pushQuiz(cs.sessionId, englishKey);
+    // Returning true tells the scan screen to pop too, landing the teacher
+    // back on the class session screen.
+    Navigator.pop(context, true);
   }
 
   Future<void> _playAudio(String langCode, String wordText) async {
@@ -158,6 +173,30 @@ class _RecognitionResultScreenState extends State<RecognitionResultScreen> {
                           ),
                         ),
                         const SizedBox(height: 28),
+
+                        // ── Class Code mode: push this word as a quiz ──
+                        if (widget.classSession != null) ...[
+                          FilledButton.icon(
+                            onPressed: _sendQuizToClass,
+                            icon: const Text('🎯',
+                                style: TextStyle(fontSize: 18)),
+                            label: const Text('Send Quiz to Class'),
+                            style: FilledButton.styleFrom(
+                              backgroundColor: AppTheme.secondary,
+                              foregroundColor: Colors.white,
+                              minimumSize: const Size(200, 52),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              textStyle: AppTheme.buttonText,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: AppTheme.xxl,
+                                vertical: AppTheme.lg,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                        ],
 
                         // ── Practice quiz ──
                         FilledButton.icon(

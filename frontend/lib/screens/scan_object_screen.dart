@@ -10,6 +10,7 @@ import 'dart:ui_web' as ui_web;
 import 'package:flutter/material.dart';
 
 import '../api_service.dart';
+import '../socket_service.dart';
 import 'recognition_result_screen.dart';
 import '../theme/app_theme.dart';
 
@@ -18,7 +19,11 @@ const double _focusH = 0.50;
 
 class ScanObjectScreen extends StatefulWidget {
   final String? childId;
-  const ScanObjectScreen({super.key, this.childId});
+
+  /// Non-null only in Class Code mode (teacher scanning to push a quiz).
+  final ClassSessionContext? classSession;
+
+  const ScanObjectScreen({super.key, this.childId, this.classSession});
 
   @override
   State<ScanObjectScreen> createState() => _ScanObjectScreenState();
@@ -34,18 +39,45 @@ class _ScanObjectScreenState extends State<ScanObjectScreen> {
   String _camError = '';
   bool _isScanning = false;
   bool _showObjectList = true;
+  bool _showAllObjects = false;
 
+  // How many objects to show before the "+N more" expand toggle.
+  static const int _objectPreviewCount = 12;
+
+  // The full set the model can recognise (mirrors mobilenetv3_classes.json —
+  // 30 classes). Kept in sync with the backend so the UI advertises exactly
+  // what's scannable, not a hardcoded subset.
   static const List<Map<String, String>> _objects = [
     {'emoji': '📚', 'label': 'Book'},
-    {'emoji': '✏️', 'label': 'Pencil'},
     {'emoji': '🖊️', 'label': 'Pen'},
     {'emoji': '📏', 'label': 'Ruler'},
     {'emoji': '🎒', 'label': 'Backpack'},
     {'emoji': '🍼', 'label': 'Bottle'},
     {'emoji': '☕', 'label': 'Cup'},
     {'emoji': '🥄', 'label': 'Spoon'},
+    {'emoji': '🍴', 'label': 'Fork'},
+    {'emoji': '🔪', 'label': 'Knife'},
     {'emoji': '🍽️', 'label': 'Plate'},
-    {'emoji': '📺', 'label': 'Remote Control'},
+    {'emoji': '🥣', 'label': 'Bowl'},
+    {'emoji': '📺', 'label': 'Remote'},
+    {'emoji': '🍎', 'label': 'Apple'},
+    {'emoji': '🍌', 'label': 'Banana'},
+    {'emoji': '🍊', 'label': 'Orange'},
+    {'emoji': '🍞', 'label': 'Bread'},
+    {'emoji': '⚽', 'label': 'Ball'},
+    {'emoji': '🪑', 'label': 'Chair'},
+    {'emoji': '🛋️', 'label': 'Table'},
+    {'emoji': '⏰', 'label': 'Clock'},
+    {'emoji': '💡', 'label': 'Lamp'},
+    {'emoji': '👓', 'label': 'Glasses'},
+    {'emoji': '⌨️', 'label': 'Keyboard'},
+    {'emoji': '💻', 'label': 'Laptop'},
+    {'emoji': '📱', 'label': 'Phone'},
+    {'emoji': '✂️', 'label': 'Scissors'},
+    {'emoji': '👟', 'label': 'Shoe'},
+    {'emoji': '🧸', 'label': 'Teddy Bear'},
+    {'emoji': '🪥', 'label': 'Toothbrush'},
+    {'emoji': '☂️', 'label': 'Umbrella'},
   ];
 
   @override
@@ -197,15 +229,22 @@ class _ScanObjectScreenState extends State<ScanObjectScreen> {
     try {
       final data = await ApiService.predictObject(bytes);
       if (!mounted) return;
-      Navigator.push(
+      final sentQuiz = await Navigator.push<bool>(
         context,
         MaterialPageRoute(
           builder: (_) => RecognitionResultScreen(
             predictionData: data,
             childId: widget.childId,
+            classSession: widget.classSession,
           ),
         ),
       );
+      // In Class Code mode, a "Send Quiz to Class" tap returns true — pop the
+      // scan screen too so the teacher lands back on the session screen.
+      if (sentQuiz == true && mounted) {
+        Navigator.pop(context);
+        return;
+      }
       // Fire and forget — don't block navigation
       final cid = widget.childId;
       final englishKey = data['english_key'] as String? ?? '';
@@ -535,7 +574,7 @@ class _ScanObjectScreenState extends State<ScanObjectScreen> {
                 borderRadius: BorderRadius.circular(14),
               ),
               child: Text(
-                '⭐ Starter Learning Pack: Home & School Objects ⭐',
+                '⭐ Scan ${_objects.length} everyday home & school objects! ⭐',
                 textAlign: TextAlign.center,
                 style: AppTheme.caption.copyWith(
                   fontSize: 14,
@@ -545,15 +584,50 @@ class _ScanObjectScreenState extends State<ScanObjectScreen> {
               ),
             ),
             const SizedBox(height: 14),
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: _objects
-                  .map((o) =>
-                      _ObjectChip(emoji: o['emoji']!, label: o['label']!))
-                  .toList(),
+            Builder(
+              builder: (context) {
+                final visible = _showAllObjects
+                    ? _objects
+                    : _objects.take(_objectPreviewCount).toList();
+                return Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: visible
+                      .map((o) =>
+                          _ObjectChip(emoji: o['emoji']!, label: o['label']!))
+                      .toList(),
+                );
+              },
             ),
             const SizedBox(height: 14),
+            // Expand/collapse toggle — makes it obvious the list is a sample of
+            // a larger set, not a hard limit of what can be scanned.
+            if (_objects.length > _objectPreviewCount)
+              Center(
+                child: TextButton.icon(
+                  onPressed: () =>
+                      setState(() => _showAllObjects = !_showAllObjects),
+                  icon: Icon(
+                    _showAllObjects
+                        ? Icons.expand_less
+                        : Icons.expand_more,
+                    size: 20,
+                    color: AppTheme.primary,
+                  ),
+                  label: Text(
+                    _showAllObjects
+                        ? 'Show less'
+                        : 'Show all ${_objects.length} '
+                            '(+${_objects.length - _objectPreviewCount} more)',
+                    style: AppTheme.caption.copyWith(
+                      color: AppTheme.primary,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+              ),
+            const SizedBox(height: 6),
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(
@@ -563,7 +637,8 @@ class _ScanObjectScreenState extends State<ScanObjectScreen> {
                 borderRadius: BorderRadius.circular(14),
               ),
               child: Text(
-                '💡 More objects will be added in future versions!',
+                '💡 Point your camera at any of these objects — '
+                'more coming in future versions!',
                 textAlign: TextAlign.center,
                 style: AppTheme.caption,
               ),

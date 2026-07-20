@@ -1,4 +1,5 @@
 // ignore_for_file: avoid_web_libraries_in_flutter
+import 'dart:async';
 import 'dart:html' as html;
 import 'dart:js_interop';
 import 'dart:js_interop_unsafe';
@@ -39,6 +40,10 @@ class _SpeechPracticeScreenState extends State<SpeechPracticeScreen> {
   final List<bool> _results = [];
   bool _speechSupported = true;
   String? _errorMessage;
+  Timer? _listenTimer;
+  JSObject? _activeRecognition;
+
+  static const _listenTimeout = Duration(seconds: 10);
 
   @override
   void initState() {
@@ -50,9 +55,28 @@ class _SpeechPracticeScreenState extends State<SpeechPracticeScreen> {
 
   @override
   void dispose() {
+    _listenTimer?.cancel();
+    _stopRecognition();
     _player.dispose();
     super.dispose();
   }
+
+  void _stopRecognition() {
+    final recognition = _activeRecognition;
+    if (recognition == null) return;
+    try {
+      (recognition['stop'] as JSFunction).callAsFunction(recognition);
+    } catch (_) {}
+  }
+
+  /// Lowercases, strips punctuation (incl. Chinese full-width punctuation
+  /// the ASR sometimes appends) and collapses whitespace, so matching isn't
+  /// thrown off by cosmetic differences between transcript and target word.
+  static String _normalize(String s) => s
+      .toLowerCase()
+      .replaceAll(RegExp(r'[。！？，、,.!?~～]+'), '')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
 
   String _currentWord() {
     final code = _languages[_currentIndex]['code'];
@@ -96,7 +120,8 @@ class _SpeechPracticeScreenState extends State<SpeechPracticeScreen> {
     });
 
     final lang = _languages[_currentIndex];
-    final word = _currentWord().toLowerCase().trim();
+    final word = _normalize(_currentWord());
+    final buffer = StringBuffer();
 
     try {
       // Built via dart:js_interop/dart:js_interop_unsafe (dynamic JS object
@@ -110,18 +135,52 @@ class _SpeechPracticeScreenState extends State<SpeechPracticeScreen> {
           globalContext['webkitSpeechRecognition']) as JSFunction;
       final recognition = ctor.callAsConstructor<JSObject>();
       recognition['lang'] = lang['speechLang']!.toJS;
-      recognition['continuous'] = false.toJS;
+      // continuous: true + our own timer (below) gives a longer ~10s speaking
+      // window instead of the browser's own short built-in silence cutoff,
+      // which was cutting off slower/longer utterances (esp. Chinese).
+      recognition['continuous'] = true.toJS;
       recognition['interimResults'] = false.toJS;
+      _activeRecognition = recognition;
 
       void onResult(JSObject event) {
+        // In continuous mode `results` accumulates every finalized segment
+        // across the whole session; `resultIndex` marks where the newly
+        // finalized entries start, so we only append what's new.
         final results = event['results'] as JSObject;
-        final firstResult = results['0'] as JSObject;
-        final alternative = firstResult['0'] as JSObject;
-        final transcript =
-            (alternative['transcript'] as JSString).toDart.toLowerCase().trim();
-        final correct = transcript == word ||
-            transcript.contains(word) ||
-            word.contains(transcript);
+        final length = (results['length'] as JSNumber).toDartInt;
+        final startIndex =
+            (event['resultIndex'] as JSNumber?)?.toDartInt ?? 0;
+        for (var i = startIndex; i < length; i++) {
+          final result = results[i.toString()] as JSObject;
+          final alternative = result['0'] as JSObject;
+          final piece = (alternative['transcript'] as JSString).toDart;
+          if (buffer.isNotEmpty) buffer.write(' ');
+          buffer.write(piece);
+        }
+      }
+
+      void finish() {
+        _listenTimer?.cancel();
+        _listenTimer = null;
+        _activeRecognition = null;
+        final transcript = _normalize(buffer.toString());
+
+        if (transcript.isEmpty) {
+          if (mounted) {
+            setState(() {
+              _isListening = false;
+              _errorMessage ??=
+                  'No speech detected. Check your microphone and try again.';
+            });
+          }
+          return;
+        }
+
+        // Exact match only (no more substring/contains matching): a loose
+        // "transcript.contains(word) || word.contains(transcript)" check was
+        // marking background-noise hallucinations or unrelated short words as
+        // correct whenever they happened to be a substring of the target.
+        final correct = transcript == word;
 
         final cid = widget.childId;
         final englishKey = widget.vocab['english_key'] as String? ?? '';
@@ -140,16 +199,13 @@ class _SpeechPracticeScreenState extends State<SpeechPracticeScreen> {
       }
 
       void onEnd(JSObject event) {
-        if (mounted && _isListening) {
-          setState(() {
-            _isListening = false;
-            _errorMessage ??=
-                'No speech detected. Check your microphone and try again.';
-          });
-        }
+        if (_isListening) finish();
       }
 
       void onError(JSObject event) {
+        _listenTimer?.cancel();
+        _listenTimer = null;
+        _activeRecognition = null;
         final errorJS = event['error'];
         final errorType = errorJS != null ? (errorJS as JSString).toDart : null;
         if (mounted) {
@@ -167,6 +223,9 @@ class _SpeechPracticeScreenState extends State<SpeechPracticeScreen> {
       recognition['onerror'] = onError.toJS;
 
       (recognition['start'] as JSFunction).callAsFunction(recognition);
+      _listenTimer = Timer(_listenTimeout, () {
+        (recognition['stop'] as JSFunction).callAsFunction(recognition);
+      });
     } catch (e) {
       setState(() {
         _isListening = false;
@@ -323,8 +382,9 @@ class _SpeechPracticeScreenState extends State<SpeechPracticeScreen> {
                             ),
                             child: IconButton(
                               iconSize: 64,
-                              onPressed:
-                                  _isListening ? null : _startListening,
+                              onPressed: _isListening
+                                  ? _stopRecognition
+                                  : _startListening,
                               icon: Icon(
                                 _isListening ? Icons.mic : Icons.mic_none,
                                 size: 64,
@@ -333,7 +393,7 @@ class _SpeechPracticeScreenState extends State<SpeechPracticeScreen> {
                                     : AppTheme.primary,
                               ),
                               tooltip: _isListening
-                                  ? 'Listening...'
+                                  ? 'Tap to stop'
                                   : 'Tap to speak',
                             ),
                           ),
@@ -341,7 +401,7 @@ class _SpeechPracticeScreenState extends State<SpeechPracticeScreen> {
                           Padding(
                             padding: const EdgeInsets.only(top: 8),
                             child: Text(
-                              'Listening...',
+                              'Listening... (tap mic to stop)',
                               style: AppTheme.caption
                                   .copyWith(color: Colors.red),
                             ),

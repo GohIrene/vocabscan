@@ -1,19 +1,13 @@
-import 'dart:math';
 import 'package:flutter/material.dart';
 import '../auth_service.dart';
 import 'scan_object_screen.dart';
+import 'teacher_class_session_screen.dart';
 import 'teacher_projection_screen.dart';
 import 'welcome_screen.dart';
 import '../theme/app_theme.dart';
 
 class TeacherHomeScreen extends StatelessWidget {
   const TeacherHomeScreen({super.key});
-
-  String _generateCode() {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    final rng = Random();
-    return List.generate(6, (_) => chars[rng.nextInt(chars.length)]).join();
-  }
 
   void _logout(BuildContext context) {
     AuthService.instance.logout();
@@ -24,50 +18,11 @@ class TeacherHomeScreen extends StatelessWidget {
     );
   }
 
-  void _createClassSession(BuildContext context) {
-    final code = _generateCode();
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('Class Session Created 🎉'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('Share this code with your students:'),
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 28, vertical: 16),
-              decoration: BoxDecoration(
-                color: AppTheme.primaryLight,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Text(
-                code,
-                style: AppTheme.heading.copyWith(
-                  fontSize: 32,
-                  fontWeight: FontWeight.w800,
-                  color: AppTheme.primary,
-                  letterSpacing: 6,
-                ),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Done'),
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final user = AuthService.instance.currentUser!;
+    final teacherId =
+        (user['user_id'] ?? user['username'] ?? '').toString();
 
     return Scaffold(
       backgroundColor: AppTheme.background,
@@ -142,7 +97,14 @@ class TeacherHomeScreen extends StatelessWidget {
                           title: 'Create Class Session',
                           subtitle: 'Generate a code for students to join',
                           color: AppTheme.secondary,
-                          onTap: () => _createClassSession(context),
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => TeacherClassSessionScreen(
+                                teacherId: teacherId,
+                              ),
+                            ),
+                          ),
                         ),
                         const SizedBox(height: AppTheme.lg),
 
@@ -155,8 +117,8 @@ class TeacherHomeScreen extends StatelessWidget {
                             context,
                             MaterialPageRoute(
                               builder: (_) => TeacherProjectionScreen(
-                                classCode: 'My Class',
-                                teacherId: user['username'] as String,
+                                teacherId: teacherId,
+                                teacherName: user['username'] as String?,
                               ),
                             ),
                           ),

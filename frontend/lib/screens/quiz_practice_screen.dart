@@ -20,32 +20,72 @@ class _QuizPracticeScreenState extends State<QuizPracticeScreen> {
   int _currentQuestion = 0;
   final List<Map<String, dynamic>> _results = [];
 
-  late final List<_Question> _questions;
+  List<_Question>? _questions;
+  bool _loading = true;
+  String? _error;
 
   @override
   void initState() {
     super.initState();
-    final eng = widget.vocab['english_word'] ?? 'Book';
-    final mal = widget.vocab['malay_word'] ?? 'Buku';
-    final chi = widget.vocab['chinese_word'] ?? '书';
+    _loadQuestions();
+  }
 
-    _questions = [
-      _Question(
-        prompt: 'What is "$eng" in Malay?',
-        correctAnswer: mal,
-        options: _shuffle([mal, 'Kerusi', 'Meja', 'Pinggan']),
-      ),
-      _Question(
-        prompt: 'What is "$eng" in Chinese?',
-        correctAnswer: chi,
-        options: _shuffle([chi, '桌子', '椅子', '电脑']),
-      ),
-      _Question(
-        prompt: 'Which English word matches "$chi"?',
-        correctAnswer: eng,
-        options: _shuffle([eng, 'Chair', 'Table', 'Phone']),
-      ),
-    ];
+  Future<void> _loadQuestions() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+
+    final eng = (widget.vocab['english_word'] as String?) ?? 'Book';
+    final mal = (widget.vocab['malay_word'] as String?) ?? 'Buku';
+    final chi = (widget.vocab['chinese_word'] as String?) ?? '书';
+    final englishKey = (widget.vocab['english_key'] as String?) ?? '';
+
+    // Real vocab-based wrong answers (same pool Class Code draws from)
+    // instead of a fixed hardcoded list, so options vary per scanned object
+    // and can never collide with the correct answer.
+    try {
+      final results = await Future.wait([
+        ApiService.getQuizDistractors(
+            englishKey: englishKey, field: 'malay_word', answer: mal),
+        ApiService.getQuizDistractors(
+            englishKey: englishKey, field: 'chinese_word', answer: chi),
+        ApiService.getQuizDistractors(
+            englishKey: englishKey, field: 'english_word', answer: eng),
+      ]);
+
+      final questions = [
+        _Question(
+          prompt: 'What is "$eng" in Malay?',
+          correctAnswer: mal,
+          options: _shuffle([mal, ...results[0]]),
+        ),
+        _Question(
+          prompt: 'What is "$eng" in Chinese?',
+          correctAnswer: chi,
+          options: _shuffle([chi, ...results[1]]),
+        ),
+        _Question(
+          prompt: 'Which English word matches "$chi"?',
+          correctAnswer: eng,
+          options: _shuffle([eng, ...results[2]]),
+        ),
+      ];
+
+      if (mounted) {
+        setState(() {
+          _questions = questions;
+          _loading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = e.toString();
+          _loading = false;
+        });
+      }
+    }
   }
 
   List<String> _shuffle(List<String> list) {
@@ -55,7 +95,8 @@ class _QuizPracticeScreenState extends State<QuizPracticeScreen> {
   }
 
   void _answer(String chosen) {
-    final q = _questions[_currentQuestion];
+    final questions = _questions!;
+    final q = questions[_currentQuestion];
     final correct = chosen == q.correctAnswer;
 
     _results.add({
@@ -82,7 +123,7 @@ class _QuizPracticeScreenState extends State<QuizPracticeScreen> {
           correctAnswer: q.correctAnswer,
           chosenAnswer: chosen,
           questionIndex: _currentQuestion,
-          totalQuestions: _questions.length,
+          totalQuestions: questions.length,
           results: _results,
           vocab: widget.vocab,
           childId: widget.childId,
@@ -99,10 +140,68 @@ class _QuizPracticeScreenState extends State<QuizPracticeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_currentQuestion >= _questions.length) {
+    if (_loading) {
+      return Scaffold(
+        backgroundColor: AppTheme.background,
+        body: SafeArea(
+          child: Column(
+            children: [
+              _backButton(context),
+              const Expanded(
+                child: Center(child: CircularProgressIndicator()),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (_error != null) {
+      return Scaffold(
+        backgroundColor: AppTheme.background,
+        body: SafeArea(
+          child: Column(
+            children: [
+              _backButton(context),
+              Expanded(
+                child: Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(32),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text('⚠️', style: TextStyle(fontSize: 48)),
+                        const SizedBox(height: 16),
+                        Text('Failed to load quiz', style: AppTheme.subheading),
+                        const SizedBox(height: 8),
+                        Text(
+                          _error!,
+                          style: AppTheme.caption,
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 24),
+                        FilledButton.icon(
+                          onPressed: _loadQuestions,
+                          icon: const Icon(Icons.refresh, size: 18),
+                          label: const Text('Retry'),
+                          style: AppTheme.primaryButton,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final questions = _questions!;
+    if (_currentQuestion >= questions.length) {
       return const SizedBox.shrink();
     }
-    final q = _questions[_currentQuestion];
+    final q = questions[_currentQuestion];
 
     return Scaffold(
       backgroundColor: AppTheme.background,
@@ -130,7 +229,7 @@ class _QuizPracticeScreenState extends State<QuizPracticeScreen> {
                         ),
                         const SizedBox(height: 6),
                         Text(
-                          'Question ${_currentQuestion + 1} of ${_questions.length}',
+                          'Question ${_currentQuestion + 1} of ${questions.length}',
                           style: AppTheme.caption,
                         ),
                         const SizedBox(height: AppTheme.sm),
@@ -139,7 +238,7 @@ class _QuizPracticeScreenState extends State<QuizPracticeScreen> {
                         ClipRRect(
                           borderRadius: BorderRadius.circular(AppTheme.sm),
                           child: LinearProgressIndicator(
-                            value: (_currentQuestion + 1) / _questions.length,
+                            value: (_currentQuestion + 1) / questions.length,
                             minHeight: 8,
                             backgroundColor: AppTheme.primaryLight,
                             color: AppTheme.success,

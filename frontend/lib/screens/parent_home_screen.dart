@@ -5,6 +5,7 @@ import 'scan_object_screen.dart';
 import 'parent_dashboard_screen.dart';
 import 'welcome_screen.dart';
 import '../theme/app_theme.dart';
+import '../widgets/pin_confirm_dialog.dart';
 
 class ParentHomeScreen extends StatefulWidget {
   const ParentHomeScreen({super.key});
@@ -49,7 +50,14 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
     });
   }
 
-  void _addChild() {
+  Future<void> _addChild() async {
+    // A child may be holding the device after the parent logged in, so
+    // re-confirm the PIN before allowing this parent-only action.
+    final confirmed = await showPinConfirmDialog(
+      context,
+      message: 'Enter your PIN to add a child profile.',
+    );
+    if (!confirmed || !mounted) return;
     Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const AddChildScreen()),
