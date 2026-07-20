@@ -1,5 +1,6 @@
 from flask import Flask, jsonify, request
 from flask_cors import CORS
+from flask_socketio import SocketIO, join_room, emit
 from pymongo import MongoClient
 from pymongo.errors import PyMongoError
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -8,6 +9,7 @@ import os
 import io
 import json
 import time
+import random
 from datetime import datetime
 
 # The model was trained/saved with Keras 2. TensorFlow 2.16+ bundles Keras 3,
@@ -22,6 +24,7 @@ from model_loader import load_trained_model
 app = Flask(__name__)
 app.json.ensure_ascii = False
 CORS(app)
+socketio = SocketIO(app, cors_allowed_origins='*', async_mode='threading')
 
 # ---------------------------------------------------------------------------
 # Model loading (once at startup)
@@ -288,6 +291,28 @@ def login():
         return jsonify({"status": "error", "message": "Database error"}), 500
 
 
+@app.post("/auth/verify-pin")
+def verify_pin():
+    """Re-checks a PIN for an already-logged-in session, without issuing a
+    fresh login. Used to gate sensitive parent actions (e.g. Add Child) mid-
+    session, since a child may be holding the device after the parent logged in."""
+    err = _db_required()
+    if err:
+        return err
+
+    data = request.get_json() or {}
+    username = (data.get("username") or "").strip()
+    pin = str(data.get("pin") or "")
+
+    try:
+        user = db.users.find_one({"username": username})
+        if not user or not check_password_hash(user["pin_hash"], pin):
+            return jsonify({"status": "error", "message": "Incorrect PIN"}), 401
+        return jsonify({"status": "ok"})
+    except PyMongoError:
+        return jsonify({"status": "error", "message": "Database error"}), 500
+
+
 # ---------------------------------------------------------------------------
 # Children
 # ---------------------------------------------------------------------------
@@ -440,6 +465,448 @@ def log_speech():
 
 
 # ---------------------------------------------------------------------------
+# Class Code Mode (WebSocket / real-time)
+# REST bootstrap + Socket.IO events. Added ALONGSIDE the REST API; MongoDB
+# `class_sessions` is the source of truth so sessions survive a restart.
+# ---------------------------------------------------------------------------
+
+# 6-char code alphabet, excluding ambiguous 0/O/1/I.
+_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+
+# The three CP1 question patterns, mirroring quiz_practice_screen.dart.
+_QUESTION_PATTERNS = ("en_ms", "en_zh", "zh_en")
+
+
+def _generate_code():
+    """Return a 6-char code not currently used by any non-ended session."""
+    while True:
+        code = "".join(random.choice(_CODE_ALPHABET) for _ in range(6))
+        if db is None:
+            return code
+        existing = db.class_sessions.find_one({"code": code, "status": {"$ne": "ended"}})
+        if existing is None:
+            return code
+
+
+def _random_distractors(field, answer, english_key, n):
+    """Pick up to n distinct `field` values from vocab, excluding the answer.
+
+    DB-first (the vocab collection), falling back to the in-memory VOCABULARY.
+    Never hardcoded word lists.
+    """
+    values = []
+    seen = set()
+    if db is not None:
+        try:
+            for doc in db.vocab.find({"english_key": {"$ne": english_key}}):
+                v = doc.get(field)
+                if v and v != answer and v not in seen:
+                    seen.add(v)
+                    values.append(v)
+        except PyMongoError:
+            values = []
+    if not values:
+        for key, item in VOCABULARY.items():
+            if key == english_key:
+                continue
+            v = item.get(field)
+            if v and v != answer and v not in seen:
+                seen.add(v)
+                values.append(v)
+    random.shuffle(values)
+    return values[:n]
+
+
+def _build_quiz(english_key):
+    """Build one MCQ server-side. Returns the full quiz dict (incl. answer)."""
+    vocab = _resolve_vocab(english_key)
+    eng = vocab.get("english_word") or english_key
+    mal = vocab.get("malay_word") or ""
+    chi = vocab.get("chinese_word") or ""
+
+    pattern = random.choice(_QUESTION_PATTERNS)
+    if pattern == "en_ms":
+        prompt = f'What is "{eng}" in Malay?'
+        answer = mal
+        field = "malay_word"
+    elif pattern == "en_zh":
+        prompt = f'What is "{eng}" in Chinese?'
+        answer = chi
+        field = "chinese_word"
+    else:  # zh_en
+        prompt = f'Which English word matches "{chi}"?'
+        answer = eng
+        field = "english_word"
+
+    options = _random_distractors(field, answer, english_key, 3) + [answer]
+    random.shuffle(options)
+
+    return {
+        "quiz_id": str(uuid.uuid4()),
+        "english_key": english_key,
+        "prompt": prompt,
+        "options": options,
+        "correct_answer": answer,
+        "pushed_at": datetime.utcnow(),
+    }
+
+
+@app.get("/quiz/distractors")
+def quiz_distractors():
+    """Real vocab-based wrong answers for a quiz question — shared by Home
+    mode (quiz_practice_screen.dart) and Class Code (_build_quiz above), so
+    neither has to hardcode a fixed wrong-answer list."""
+    english_key = request.args.get("english_key", "")
+    field = request.args.get("field", "")
+    answer = request.args.get("answer", "")
+    n = request.args.get("n", "3")
+
+    if field not in ("malay_word", "chinese_word", "english_word"):
+        return jsonify({"status": "error", "message": "Invalid field"}), 400
+    if not english_key or not answer:
+        return jsonify({"status": "error", "message": "english_key and answer are required"}), 400
+    try:
+        n = max(1, min(int(n), 10))
+    except ValueError:
+        n = 3
+
+    options = _random_distractors(field, answer, english_key, n)
+    return jsonify({"distractors": options})
+
+
+def _count_connected(session):
+    return sum(1 for s in session.get("students", []) if s.get("connected"))
+
+
+def _count_answered(session):
+    return sum(
+        1 for s in session.get("students", [])
+        if s.get("connected") and s.get("answered_current")
+    )
+
+
+@app.post("/class/create")
+def class_create():
+    err = _db_required()
+    if err:
+        return err
+
+    data = request.get_json() or {}
+    teacher_id = (data.get("teacher_id") or "").strip()
+    if not teacher_id:
+        return jsonify({"status": "error", "message": "teacher_id is required"}), 400
+
+    try:
+        code = _generate_code()
+        session_id = str(uuid.uuid4())
+        db.class_sessions.insert_one({
+            "session_id": session_id,
+            "code": code,
+            "teacher_id": teacher_id,
+            "status": "waiting",
+            "students": [],
+            "current_quiz": None,
+            "quiz_history": [],
+            "created_at": datetime.utcnow(),
+            "ended_at": None,
+        })
+        return jsonify({"session_id": session_id, "code": code}), 201
+    except PyMongoError:
+        return jsonify({"status": "error", "message": "Database error"}), 500
+
+
+@app.post("/class/join")
+def class_join():
+    err = _db_required()
+    if err:
+        return err
+
+    data = request.get_json() or {}
+    code = (data.get("code") or "").strip().upper()
+    nickname = (data.get("nickname") or "").strip()
+    if not code:
+        return jsonify({"status": "error", "message": "Class code is required"}), 400
+    if not nickname:
+        return jsonify({"status": "error", "message": "Nickname is required"}), 400
+
+    try:
+        session = db.class_sessions.find_one({"code": code, "status": {"$ne": "ended"}})
+        if session is None:
+            return jsonify({"status": "error", "message": "Class not found or already ended"}), 404
+
+        for s in session.get("students", []):
+            if s.get("nickname") == nickname:
+                if s.get("connected"):
+                    return jsonify({"status": "error", "message": "That name is already taken in this class"}), 409
+                # Exists but disconnected → this is a rejoin, allow it.
+                return jsonify({"session_id": session["session_id"], "joined": True})
+
+        db.class_sessions.update_one(
+            {"session_id": session["session_id"]},
+            {"$push": {"students": {
+                "nickname": nickname,
+                "score": 0,
+                "answered_current": False,
+                "connected": False,
+            }}},
+        )
+        return jsonify({"session_id": session["session_id"], "joined": True})
+    except PyMongoError:
+        return jsonify({"status": "error", "message": "Database error"}), 500
+
+
+@app.get("/class/sessions/<teacher_id>")
+def class_sessions(teacher_id):
+    """All Class Code sessions a teacher has run, newest first, each with its
+    leaderboard and quiz count — real data for the teacher Class Reports screen."""
+    err = _db_required()
+    if err:
+        return err
+
+    def _iso(v):
+        return v.isoformat() if isinstance(v, datetime) else v
+
+    try:
+        docs = list(db.class_sessions.find({"teacher_id": teacher_id}))
+        docs.sort(key=lambda d: d.get("created_at") or datetime.min, reverse=True)
+
+        sessions = []
+        total_students = 0
+        live_count = 0
+        for d in docs:
+            students = d.get("students", [])
+            leaderboard = sorted(
+                [{"nickname": s.get("nickname"), "score": s.get("score", 0)}
+                 for s in students],
+                key=lambda x: x["score"],
+                reverse=True,
+            )
+            quiz_count = len(d.get("quiz_history", []))
+            if d.get("current_quiz"):
+                quiz_count += 1
+            total_students += len(students)
+            if d.get("status") != "ended":
+                live_count += 1
+            sessions.append({
+                "session_id": d.get("session_id"),
+                "code": d.get("code"),
+                "status": d.get("status"),
+                "created_at": _iso(d.get("created_at")),
+                "ended_at": _iso(d.get("ended_at")),
+                "student_count": len(students),
+                "quiz_count": quiz_count,
+                "leaderboard": leaderboard,
+            })
+
+        return jsonify({
+            "teacher_id": teacher_id,
+            "session_count": len(sessions),
+            "total_students": total_students,
+            "live_count": live_count,
+            "sessions": sessions,
+        })
+    except PyMongoError:
+        return jsonify({"status": "error", "message": "Database error"}), 500
+
+
+# ── Socket.IO events ────────────────────────────────────────────────────────
+
+@socketio.on("connect_session")
+def on_connect_session(data):
+    if db is None:
+        return
+    data = data or {}
+    code = (data.get("code") or "").strip().upper()
+    role = data.get("role")
+    nickname = (data.get("nickname") or "").strip()
+
+    try:
+        session = db.class_sessions.find_one({"code": code, "status": {"$ne": "ended"}})
+        if session is None:
+            emit("session_error", {"message": "Class not found or ended"})
+            return
+
+        join_room(code)
+
+        if role == "student" and nickname:
+            db.class_sessions.update_one(
+                {"session_id": session["session_id"], "students.nickname": nickname},
+                {"$set": {"students.$.connected": True, "students.$.sid": request.sid}},
+            )
+            session = db.class_sessions.find_one({"session_id": session["session_id"]})
+
+            # Reconnection contract: re-deliver a live quiz to this socket only if
+            # this student hasn't answered it yet.
+            quiz = session.get("current_quiz")
+            if session.get("status") == "quiz" and quiz:
+                me = next((s for s in session.get("students", []) if s.get("nickname") == nickname), None)
+                if me and not me.get("answered_current"):
+                    emit("new_quiz", {
+                        "quiz_id": quiz["quiz_id"],
+                        "prompt": quiz["prompt"],
+                        "options": quiz["options"],
+                    })
+
+            emit(
+                "student_joined",
+                {"nickname": nickname, "student_count": _count_connected(session)},
+                to=code,
+            )
+        else:
+            # Teacher: sync current connected count to this socket only (no phantom join).
+            emit("student_joined", {"nickname": None, "student_count": _count_connected(session)})
+    except PyMongoError:
+        emit("session_error", {"message": "Could not connect to the class. Please try again."})
+
+
+@socketio.on("push_quiz")
+def on_push_quiz(data):
+    if db is None:
+        return
+    data = data or {}
+    session_id = data.get("session_id")
+    english_key = data.get("english_key")
+
+    try:
+        session = db.class_sessions.find_one({"session_id": session_id, "status": {"$ne": "ended"}})
+        if session is None:
+            emit("session_error", {"message": "Session not active"})
+            return
+
+        quiz = _build_quiz(english_key)
+        update = {"$set": {
+            "current_quiz": quiz,
+            "status": "quiz",
+            "students.$[].answered_current": False,
+        }}
+        # Archive the previously-live quiz so session reports can count every quiz
+        # that was pushed, not just the final one (end_session archives the last).
+        if session.get("current_quiz"):
+            update["$push"] = {"quiz_history": session["current_quiz"]}
+        db.class_sessions.update_one({"session_id": session_id}, update)
+        emit(
+            "new_quiz",
+            {"quiz_id": quiz["quiz_id"], "prompt": quiz["prompt"], "options": quiz["options"]},
+            to=session["code"],
+        )
+    except PyMongoError:
+        # Teacher only — students never learned a quiz was coming.
+        emit("session_error", {"message": "Could not send the quiz. Please try again."})
+
+
+@socketio.on("submit_answer")
+def on_submit_answer(data):
+    if db is None:
+        return
+    data = data or {}
+    session_id = data.get("session_id")
+    nickname = data.get("nickname")
+    quiz_id = data.get("quiz_id")
+    chosen = data.get("chosen")
+
+    try:
+        session = db.class_sessions.find_one({"session_id": session_id})
+        if session is None:
+            return
+
+        quiz = session.get("current_quiz")
+        if not quiz or quiz.get("quiz_id") != quiz_id:
+            emit("answer_rejected", {"reason": "stale"})
+            return
+
+        me = next((s for s in session.get("students", []) if s.get("nickname") == nickname), None)
+        if me is None:
+            return
+        if me.get("answered_current"):
+            emit("answer_rejected", {"reason": "already_answered"})
+            return
+
+        correct = chosen == quiz.get("correct_answer")
+        update = {"$set": {"students.$.answered_current": True}}
+        if correct:
+            update["$inc"] = {"students.$.score": 1}
+        db.class_sessions.update_one(
+            {"session_id": session_id, "students.nickname": nickname},
+            update,
+        )
+        session = db.class_sessions.find_one({"session_id": session_id})
+
+        emit("answer_result", {"correct": correct, "correct_answer": quiz.get("correct_answer")})
+        emit(
+            "answer_received",
+            {
+                "nickname": nickname,
+                "answered_count": _count_answered(session),
+                "student_count": _count_connected(session),
+            },
+            to=session["code"],
+        )
+    except PyMongoError:
+        emit("answer_rejected", {"reason": "server_error"})
+
+
+@socketio.on("end_session")
+def on_end_session(data):
+    if db is None:
+        return
+    data = data or {}
+    session_id = data.get("session_id")
+
+    try:
+        session = db.class_sessions.find_one({"session_id": session_id})
+        if session is None:
+            return
+
+        leaderboard = sorted(
+            [{"nickname": s.get("nickname"), "score": s.get("score", 0)}
+             for s in session.get("students", [])],
+            key=lambda x: x["score"],
+            reverse=True,
+        )
+
+        update = {"$set": {"status": "ended", "ended_at": datetime.utcnow(), "current_quiz": None}}
+        if session.get("current_quiz"):
+            update["$push"] = {"quiz_history": session["current_quiz"]}
+        db.class_sessions.update_one({"session_id": session_id}, update)
+
+        emit("session_ended", {"leaderboard": leaderboard}, to=session["code"])
+    except PyMongoError:
+        # Teacher only — nothing was changed in Mongo, safe to just retry.
+        emit("session_error", {"message": "Could not end the session. Please try again."})
+
+
+@socketio.on("disconnect")
+def on_disconnect():
+    if db is None:
+        return
+    sid = request.sid
+    try:
+        session = db.class_sessions.find_one({"students.sid": sid})
+        if session is None:
+            return
+
+        nickname = next(
+            (s.get("nickname") for s in session.get("students", []) if s.get("sid") == sid),
+            None,
+        )
+        db.class_sessions.update_one(
+            {"session_id": session["session_id"], "students.sid": sid},
+            {"$set": {"students.$.connected": False}},
+        )
+        session = db.class_sessions.find_one({"session_id": session["session_id"]})
+        emit(
+            "student_left",
+            {"nickname": nickname, "student_count": _count_connected(session)},
+            to=session["code"],
+        )
+    except PyMongoError as e:
+        # The disconnecting client is already gone — no one to answer. Just
+        # log it; their `connected` flag simply won't flip to False this one
+        # time, which self-heals on their next reconnect or action.
+        print(f"disconnect handler: Mongo error while marking sid {sid} disconnected: {e}")
+
+
+# ---------------------------------------------------------------------------
 # Report
 # ---------------------------------------------------------------------------
 
@@ -541,4 +1008,4 @@ def get_report(child_id):
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    socketio.run(app, host='0.0.0.0', port=5000)
