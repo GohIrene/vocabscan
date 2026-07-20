@@ -45,6 +45,25 @@ class AuthService {
 
   void logout() => _currentUser = null;
 
+  /// Re-checks the logged-in parent's PIN without issuing a fresh login.
+  /// Used to gate sensitive actions (e.g. Add Child) mid-session.
+  Future<Map<String, dynamic>> verifyPin(String pin) async {
+    final username = _currentUser?['username'] as String?;
+    if (username == null) {
+      return {'status': 'error', 'message': 'Not logged in'};
+    }
+    try {
+      final response = await http.post(
+        Uri.parse('${AppConfig.baseUrl}/auth/verify-pin'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'username': username, 'pin': pin}),
+      );
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    } catch (e) {
+      return {'status': 'error', 'message': 'Network error: $e'};
+    }
+  }
+
   Future<Map<String, dynamic>> addChild(
       String parentId, String nickname, int age) async {
     try {
