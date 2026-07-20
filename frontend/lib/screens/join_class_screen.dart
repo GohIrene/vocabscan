@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'scan_object_screen.dart';
+import '../api_service.dart';
+import 'student_session_screen.dart';
 import '../theme/app_theme.dart';
 
 /// Screen 9 – Join Class
-/// Lets a student enter a 6-character class code to join a teacher session.
+/// Lets a student enter their name and a 6-character class code to join a live
+/// teacher session.
 class JoinClassScreen extends StatefulWidget {
   const JoinClassScreen({super.key});
 
@@ -13,27 +15,56 @@ class JoinClassScreen extends StatefulWidget {
 }
 
 class _JoinClassScreenState extends State<JoinClassScreen> {
-  final _controller = TextEditingController();
+  final _nameController = TextEditingController();
+  final _codeController = TextEditingController();
 
-  static const _quickCodes = ['ABC123', 'XYZ789', 'DEF456'];
+  bool _loading = false;
+  String? _error;
 
-  void _joinClass(String code) {
-    if (code.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a class code')),
-      );
+  Future<void> _joinClass() async {
+    final name = _nameController.text.trim();
+    final code = _codeController.text.trim().toUpperCase();
+
+    if (name.isEmpty) {
+      setState(() => _error = 'Please enter your name');
       return;
     }
-    // For prototype, just take them to Scan Object screen
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => const ScanObjectScreen()),
-    );
+    if (code.isEmpty) {
+      setState(() => _error = 'Please enter a class code');
+      return;
+    }
+
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+
+    final res = await ApiService.joinClassSession(code, name);
+    if (!mounted) return;
+    setState(() => _loading = false);
+
+    final sessionId = res['session_id'] as String?;
+    if (res['joined'] == true && sessionId != null) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => StudentSessionScreen(
+            sessionId: sessionId,
+            code: code,
+            nickname: name,
+          ),
+        ),
+      );
+    } else {
+      setState(() =>
+          _error = (res['message'] as String?) ?? 'Could not join the class');
+    }
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _nameController.dispose();
+    _codeController.dispose();
     super.dispose();
   }
 
@@ -101,7 +132,8 @@ class _JoinClassScreenState extends State<JoinClassScreen> {
                           ),
                           const SizedBox(height: AppTheme.xs),
                           Text(
-                            "Enter your teacher's code",
+                            "Enter your name and teacher's code",
+                            textAlign: TextAlign.center,
                             style: AppTheme.body.copyWith(
                               fontSize: 14,
                               color: AppTheme.primary,
@@ -109,18 +141,63 @@ class _JoinClassScreenState extends State<JoinClassScreen> {
                           ),
                           const SizedBox(height: AppTheme.xl),
 
-                          // ── Label ──
-                          Text(
-                            'Class Code',
-                            style: AppTheme.body.copyWith(
-                              fontWeight: FontWeight.w600,
+                          // ── Name label ──
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              'Your Name',
+                              style: AppTheme.body.copyWith(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          TextField(
+                            controller: _nameController,
+                            textCapitalization: TextCapitalization.words,
+                            maxLength: 20,
+                            style: AppTheme.subheading.copyWith(fontSize: 18),
+                            decoration: InputDecoration(
+                              hintText: 'e.g. Ali',
+                              filled: true,
+                              fillColor: AppTheme.primaryLight,
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(16),
+                                borderSide: BorderSide(
+                                  color: AppTheme.primary.withValues(alpha: 0.3),
+                                  width: 2,
+                                ),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(16),
+                                borderSide: const BorderSide(
+                                  color: AppTheme.primary,
+                                  width: 2,
+                                ),
+                              ),
+                              counterText: '',
+                            ),
+                            onChanged: (_) {
+                              if (_error != null) setState(() => _error = null);
+                            },
+                          ),
+                          const SizedBox(height: AppTheme.md),
+
+                          // ── Code label ──
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              'Class Code',
+                              style: AppTheme.body.copyWith(
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ),
                           const SizedBox(height: 10),
 
-                          // ── Text field ──
+                          // ── Code field ──
                           TextField(
-                            controller: _controller,
+                            controller: _codeController,
                             textAlign: TextAlign.center,
                             maxLength: 6,
                             inputFormatters: [
@@ -164,16 +241,38 @@ class _JoinClassScreenState extends State<JoinClassScreen> {
                               ),
                               counterStyle: AppTheme.caption,
                             ),
-                            onChanged: (_) => setState(() {}),
+                            onChanged: (_) {
+                              if (_error != null) setState(() => _error = null);
+                            },
                           ),
-                          const SizedBox(height: 20),
+
+                          // ── Error text ──
+                          if (_error != null) ...[
+                            const SizedBox(height: 6),
+                            Row(
+                              children: [
+                                const Icon(Icons.error_outline,
+                                    size: 16, color: AppTheme.error),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    _error!,
+                                    style: AppTheme.caption.copyWith(
+                                      color: AppTheme.error,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                          const SizedBox(height: 16),
 
                           // ── Join button ──
                           SizedBox(
                             width: double.infinity,
                             child: FilledButton(
-                              onPressed: () =>
-                                  _joinClass(_controller.text.trim()),
+                              onPressed: _loading ? null : _joinClass,
                               style: FilledButton.styleFrom(
                                 backgroundColor: AppTheme.success,
                                 foregroundColor: AppTheme.textDark,
@@ -186,44 +285,19 @@ class _JoinClassScreenState extends State<JoinClassScreen> {
                                   fontSize: 17,
                                 ),
                               ),
-                              child: const Text('Join Class 🎉'),
+                              child: _loading
+                                  ? const SizedBox(
+                                      width: 22,
+                                      height: 22,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: AppTheme.textDark,
+                                      ),
+                                    )
+                                  : const Text('Join Class 🎉'),
                             ),
                           ),
                           const SizedBox(height: AppTheme.xl),
-
-                          // ── Divider ──
-                          Divider(
-                            color: AppTheme.primary.withValues(alpha: 0.15),
-                          ),
-                          const SizedBox(height: AppTheme.md),
-                          Text(
-                            'Quick Access (Demo)',
-                            style: AppTheme.caption,
-                          ),
-                          const SizedBox(height: AppTheme.md),
-
-                          // ── Quick code chips ──
-                          Wrap(
-                            spacing: 10,
-                            children: _quickCodes
-                                .map(
-                                  (code) => FilledButton(
-                                    onPressed: () {
-                                      _controller.text = code;
-                                      setState(() {});
-                                    },
-                                    style: AppTheme.smallButton.copyWith(
-                                      backgroundColor:
-                                          const WidgetStatePropertyAll(
-                                        AppTheme.secondary,
-                                      ),
-                                    ),
-                                    child: Text(code),
-                                  ),
-                                )
-                                .toList(),
-                          ),
-                          const SizedBox(height: 20),
 
                           // ── Tip ──
                           Container(
