@@ -6,3 +6,5 @@ tensorflow
 tf-keras
 Pillow
 numpy
+flask-socketio
+eventlet
