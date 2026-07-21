@@ -34,6 +34,10 @@ class SocketService {
   void Function(Map<String, dynamic> data)? onAnswerRejected;
   void Function(Map<String, dynamic> data)? onSessionError;
   void Function(bool connected)? onConnectionChange;
+  // Summary quiz (multi-question recap of every word covered this session).
+  void Function(Map<String, dynamic> data)? onSummaryQuiz;
+  void Function(Map<String, dynamic> data)? onSummaryAnswerResult;
+  void Function(Map<String, dynamic> data)? onSummaryProgress;
 
   bool get isConnected => _socket?.connected ?? false;
 
@@ -80,6 +84,10 @@ class SocketService {
     socket.on('session_ended', (d) => onSessionEnded?.call(_asMap(d)));
     socket.on('answer_rejected', (d) => onAnswerRejected?.call(_asMap(d)));
     socket.on('session_error', (d) => onSessionError?.call(_asMap(d)));
+    socket.on('summary_quiz', (d) => onSummaryQuiz?.call(_asMap(d)));
+    socket.on(
+        'summary_answer_result', (d) => onSummaryAnswerResult?.call(_asMap(d)));
+    socket.on('summary_progress', (d) => onSummaryProgress?.call(_asMap(d)));
 
     socket.connect();
   }
@@ -108,6 +116,28 @@ class SocketService {
     _socket?.emit('submit_answer', {
       'session_id': sessionId,
       'nickname': nickname,
+      'quiz_id': quizId,
+      'chosen': chosen,
+    });
+  }
+
+  /// Teacher: send a recap covering every word pushed so far this session.
+  void pushSummaryQuiz(String sessionId) {
+    _socket?.emit('push_summary_quiz', {'session_id': sessionId});
+  }
+
+  /// Student: answer one question of the summary quiz.
+  void submitSummaryAnswer(
+    String sessionId,
+    String nickname,
+    String summaryId,
+    String quizId,
+    String chosen,
+  ) {
+    _socket?.emit('submit_summary_answer', {
+      'session_id': sessionId,
+      'nickname': nickname,
+      'summary_id': summaryId,
       'quiz_id': quizId,
       'chosen': chosen,
     });

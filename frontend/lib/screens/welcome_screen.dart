@@ -68,6 +68,7 @@ class WelcomeScreen extends StatelessWidget {
                           emoji: '👨‍👩‍👧‍👦',
                           title: 'Parent',
                           color: AppTheme.primary,
+                          imagePath: 'assets/icons/family.png',
                           onTap: () => Navigator.push(
                             context,
                             MaterialPageRoute(
@@ -83,6 +84,7 @@ class WelcomeScreen extends StatelessWidget {
                           emoji: '👩‍🏫',
                           title: 'Teacher',
                           color: AppTheme.secondary,
+                          imagePath: 'assets/icons/teacher.png',
                           onTap: () => Navigator.push(
                             context,
                             MaterialPageRoute(
@@ -104,6 +106,7 @@ class WelcomeScreen extends StatelessWidget {
                       title: 'Join Class',
                       color: AppTheme.success,
                       wide: true,
+                      imagePath: 'assets/icons/students quiz.png',
                       onTap: () => Navigator.push(
                         context,
                         MaterialPageRoute(
@@ -128,6 +131,7 @@ class _RoleCard extends StatefulWidget {
   final Color color;
   final bool wide;
   final VoidCallback onTap;
+  final String? imagePath;
 
   const _RoleCard({
     required this.emoji,
@@ -135,6 +139,7 @@ class _RoleCard extends StatefulWidget {
     required this.color,
     required this.onTap,
     this.wide = false,
+    this.imagePath,
   });
 
   @override
@@ -184,8 +189,10 @@ class _RoleCardState extends State<_RoleCard> {
                         shape: BoxShape.circle,
                       ),
                       alignment: Alignment.center,
-                      child: Text(widget.emoji,
-                          style: const TextStyle(fontSize: 24)),
+                      child: widget.imagePath != null
+                          ? Image.asset(widget.imagePath!, width: 28, height: 28)
+                          : Text(widget.emoji,
+                              style: const TextStyle(fontSize: 24)),
                     ),
                     const SizedBox(width: 14),
                     Text(
@@ -208,8 +215,10 @@ class _RoleCardState extends State<_RoleCard> {
                         shape: BoxShape.circle,
                       ),
                       alignment: Alignment.center,
-                      child: Text(widget.emoji,
-                          style: const TextStyle(fontSize: 28)),
+                      child: widget.imagePath != null
+                          ? Image.asset(widget.imagePath!, width: 36, height: 36)
+                          : Text(widget.emoji,
+                              style: const TextStyle(fontSize: 28)),
                     ),
                     const SizedBox(height: 14),
                     Text(

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../api_service.dart';
 import '../theme/app_theme.dart';
+import 'revision_quiz_screen.dart';
 
 class ParentDashboardScreen extends StatefulWidget {
   final String childId;
@@ -180,6 +181,15 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                   ),
                 ],
               ),
+              const SizedBox(height: 20),
+
+              // ── Revise everything learned so far ──
+              FilledButton.icon(
+                onPressed: () => _revise(),
+                icon: const Icon(Icons.refresh, size: 20),
+                label: Text('Revise ${widget.childNickname}\'s Words 🔁'),
+                style: AppTheme.primaryButton,
+              ),
               const SizedBox(height: 28),
 
               // ── Day-by-day progress ──
@@ -334,6 +344,11 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
             ),
           ),
           const SizedBox(height: 18),
+          Text(
+            'Tap a day to revise the words learned that day 🔁',
+            style: AppTheme.caption.copyWith(fontSize: 12),
+          ),
+          const SizedBox(height: 10),
 
           // ── Per-day detail rows ──
           ...daily.take(10).map((d) {
@@ -346,51 +361,86 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
             final attempts = ((d['quiz_attempts'] as num? ?? 0) +
                     (d['speech_attempts'] as num? ?? 0))
                 .toInt();
-            return Container(
-              width: double.infinity,
-              margin: const EdgeInsets.only(bottom: 8),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
+            // Only days that actually produced words can be revised.
+            final canRevise = wordsPractised > 0;
+            final label = '$weekday, ${_prettyDate(date)}';
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Material(
                 color: AppTheme.primaryLight,
                 borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: canRevise
+                      ? () => _revise(date: date, dateLabel: label)
+                      : null,
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Row(
                       children: [
-                        Text(
-                          weekday,
-                          style: AppTheme.body
-                              .copyWith(fontWeight: FontWeight.w700),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                weekday,
+                                style: AppTheme.body
+                                    .copyWith(fontWeight: FontWeight.w700),
+                              ),
+                              Text(
+                                _prettyDate(date),
+                                style: AppTheme.caption.copyWith(fontSize: 11),
+                              ),
+                            ],
+                          ),
                         ),
-                        Text(
-                          _prettyDate(date),
-                          style: AppTheme.caption.copyWith(fontSize: 11),
-                        ),
+                        _Badge(label: '📷 $scans', color: AppTheme.secondary),
+                        const SizedBox(width: 6),
+                        _Badge(
+                            label: '📚 $wordsPractised',
+                            color: AppTheme.primary),
+                        if (attempts > 0) ...[
+                          const SizedBox(width: 6),
+                          _Badge(
+                            label: '${accuracy.toStringAsFixed(0)}%',
+                            color: accuracy >= 80
+                                ? AppTheme.success
+                                : AppTheme.warning,
+                          ),
+                        ],
+                        if (canRevise) ...[
+                          const SizedBox(width: 4),
+                          Icon(Icons.chevron_right,
+                              size: 18, color: AppTheme.primary),
+                        ],
                       ],
                     ),
                   ),
-                  _Badge(label: '📷 $scans', color: AppTheme.secondary),
-                  const SizedBox(width: 6),
-                  _Badge(label: '📚 $wordsPractised', color: AppTheme.primary),
-                  if (attempts > 0) ...[
-                    const SizedBox(width: 6),
-                    _Badge(
-                      label: '${accuracy.toStringAsFixed(0)}%',
-                      color: accuracy >= 80
-                          ? AppTheme.success
-                          : AppTheme.warning,
-                    ),
-                  ],
-                ],
+                ),
               ),
             );
           }),
         ],
       ),
     );
+  }
+
+  /// Opens a revision quiz. [date] null revises everything the child has
+  /// learned; otherwise only the words from that local (GMT+8) day. Refreshes
+  /// the report afterwards so new attempts show up in the stats immediately.
+  Future<void> _revise({String? date, String? dateLabel}) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => RevisionQuizScreen(
+          childId: widget.childId,
+          childNickname: widget.childNickname,
+          date: date,
+          dateLabel: dateLabel,
+        ),
+      ),
+    );
+    if (mounted) _loadReport();
   }
 
   /// "2026-07-21" → "21 Jul 2026".

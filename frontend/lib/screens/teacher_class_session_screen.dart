@@ -37,6 +37,15 @@ class _TeacherClassSessionScreenState extends State<TeacherClassSessionScreen> {
   int _answeredCount = 0;
   int _quizStudentCount = 0;
 
+  // Quizzes pushed so far. The server builds the summary from the DISTINCT
+  // words behind them, so this is only used to gate the button — it stays
+  // disabled until the class has actually been sent something to recap.
+  int _quizzesSent = 0;
+
+  bool _summaryLive = false;
+  int _summaryFinished = 0;
+  int _summaryTotal = 0;
+
   bool _ended = false;
   List<Map<String, dynamic>> _leaderboard = [];
 
@@ -86,6 +95,28 @@ class _TeacherClassSessionScreenState extends State<TeacherClassSessionScreen> {
             _quizLive = true;
             _answeredCount = 0;
             _quizStudentCount = _studentCount;
+            _quizzesSent++;
+            // A normal quiz supersedes a live summary (server does the same).
+            _summaryLive = false;
+          });
+        }
+      }
+      ..onSummaryQuiz = (d) {
+        if (mounted) {
+          setState(() {
+            _summaryLive = true;
+            _summaryTotal = (d['total'] ?? 0) as int;
+            _summaryFinished = 0;
+            _quizLive = false;
+          });
+        }
+      }
+      ..onSummaryProgress = (d) {
+        if (mounted) {
+          setState(() {
+            _summaryFinished = (d['finished_count'] ?? 0) as int;
+            _quizStudentCount = (d['student_count'] ?? 0) as int;
+            _summaryTotal = (d['total'] ?? _summaryTotal) as int;
           });
         }
       }
@@ -131,6 +162,84 @@ class _TeacherClassSessionScreenState extends State<TeacherClassSessionScreen> {
         ),
       ),
     );
+  }
+
+  /// Lets the teacher re-quiz a word from an earlier session without having the
+  /// physical object to scan. Reuses the normal push_quiz path, so students see
+  /// an ordinary quiz and scoring is unchanged.
+  Future<void> _revisePastWord() async {
+    final sessionId = _sessionId;
+    if (sessionId == null) return;
+
+    List<Map<String, dynamic>> words;
+    try {
+      words = await ApiService.getTeacherRevisionWords(widget.teacherId);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not load past words: $e')),
+      );
+      return;
+    }
+    if (!mounted) return;
+
+    if (words.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No past words yet — run a session with some scans first.'),
+        ),
+      );
+      return;
+    }
+
+    final chosen = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Revise a Past Word 🔁'),
+        content: SizedBox(
+          width: 360,
+          height: 380,
+          child: ListView.builder(
+            itemCount: words.length,
+            itemBuilder: (_, i) {
+              final w = words[i];
+              final key = w['english_key'] as String? ?? '';
+              final english = w['english_word'] as String? ?? key;
+              final malay = w['malay_word'] as String? ?? '';
+              final chinese = w['chinese_word'] as String? ?? '';
+              final day = w['last_used_weekday'] as String? ?? '';
+              final date = w['last_used_date'] as String? ?? '';
+              return ListTile(
+                title: Text(english,
+                    style: AppTheme.body
+                        .copyWith(fontWeight: FontWeight.w700)),
+                subtitle: Text(
+                  '$malay · $chinese'
+                  '${date.isEmpty ? '' : '\nLast used: $day, $date'}',
+                  style: AppTheme.caption,
+                ),
+                isThreeLine: date.isNotEmpty,
+                onTap: () => Navigator.pop(ctx, key),
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+        ],
+      ),
+    );
+
+    if (chosen != null) _socket.pushQuiz(sessionId, chosen);
+  }
+
+  void _sendSummaryQuiz() {
+    final sessionId = _sessionId;
+    if (sessionId == null) return;
+    _socket.pushSummaryQuiz(sessionId);
   }
 
   void _endSession() {
@@ -363,12 +472,59 @@ class _TeacherClassSessionScreenState extends State<TeacherClassSessionScreen> {
             ),
           ),
 
+        // ── Live summary-quiz status ──
+        if (_summaryLive)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+            margin: const EdgeInsets.only(bottom: 18),
+            decoration: BoxDecoration(
+              color: AppTheme.primaryLight,
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: Column(
+              children: [
+                Text('Summary quiz sent! 📝',
+                    style: AppTheme.body.copyWith(fontWeight: FontWeight.w700)),
+                const SizedBox(height: 4),
+                Text(
+                  '$_summaryFinished of $_quizStudentCount finished '
+                  'all $_summaryTotal question${_summaryTotal == 1 ? '' : 's'}',
+                  style: AppTheme.caption,
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+
         // ── Scan to push a quiz ──
         FilledButton.icon(
           onPressed: _scanForQuiz,
           icon: const Icon(Icons.center_focus_strong, size: 20),
           label: const Text('Scan Object → Send Quiz'),
           style: AppTheme.primaryButton,
+        ),
+        const SizedBox(height: 14),
+
+        // ── Revise a word from an earlier session (no object needed) ──
+        OutlinedButton.icon(
+          onPressed: _revisePastWord,
+          icon: const Icon(Icons.history, size: 18),
+          label: const Text('Revise a Past Word 🔁'),
+          style: AppTheme.secondaryButton,
+        ),
+        const SizedBox(height: 14),
+
+        // ── Summary quiz: available any time once words have been sent ──
+        OutlinedButton.icon(
+          onPressed: _quizzesSent == 0 ? null : _sendSummaryQuiz,
+          icon: const Icon(Icons.checklist_rtl, size: 18),
+          label: Text(
+            _quizzesSent == 0
+                ? 'Summary Quiz (send a word first)'
+                : 'Send Summary Quiz 📝',
+          ),
+          style: AppTheme.secondaryButton,
         ),
         const SizedBox(height: 14),
 

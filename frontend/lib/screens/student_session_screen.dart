@@ -42,8 +42,32 @@ class _StudentSessionScreenState extends State<StudentSessionScreen> {
   bool? _lastCorrect;
   String? _lastCorrectAnswer;
 
+  // ── Summary quiz: a multi-question recap the student works through at
+  // their own pace, so progress is tracked by quiz_id rather than a single
+  // "current" question. Scores roll into the same leaderboard.
+  String? _summaryId;
+  List<Map<String, dynamic>> _summaryQuestions = [];
+  final Set<String> _summaryAnswered = {};
+  int _summaryIndex = 0;
+  int _summaryScore = 0;
+  bool _summaryAwaiting = false;
+  String? _summarySelected;
+  bool? _summaryLastCorrect;
+  String? _summaryLastCorrectAnswer;
+  bool _summaryDone = false;
+
   bool _ended = false;
   List<Map<String, dynamic>> _leaderboard = [];
+
+  /// Index of the first question this student hasn't answered yet, or the
+  /// list length when they've finished them all.
+  int _firstUnansweredIndex() {
+    for (var i = 0; i < _summaryQuestions.length; i++) {
+      final qid = _summaryQuestions[i]['quiz_id'] as String?;
+      if (qid != null && !_summaryAnswered.contains(qid)) return i;
+    }
+    return _summaryQuestions.length;
+  }
 
   @override
   void initState() {
@@ -72,8 +96,56 @@ class _StudentSessionScreenState extends State<StudentSessionScreen> {
             _awaitingResult = false;
             _lastCorrect = null;
             _lastCorrectAnswer = null;
+            // A normal quiz supersedes a live recap (the server does the same),
+            // so drop the summary and show the new question.
+            _summaryQuestions = [];
+            _summaryId = null;
+            _summaryDone = false;
           });
         }
+      }
+      ..onSummaryQuiz = (d) {
+        if (!mounted) return;
+        final questions = ((d['questions'] ?? []) as List)
+            .whereType<Map>()
+            .map((q) => Map<String, dynamic>.from(q))
+            .toList();
+        // On reconnect the server replays the recap and tells us which
+        // questions we already answered, so we resume instead of re-answering
+        // (which the server would reject anyway).
+        final answered =
+            ((d['answered'] ?? []) as List).map((e) => e.toString()).toSet();
+        setState(() {
+          _summaryId = d['summary_id'] as String?;
+          _summaryQuestions = questions;
+          _summaryAnswered
+            ..clear()
+            ..addAll(answered);
+          _summaryScore = 0;
+          _summaryAwaiting = false;
+          _summarySelected = null;
+          _summaryLastCorrect = null;
+          _summaryLastCorrectAnswer = null;
+          _summaryIndex = _firstUnansweredIndex();
+          _summaryDone = _summaryIndex >= _summaryQuestions.length;
+          // Clear single-quiz state so the recap owns the screen.
+          _quizId = null;
+          _prompt = null;
+          _options = [];
+          _lastCorrect = null;
+          _lastCorrectAnswer = null;
+        });
+      }
+      ..onSummaryAnswerResult = (d) {
+        if (!mounted) return;
+        setState(() {
+          _summaryAwaiting = false;
+          _summaryLastCorrect = d['correct'] as bool?;
+          _summaryLastCorrectAnswer = d['correct_answer'] as String?;
+          final qid = d['quiz_id'] as String?;
+          if (qid != null) _summaryAnswered.add(qid);
+          if (_summaryLastCorrect == true) _summaryScore++;
+        });
       }
       ..onAnswerResult = (d) {
         if (mounted) {
@@ -86,7 +158,10 @@ class _StudentSessionScreenState extends State<StudentSessionScreen> {
       }
       ..onAnswerRejected = (d) {
         if (mounted) {
-          setState(() => _awaitingResult = false);
+          setState(() {
+            _awaitingResult = false;
+            _summaryAwaiting = false;
+          });
           final String message;
           switch (d['reason']) {
             case 'already_answered':
@@ -133,6 +208,38 @@ class _StudentSessionScreenState extends State<StudentSessionScreen> {
       _awaitingResult = true;
     });
     _socket.submitAnswer(widget.sessionId, widget.nickname, _quizId!, chosen);
+  }
+
+  void _answerSummary(String chosen) {
+    if (_summaryAwaiting || _summaryLastCorrect != null) return;
+    final summaryId = _summaryId;
+    if (summaryId == null || _summaryIndex >= _summaryQuestions.length) return;
+    final quizId = _summaryQuestions[_summaryIndex]['quiz_id'] as String?;
+    if (quizId == null) return;
+
+    setState(() {
+      _summarySelected = chosen;
+      _summaryAwaiting = true;
+    });
+    _socket.submitSummaryAnswer(
+      widget.sessionId,
+      widget.nickname,
+      summaryId,
+      quizId,
+      chosen,
+    );
+  }
+
+  /// Clears the feedback and moves to the next unanswered question, or marks
+  /// the recap finished when there are none left.
+  void _nextSummaryQuestion() {
+    setState(() {
+      _summaryLastCorrect = null;
+      _summaryLastCorrectAnswer = null;
+      _summarySelected = null;
+      _summaryIndex = _firstUnansweredIndex();
+      _summaryDone = _summaryIndex >= _summaryQuestions.length;
+    });
   }
 
   @override
@@ -224,6 +331,9 @@ class _StudentSessionScreenState extends State<StudentSessionScreen> {
         ],
       );
     }
+
+    // A summary quiz takes over the screen until it's finished.
+    if (_summaryQuestions.isNotEmpty) return _buildSummaryBody();
 
     // Just answered → show feedback until the next quiz arrives.
     if (_lastCorrect != null) {
@@ -356,6 +466,168 @@ class _StudentSessionScreenState extends State<StudentSessionScreen> {
           _waitingChip('The teacher will send a quiz soon! 🎯'),
         ],
       ),
+    );
+  }
+
+  /// The self-paced recap: one question at a time, feedback after each, then a
+  /// score card. Kept separate from the live-quiz UI because the student drives
+  /// the pace here rather than the teacher.
+  Widget _buildSummaryBody() {
+    final total = _summaryQuestions.length;
+
+    if (_summaryDone) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 40),
+        child: Column(
+          children: [
+            const Text('🌟', style: TextStyle(fontSize: 64)),
+            const SizedBox(height: AppTheme.md),
+            Text(
+              'Summary Complete!',
+              style: AppTheme.heading
+                  .copyWith(fontSize: 26, fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'You got $_summaryScore out of $total right',
+              style: AppTheme.body.copyWith(fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 28),
+            _waitingChip('Great work! Waiting for your teacher… 🧑‍🏫'),
+          ],
+        ),
+      );
+    }
+
+    // Feedback for the question just answered.
+    if (_summaryLastCorrect != null) {
+      final correct = _summaryLastCorrect!;
+      final isLast = _firstUnansweredIndex() >= total;
+      return Padding(
+        padding: const EdgeInsets.only(top: 40),
+        child: Column(
+          children: [
+            Text(correct ? '✅' : '❌', style: const TextStyle(fontSize: 72)),
+            const SizedBox(height: AppTheme.md),
+            Text(
+              correct ? 'Correct!' : 'Not quite!',
+              style: AppTheme.heading.copyWith(
+                fontSize: 28,
+                fontWeight: FontWeight.w800,
+                color: correct ? AppTheme.success : AppTheme.error,
+              ),
+            ),
+            if (!correct && _summaryLastCorrectAnswer != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                'Answer: $_summaryLastCorrectAnswer',
+                style: AppTheme.body.copyWith(color: AppTheme.textLight),
+              ),
+            ],
+            const SizedBox(height: 28),
+            FilledButton.icon(
+              onPressed: _nextSummaryQuestion,
+              icon: Icon(isLast ? Icons.flag_outlined : Icons.arrow_forward,
+                  size: 18),
+              label: Text(isLast ? 'Finish' : 'Next Question'),
+              style: AppTheme.primaryButton,
+            ),
+            const SizedBox(height: AppTheme.xxl),
+          ],
+        ),
+      );
+    }
+
+    final question = _summaryQuestions[_summaryIndex];
+    final prompt = question['prompt'] as String? ?? '';
+    final options = ((question['options'] ?? []) as List).cast<String>();
+    final answeredCount = _summaryAnswered.length;
+
+    return Column(
+      children: [
+        const SizedBox(height: AppTheme.md),
+        const Text('📝', style: TextStyle(fontSize: 48)),
+        const SizedBox(height: AppTheme.sm),
+        Text(
+          'Summary Quiz',
+          style: AppTheme.heading
+              .copyWith(fontSize: 26, fontWeight: FontWeight.w800),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          'Question ${answeredCount + 1} of $total',
+          style: AppTheme.caption,
+        ),
+        const SizedBox(height: AppTheme.sm),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(AppTheme.sm),
+          child: LinearProgressIndicator(
+            value: total == 0 ? 0 : answeredCount / total,
+            minHeight: 8,
+            backgroundColor: AppTheme.primaryLight,
+            color: AppTheme.success,
+          ),
+        ),
+        const SizedBox(height: 24),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(AppTheme.xl),
+          decoration: AppTheme.cardDecoration,
+          child: Column(
+            children: [
+              Text(
+                prompt,
+                textAlign: TextAlign.center,
+                style: AppTheme.subheading
+                    .copyWith(fontSize: 20, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: AppTheme.xl),
+              ...options.map(
+                (opt) => Padding(
+                  padding: const EdgeInsets.only(bottom: AppTheme.md),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton(
+                      onPressed:
+                          _summaryAwaiting ? null : () => _answerSummary(opt),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppTheme.textDark,
+                        backgroundColor: _summarySelected == opt
+                            ? AppTheme.primaryLight
+                            : null,
+                        side: BorderSide(
+                          color: AppTheme.primary.withValues(alpha: 0.3),
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          vertical: AppTheme.lg,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        textStyle: AppTheme.body.copyWith(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      child: Text(opt),
+                    ),
+                  ),
+                ),
+              ),
+              if (_summaryAwaiting) ...[
+                const SizedBox(height: 8),
+                const SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(
+                      strokeWidth: 2, color: AppTheme.primary),
+                ),
+              ],
+            ],
+          ),
+        ),
+        const SizedBox(height: AppTheme.xxl),
+      ],
     );
   }
 
