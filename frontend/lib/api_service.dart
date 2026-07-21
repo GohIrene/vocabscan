@@ -210,6 +210,51 @@ class ApiService {
     }
   }
 
+  /// Builds a revision quiz from words a child has already learned, so past
+  /// vocabulary can be re-practised without re-scanning the object.
+  /// Pass [date] ("YYYY-MM-DD", local/GMT+8) to revise one specific day.
+  /// GET /revision/quiz/`childId`
+  static Future<Map<String, dynamic>> getRevisionQuiz(
+    String childId, {
+    String? date,
+    int n = 5,
+  }) async {
+    final uri = Uri.parse('${AppConfig.baseUrl}/revision/quiz/$childId').replace(
+      queryParameters: {
+        'n': '$n',
+        'date': ?date,
+      },
+    );
+    final response = await http.get(uri).timeout(const Duration(seconds: 10));
+    final body = utf8.decode(response.bodyBytes);
+    if (response.statusCode == 200) {
+      return jsonDecode(body) as Map<String, dynamic>;
+    } else {
+      throw Exception('getRevisionQuiz failed (${response.statusCode}): $body');
+    }
+  }
+
+  /// Words a teacher has already covered in past class sessions, newest first —
+  /// lets them push a revision quiz without re-scanning.
+  /// GET /revision/words/teacher/`teacherId`
+  static Future<List<Map<String, dynamic>>> getTeacherRevisionWords(
+      String teacherId) async {
+    final response = await http
+        .get(Uri.parse('${AppConfig.baseUrl}/revision/words/teacher/$teacherId'))
+        .timeout(const Duration(seconds: 10));
+    final body = utf8.decode(response.bodyBytes);
+    if (response.statusCode == 200) {
+      final data = jsonDecode(body) as Map<String, dynamic>;
+      return (data['words'] as List? ?? const [])
+          .whereType<Map>()
+          .map((w) => Map<String, dynamic>.from(w))
+          .toList();
+    } else {
+      throw Exception(
+          'getTeacherRevisionWords failed (${response.statusCode}): $body');
+    }
+  }
+
   /// Fire-and-forget speech-practice attempt log. Never throws.
   static Future<void> logSpeech(
     String childId,
