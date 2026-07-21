@@ -97,7 +97,6 @@ class QuizFeedbackScreen extends StatelessWidget {
                     FilledButton.icon(
                       onPressed: isLast
                           ? () {
-                              Navigator.pop(context);
                               Navigator.pushReplacement(
                                 context,
                                 MaterialPageRoute(
