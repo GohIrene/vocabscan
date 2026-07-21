@@ -106,6 +106,11 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
     final recentActivity = (data['recent_activity'] as List? ?? [])
         .whereType<Map<String, dynamic>>()
         .toList();
+    // Newest day first, already bucketed by Malaysian (GMT+8) calendar day.
+    final daily = (data['daily'] as List? ?? [])
+        .whereType<Map<String, dynamic>>()
+        .toList();
+    final activeDays = (data['active_days'] as num? ?? 0).toInt();
 
     if (totalWords == 0) return _buildEmpty();
 
@@ -167,9 +172,21 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                     color: AppTheme.warningLight,
                     dark: true,
                   ),
+                  _StatCard(
+                    icon: '📅',
+                    label: 'Active Days',
+                    value: '$activeDays',
+                    color: const Color(0xFF8B5CF6), // violet
+                  ),
                 ],
               ),
               const SizedBox(height: 28),
+
+              // ── Day-by-day progress ──
+              if (daily.isNotEmpty) ...[
+                _buildDailyPanel(daily),
+                const SizedBox(height: AppTheme.lg),
+              ],
 
               // ── Two-column panels ──
               LayoutBuilder(
@@ -228,6 +245,166 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
         ),
       ),
     );
+  }
+
+  /// Day-by-day progress: a compact scans-per-day bar chart over the most
+  /// recent fortnight, then a detail row per day. All days are Malaysian
+  /// (GMT+8) calendar days — the backend has already applied the offset.
+  Widget _buildDailyPanel(List<Map<String, dynamic>> daily) {
+    // `daily` arrives newest-first; the chart reads left→right like a calendar.
+    final chartDays = daily.take(14).toList().reversed.toList();
+    var maxScans = 1;
+    for (final d in chartDays) {
+      final s = (d['scans'] as num? ?? 0).toInt();
+      if (s > maxScans) maxScans = s;
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: AppTheme.cardDecoration,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '📅 Day-by-Day Progress',
+            style: AppTheme.subheading.copyWith(fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            'Scans per day • Malaysia time (GMT+8)',
+            style: AppTheme.caption.copyWith(fontSize: 12),
+          ),
+          const SizedBox(height: 16),
+
+          // ── Bar chart ──
+          SizedBox(
+            height: 132,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: chartDays.map((d) {
+                final scans = (d['scans'] as num? ?? 0).toInt();
+                final weekday = d['weekday'] as String? ?? '';
+                final date = d['date'] as String? ?? '';
+                // Floor of 4px keeps zero-activity days visible as a stub.
+                final barHeight =
+                    scans == 0 ? 4.0 : 4.0 + (scans / maxScans) * 86.0;
+                return Expanded(
+                  child: Tooltip(
+                    message: '$weekday, ${_prettyDate(date)}\n'
+                        '$scans scan${scans == 1 ? '' : 's'}',
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 3),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          Text(
+                            '$scans',
+                            style: AppTheme.caption.copyWith(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              color: scans == 0
+                                  ? AppTheme.textLight
+                                  : AppTheme.primary,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Container(
+                            height: barHeight,
+                            decoration: BoxDecoration(
+                              color: scans == 0
+                                  ? AppTheme.primaryLight
+                                  : AppTheme.primary,
+                              borderRadius: const BorderRadius.vertical(
+                                top: Radius.circular(6),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 5),
+                          Text(
+                            weekday.isEmpty ? '' : weekday.substring(0, 3),
+                            style: AppTheme.caption.copyWith(fontSize: 9),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+          const SizedBox(height: 18),
+
+          // ── Per-day detail rows ──
+          ...daily.take(10).map((d) {
+            final weekday = d['weekday'] as String? ?? '';
+            final date = d['date'] as String? ?? '';
+            final scans = (d['scans'] as num? ?? 0).toInt();
+            final wordsPractised =
+                (d['words_practised'] as num? ?? 0).toInt();
+            final accuracy = (d['accuracy'] as num? ?? 0).toDouble();
+            final attempts = ((d['quiz_attempts'] as num? ?? 0) +
+                    (d['speech_attempts'] as num? ?? 0))
+                .toInt();
+            return Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppTheme.primaryLight,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          weekday,
+                          style: AppTheme.body
+                              .copyWith(fontWeight: FontWeight.w700),
+                        ),
+                        Text(
+                          _prettyDate(date),
+                          style: AppTheme.caption.copyWith(fontSize: 11),
+                        ),
+                      ],
+                    ),
+                  ),
+                  _Badge(label: '📷 $scans', color: AppTheme.secondary),
+                  const SizedBox(width: 6),
+                  _Badge(label: '📚 $wordsPractised', color: AppTheme.primary),
+                  if (attempts > 0) ...[
+                    const SizedBox(width: 6),
+                    _Badge(
+                      label: '${accuracy.toStringAsFixed(0)}%',
+                      color: accuracy >= 80
+                          ? AppTheme.success
+                          : AppTheme.warning,
+                    ),
+                  ],
+                ],
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  /// "2026-07-21" → "21 Jul 2026".
+  static String _prettyDate(String iso) {
+    final parts = iso.split('-');
+    if (parts.length != 3) return iso;
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    ];
+    final month = int.tryParse(parts[1]) ?? 0;
+    if (month < 1 || month > 12) return iso;
+    final day = int.tryParse(parts[2]) ?? 0;
+    return '$day ${months[month - 1]} ${parts[0]}';
   }
 
   Widget _buildWordsPanel(List<Map<String, dynamic>> words) {
@@ -399,7 +576,14 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
           ...activity.map((a) {
             final key = a['english_key'] as String? ?? '';
             final confidence = (a['confidence'] as num? ?? 0).toDouble();
-            final createdAt = a['created_at'] as String? ?? '';
+            // Backend supplies these pre-converted to Malaysia time (GMT+8);
+            // the raw created_at is UTC and would read 8 hours behind.
+            final weekday = a['local_weekday'] as String? ?? '';
+            final localDate = a['local_date'] as String? ?? '';
+            final localTime = a['local_time'] as String? ?? '';
+            final when = localDate.isEmpty
+                ? (a['created_at'] as String? ?? '')
+                : '$weekday, ${_prettyDate(localDate)} · $localTime';
             return Container(
               width: double.infinity,
               margin: const EdgeInsets.only(bottom: 8),
@@ -422,7 +606,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                               .copyWith(fontWeight: FontWeight.w600),
                         ),
                         Text(
-                          'Confidence: ${(confidence * 100).toStringAsFixed(0)}%  •  $createdAt',
+                          'Confidence: ${(confidence * 100).toStringAsFixed(0)}%  •  $when',
                           style: AppTheme.caption.copyWith(fontSize: 11),
                         ),
                       ],
