@@ -1,3 +1,12 @@
+# Eventlet gives the Socket.IO server real concurrency: every connected student
+# becomes a lightweight green thread on one OS thread, instead of one OS thread
+# per connection as in the previous `threading` mode (which stalled with only a
+# few tabs open). monkey_patch() rewrites the stdlib's socket/threading calls to
+# their cooperative equivalents, so it MUST run before anything else imports
+# them — keep this block at the very top of the file.
+import eventlet
+eventlet.monkey_patch()
+
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from flask_socketio import SocketIO, join_room, emit
@@ -24,7 +33,7 @@ from model_loader import load_trained_model
 app = Flask(__name__)
 app.json.ensure_ascii = False
 CORS(app)
-socketio = SocketIO(app, cors_allowed_origins='*', async_mode='threading')
+socketio = SocketIO(app, cors_allowed_origins='*', async_mode='eventlet')
 
 # ---------------------------------------------------------------------------
 # Model loading (once at startup)
