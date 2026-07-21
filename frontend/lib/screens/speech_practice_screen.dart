@@ -1,6 +1,4 @@
-// ignore_for_file: avoid_web_libraries_in_flutter
 import 'dart:async';
-import 'dart:html' as html;
 import 'dart:js_interop';
 import 'dart:js_interop_unsafe';
 import 'package:audioplayers/audioplayers.dart';
@@ -105,8 +103,12 @@ class _SpeechPracticeScreenState extends State<SpeechPracticeScreen> {
 
   void _speakFallback(String text, String lang) {
     try {
-      final utterance = html.SpeechSynthesisUtterance(text)..lang = lang;
-      html.window.speechSynthesis?.speak(utterance);
+      final synthesis = globalContext['speechSynthesis'] as JSObject?;
+      if (synthesis == null) return;
+      final ctor = globalContext['SpeechSynthesisUtterance'] as JSFunction;
+      final utterance = ctor.callAsConstructor<JSObject>(text.toJS);
+      utterance['lang'] = lang.toJS;
+      (synthesis['speak'] as JSFunction).callAsFunction(synthesis, utterance);
     } catch (_) {}
   }
 
