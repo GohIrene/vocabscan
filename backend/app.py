@@ -19,7 +19,7 @@ import io
 import json
 import time
 import random
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # The model was trained/saved with Keras 2. TensorFlow 2.16+ bundles Keras 3,
 # which cannot deserialize the Keras 2 format, so route tf.keras through the
@@ -169,6 +169,36 @@ def _db_required():
     if db is None:
         return jsonify({"status": "error", "message": "Database unavailable"}), 503
     return None
+
+
+# All logs are written with datetime.utcnow(), but parents and teachers read
+# their reports in Kuala Lumpur time (GMT+8). Without this shift a 7am local
+# scan (stored as 11pm UTC the day before) would be filed under the previous
+# calendar day, so "progress by day" would look wrong to the user.
+LOCAL_UTC_OFFSET = timedelta(hours=8)  # Asia/Kuala_Lumpur, GMT+8
+_WEEKDAYS = ("Monday", "Tuesday", "Wednesday", "Thursday",
+             "Friday", "Saturday", "Sunday")
+
+
+def _to_local(dt):
+    """Shift a stored UTC datetime into local (GMT+8) time, or None."""
+    if not isinstance(dt, datetime):
+        return None
+    return dt + LOCAL_UTC_OFFSET
+
+
+def _local_day(dt):
+    """Return (YYYY-MM-DD, weekday name) for the LOCAL day a UTC log falls on."""
+    local = _to_local(dt)
+    if local is None:
+        return None, None
+    return local.strftime("%Y-%m-%d"), _WEEKDAYS[local.weekday()]
+
+
+def _local_time(dt):
+    """Return 'HH:MM' in local time, or '' when the value isn't a datetime."""
+    local = _to_local(dt)
+    return local.strftime("%H:%M") if local else ""
 
 
 def _clean(doc):
@@ -668,6 +698,21 @@ def _count_answered(session):
     )
 
 
+# A recap covering more than this many words is too long for young children;
+# the most recently covered words win.
+_MAX_SUMMARY_QUESTIONS = 10
+
+
+def _count_summary_finished(session, total):
+    """Connected students who have answered every question of the summary quiz."""
+    if total <= 0:
+        return 0
+    return sum(
+        1 for s in session.get("students", [])
+        if s.get("connected") and len(s.get("summary_answered") or []) >= total
+    )
+
+
 @app.post("/class/create")
 def class_create():
     err = _db_required()
@@ -690,6 +735,11 @@ def class_create():
             "students": [],
             "current_quiz": None,
             "quiz_history": [],
+            # Every distinct word pushed this session, so a summary quiz can be
+            # built from exactly what the class actually covered.
+            "word_keys": [],
+            "summary_quiz": None,
+            "summary_history": [],
             "created_at": datetime.utcnow(),
             "ended_at": None,
         })
@@ -767,15 +817,27 @@ def class_sessions(teacher_id):
             quiz_count = len(d.get("quiz_history", []))
             if d.get("current_quiz"):
                 quiz_count += 1
+            # Summary quizzes carry many questions each; count every question so
+            # the report reflects how much the class actually answered.
+            summary_rounds = list(d.get("summary_history", []))
+            if d.get("summary_quiz"):
+                summary_rounds.append(d["summary_quiz"])
+            quiz_count += sum(len(s.get("questions", [])) for s in summary_rounds)
             total_students += len(students)
             if d.get("status") != "ended":
                 live_count += 1
+            # Pre-formatted local (GMT+8) values so Class Reports can group by
+            # day without the UI re-deriving the offset from a UTC timestamp.
+            local_date, local_weekday = _local_day(d.get("created_at"))
             sessions.append({
                 "session_id": d.get("session_id"),
                 "code": d.get("code"),
                 "status": d.get("status"),
                 "created_at": _iso(d.get("created_at")),
                 "ended_at": _iso(d.get("ended_at")),
+                "local_date": local_date or "",
+                "local_weekday": local_weekday or "",
+                "local_time": _local_time(d.get("created_at")),
                 "student_count": len(students),
                 "quiz_count": quiz_count,
                 "leaderboard": leaderboard,
@@ -820,14 +882,36 @@ def on_connect_session(data):
 
             # Reconnection contract: re-deliver a live quiz to this socket only if
             # this student hasn't answered it yet.
+            me = next(
+                (s for s in session.get("students", []) if s.get("nickname") == nickname),
+                None,
+            )
             quiz = session.get("current_quiz")
             if session.get("status") == "quiz" and quiz:
-                me = next((s for s in session.get("students", []) if s.get("nickname") == nickname), None)
                 if me and not me.get("answered_current"):
                     emit("new_quiz", {
                         "quiz_id": quiz["quiz_id"],
                         "prompt": quiz["prompt"],
                         "options": quiz["options"],
+                    })
+
+            # Same contract for a live summary quiz: resend it with the questions
+            # this student already answered marked, so they resume where they
+            # left off with their score intact.
+            summary = session.get("summary_quiz")
+            if session.get("status") == "summary" and summary:
+                done = (me.get("summary_answered") or []) if me else []
+                questions = summary.get("questions", [])
+                if len(done) < len(questions):
+                    emit("summary_quiz", {
+                        "summary_id": summary["summary_id"],
+                        "total": len(questions),
+                        "answered": done,
+                        "questions": [
+                            {"quiz_id": q["quiz_id"], "prompt": q["prompt"],
+                             "options": q["options"]}
+                            for q in questions
+                        ],
                     })
 
             emit(
@@ -857,15 +941,26 @@ def on_push_quiz(data):
             return
 
         quiz = _build_quiz(english_key)
-        update = {"$set": {
-            "current_quiz": quiz,
-            "status": "quiz",
-            "students.$[].answered_current": False,
-        }}
         # Archive the previously-live quiz so session reports can count every quiz
         # that was pushed, not just the final one (end_session archives the last).
+        # A live summary quiz is superseded by a normal quiz, so archive it too.
+        push_ops = {}
         if session.get("current_quiz"):
-            update["$push"] = {"quiz_history": session["current_quiz"]}
+            push_ops["quiz_history"] = session["current_quiz"]
+        if session.get("summary_quiz"):
+            push_ops["summary_history"] = session["summary_quiz"]
+
+        update = {
+            "$set": {
+                "current_quiz": quiz,
+                "summary_quiz": None,
+                "status": "quiz",
+                "students.$[].answered_current": False,
+            },
+            "$addToSet": {"word_keys": english_key},
+        }
+        if push_ops:
+            update["$push"] = push_ops
         db.class_sessions.update_one({"session_id": session_id}, update)
         emit(
             "new_quiz",
@@ -928,6 +1023,156 @@ def on_submit_answer(data):
         emit("answer_rejected", {"reason": "server_error"})
 
 
+@socketio.on("push_summary_quiz")
+def on_push_summary_quiz(data):
+    """Send a multi-question recap covering every word the class has seen.
+
+    Available at ANY point once at least one word has been pushed — not only at
+    the end — so a teacher can run a consolidation round mid-lesson. Students
+    work through it at their own pace; scores roll into the same leaderboard.
+    """
+    if db is None:
+        return
+    data = data or {}
+    session_id = data.get("session_id")
+
+    try:
+        session = db.class_sessions.find_one(
+            {"session_id": session_id, "status": {"$ne": "ended"}}
+        )
+        if session is None:
+            emit("session_error", {"message": "Session not active"})
+            return
+
+        word_keys = session.get("word_keys") or []
+        if not word_keys:
+            emit("session_error", {
+                "message": "Send at least one word to the class before the summary quiz."
+            })
+            return
+
+        # One fresh question per word covered (patterns/distractors are re-rolled,
+        # so the recap isn't a replay of the identical questions). Capped so a
+        # long lesson can't produce an exhausting quiz for young children.
+        keys = word_keys[-_MAX_SUMMARY_QUESTIONS:]
+        questions = [_build_quiz(k) for k in keys]
+        summary = {
+            "summary_id": str(uuid.uuid4()),
+            "questions": questions,
+            "pushed_at": datetime.utcnow(),
+        }
+
+        push_ops = {}
+        if session.get("current_quiz"):
+            push_ops["quiz_history"] = session["current_quiz"]
+        if session.get("summary_quiz"):
+            push_ops["summary_history"] = session["summary_quiz"]
+
+        update = {
+            "$set": {
+                "summary_quiz": summary,
+                "current_quiz": None,
+                "status": "summary",
+                "students.$[].summary_answered": [],
+            },
+        }
+        if push_ops:
+            update["$push"] = push_ops
+        db.class_sessions.update_one({"session_id": session_id}, update)
+
+        emit(
+            "summary_quiz",
+            {
+                "summary_id": summary["summary_id"],
+                "total": len(questions),
+                # correct_answer is deliberately omitted — scoring is server-side.
+                "questions": [
+                    {"quiz_id": q["quiz_id"], "prompt": q["prompt"], "options": q["options"]}
+                    for q in questions
+                ],
+            },
+            to=session["code"],
+        )
+    except PyMongoError:
+        emit("session_error", {"message": "Could not send the summary quiz. Please try again."})
+
+
+@socketio.on("submit_summary_answer")
+def on_submit_summary_answer(data):
+    """Score one question of the summary quiz.
+
+    Students move through the recap independently, so answers are keyed by
+    quiz_id rather than a single 'current' question. $addToSet on
+    summary_answered makes re-scoring the same question impossible even if two
+    submissions race.
+    """
+    if db is None:
+        return
+    data = data or {}
+    session_id = data.get("session_id")
+    nickname = data.get("nickname")
+    summary_id = data.get("summary_id")
+    quiz_id = data.get("quiz_id")
+    chosen = data.get("chosen")
+
+    try:
+        session = db.class_sessions.find_one({"session_id": session_id})
+        if session is None:
+            return
+
+        summary = session.get("summary_quiz")
+        if not summary or summary.get("summary_id") != summary_id:
+            emit("answer_rejected", {"reason": "stale"})
+            return
+
+        question = next(
+            (q for q in summary.get("questions", []) if q.get("quiz_id") == quiz_id),
+            None,
+        )
+        if question is None:
+            emit("answer_rejected", {"reason": "stale"})
+            return
+
+        me = next(
+            (s for s in session.get("students", []) if s.get("nickname") == nickname),
+            None,
+        )
+        if me is None:
+            return
+        if quiz_id in (me.get("summary_answered") or []):
+            emit("answer_rejected", {"reason": "already_answered"})
+            return
+
+        correct = chosen == question.get("correct_answer")
+        update = {"$addToSet": {"students.$.summary_answered": quiz_id}}
+        if correct:
+            update["$inc"] = {"students.$.score": 1}
+        db.class_sessions.update_one(
+            {"session_id": session_id, "students.nickname": nickname},
+            update,
+        )
+        session = db.class_sessions.find_one({"session_id": session_id})
+
+        total = len(summary.get("questions", []))
+        emit("summary_answer_result", {
+            "quiz_id": quiz_id,
+            "correct": correct,
+            "correct_answer": question.get("correct_answer"),
+        })
+        emit(
+            "summary_progress",
+            {
+                "nickname": nickname,
+                "finished_count": _count_summary_finished(session, total),
+                "student_count": _count_connected(session),
+                "total": total,
+            },
+            to=session["code"],
+        )
+    except PyMongoError:
+        emit("answer_rejected", {"reason": "server_error"})
+
+
 @socketio.on("end_session")
 def on_end_session(data):
     if db is None:
@@ -947,9 +1192,19 @@ def on_end_session(data):
             reverse=True,
         )
 
-        update = {"$set": {"status": "ended", "ended_at": datetime.utcnow(), "current_quiz": None}}
+        update = {"$set": {
+            "status": "ended",
+            "ended_at": datetime.utcnow(),
+            "current_quiz": None,
+            "summary_quiz": None,
+        }}
+        push_ops = {}
         if session.get("current_quiz"):
-            update["$push"] = {"quiz_history": session["current_quiz"]}
+            push_ops["quiz_history"] = session["current_quiz"]
+        if session.get("summary_quiz"):
+            push_ops["summary_history"] = session["summary_quiz"]
+        if push_ops:
+            update["$push"] = push_ops
         db.class_sessions.update_one({"session_id": session_id}, update)
 
         emit("session_ended", {"leaderboard": leaderboard}, to=session["code"])
@@ -987,6 +1242,117 @@ def on_disconnect():
         # log it; their `connected` flag simply won't flip to False this one
         # time, which self-heals on their next reconnect or action.
         print(f"disconnect handler: Mongo error while marking sid {sid} disconnected: {e}")
+
+
+# ---------------------------------------------------------------------------
+# Revision — re-practise words learned on earlier days
+# ---------------------------------------------------------------------------
+
+def _child_word_keys(child_id, date=None):
+    """Distinct words a child has scanned, optionally limited to one local day.
+
+    The date filter is applied BEFORE the de-duplication check: a word scanned
+    on several days must still be found when filtering to a later one.
+    """
+    keys = []
+    seen = set()
+    for log in db.scan_logs.find({"child_id": child_id}):
+        key = log.get("english_key")
+        if not key:
+            continue
+        if date:
+            day, _ = _local_day(log.get("created_at"))
+            if day != date:
+                continue
+        if key in seen:
+            continue
+        seen.add(key)
+        keys.append(key)
+    return keys
+
+
+@app.get("/revision/quiz/<child_id>")
+def revision_quiz(child_id):
+    """A quiz built from words this child has already learned, so a parent can
+    revisit earlier vocabulary without needing the physical object to scan.
+    Pass `date=YYYY-MM-DD` (local/GMT+8) to revise one specific day."""
+    err = _db_required()
+    if err:
+        return err
+
+    date = request.args.get("date") or None
+    n = request.args.get("n", "5")
+    try:
+        n = max(1, min(int(n), 20))
+    except ValueError:
+        n = 5
+
+    try:
+        keys = _child_word_keys(child_id, date)
+        if not keys:
+            return jsonify({
+                "child_id": child_id, "date": date,
+                "word_count": 0, "questions": [],
+            })
+
+        # Random subset so repeat revisions aren't identical, and each question
+        # is freshly built (rotating pattern + real distractors).
+        chosen = random.sample(keys, min(n, len(keys)))
+        questions = []
+        for key in chosen:
+            q = _build_quiz(key)
+            questions.append({
+                "english_key": key,
+                "prompt": q["prompt"],
+                "options": q["options"],
+                "correct_answer": q["correct_answer"],
+            })
+        return jsonify({
+            "child_id": child_id,
+            "date": date,
+            "word_count": len(keys),
+            "questions": questions,
+        })
+    except PyMongoError:
+        return jsonify({"status": "error", "message": "Database error"}), 500
+
+
+@app.get("/revision/words/teacher/<teacher_id>")
+def revision_words_teacher(teacher_id):
+    """Words this teacher has already covered in past class sessions, newest
+    first, so a revision quiz can be pushed without re-scanning the object."""
+    err = _db_required()
+    if err:
+        return err
+
+    try:
+        docs = list(db.class_sessions.find({"teacher_id": teacher_id}))
+        docs.sort(key=lambda d: d.get("created_at") or datetime.min, reverse=True)
+
+        words = []
+        seen = set()
+        for d in docs:
+            day, weekday = _local_day(d.get("created_at"))
+            for key in d.get("word_keys", []) or []:
+                if not key or key in seen:
+                    continue
+                seen.add(key)
+                vocab = _resolve_vocab(key)
+                words.append({
+                    "english_key": key,
+                    "english_word": vocab.get("english_word", key),
+                    "malay_word": vocab.get("malay_word", ""),
+                    "chinese_word": vocab.get("chinese_word", ""),
+                    "last_used_date": day or "",
+                    "last_used_weekday": weekday or "",
+                })
+        return jsonify({
+            "teacher_id": teacher_id,
+            "word_count": len(words),
+            "words": words,
+        })
+    except PyMongoError:
+        return jsonify({"status": "error", "message": "Database error"}), 500
 
 
 # ---------------------------------------------------------------------------
@@ -1071,8 +1437,83 @@ def get_report(child_id):
         words_with_attempts = [w for w in words if w["quiz_attempts"] >= 1]
         common_mistakes = sorted(words_with_attempts, key=lambda w: w["accuracy"])[:3]
 
+        # ── Per-day breakdown, bucketed by LOCAL (GMT+8) calendar day ──
+        daily = {}
+
+        def _bucket(created_at):
+            """Return the day bucket a log belongs to, or None if undated."""
+            day, weekday = _local_day(created_at)
+            if day is None:
+                return None
+            if day not in daily:
+                daily[day] = {
+                    "date": day,
+                    "weekday": weekday,
+                    "scans": 0,
+                    "quiz_attempts": 0,
+                    "quiz_correct": 0,
+                    "speech_attempts": 0,
+                    "speech_correct": 0,
+                    "words": set(),
+                }
+            return daily[day]
+
+        for log in scan_logs:
+            b = _bucket(log.get("created_at"))
+            if b is None:
+                continue
+            b["scans"] += 1
+            if log.get("english_key"):
+                b["words"].add(log["english_key"])
+
+        for log in quiz_logs:
+            b = _bucket(log.get("created_at"))
+            if b is None:
+                continue
+            b["quiz_attempts"] += 1
+            if log.get("correct"):
+                b["quiz_correct"] += 1
+
+        for log in speech_logs:
+            b = _bucket(log.get("created_at"))
+            if b is None:
+                continue
+            b["speech_attempts"] += 1
+            if log.get("correct"):
+                b["speech_correct"] += 1
+
+        # Newest day first, capped so a long-running profile can't bloat the
+        # response; accuracy combines quiz + speech, matching the mastery rule.
+        daily_list = []
+        for day in sorted(daily.keys(), reverse=True)[:30]:
+            b = daily[day]
+            day_attempts = b["quiz_attempts"] + b["speech_attempts"]
+            day_correct = b["quiz_correct"] + b["speech_correct"]
+            daily_list.append({
+                "date": b["date"],
+                "weekday": b["weekday"],
+                "scans": b["scans"],
+                "words_practised": len(b["words"]),
+                # The actual words, so "revise this day" can quiz exactly these.
+                "word_keys": sorted(b["words"]),
+                "quiz_attempts": b["quiz_attempts"],
+                "quiz_correct": b["quiz_correct"],
+                "speech_attempts": b["speech_attempts"],
+                "speech_correct": b["speech_correct"],
+                "accuracy": round(day_correct / day_attempts * 100, 1) if day_attempts else 0.0,
+            })
+
         # Last 10 scan logs sorted by created_at descending
         recent_docs = sorted(scan_logs, key=lambda d: d.get("created_at", datetime.min), reverse=True)[:10]
+        recent_activity = []
+        for d in recent_docs:
+            entry = _clean(d)
+            day, weekday = _local_day(d.get("created_at"))
+            # Pre-formatted local values so the UI never has to re-derive GMT+8.
+            entry["local_date"] = day or ""
+            entry["local_weekday"] = weekday or ""
+            entry["local_time"] = _local_time(d.get("created_at"))
+            recent_activity.append(entry)
 
         return jsonify({
             "child_id": child_id,
@@ -1082,9 +1523,11 @@ def get_report(child_id):
             "speech_attempts": speech_attempts,
             "speech_correct": speech_correct,
             "speech_accuracy": speech_accuracy,
+            "active_days": len(daily),
             "words": words,
             "common_mistakes": common_mistakes,
-            "recent_activity": [_clean(d) for d in recent_docs],
+            "daily": daily_list,
+            "recent_activity": recent_activity,
         })
     except PyMongoError:
         return jsonify({"status": "error", "message": "Database error"}), 500
