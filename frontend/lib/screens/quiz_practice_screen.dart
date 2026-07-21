@@ -41,34 +41,29 @@ class _QuizPracticeScreenState extends State<QuizPracticeScreen> {
     final chi = (widget.vocab['chinese_word'] as String?) ?? '书';
     final englishKey = (widget.vocab['english_key'] as String?) ?? '';
 
-    // Real vocab-based wrong answers (same pool Class Code draws from)
-    // instead of a fixed hardcoded list, so options vary per scanned object
-    // and can never collide with the correct answer.
+    // Real vocab-based wrong answers (same pool Class Code draws from) instead
+    // of a fixed hardcoded list, so options vary per scanned object and can
+    // never collide with the correct answer. One combined request fetches all
+    // three distractor sets at once (was three parallel calls).
     try {
-      final results = await Future.wait([
-        ApiService.getQuizDistractors(
-            englishKey: englishKey, field: 'malay_word', answer: mal),
-        ApiService.getQuizDistractors(
-            englishKey: englishKey, field: 'chinese_word', answer: chi),
-        ApiService.getQuizDistractors(
-            englishKey: englishKey, field: 'english_word', answer: eng),
-      ]);
+      final distractors =
+          await ApiService.getQuizQuestions(englishKey: englishKey);
 
       final questions = [
         _Question(
           prompt: 'What is "$eng" in Malay?',
           correctAnswer: mal,
-          options: _shuffle([mal, ...results[0]]),
+          options: _shuffle([mal, ...?distractors['malay_word']]),
         ),
         _Question(
           prompt: 'What is "$eng" in Chinese?',
           correctAnswer: chi,
-          options: _shuffle([chi, ...results[1]]),
+          options: _shuffle([chi, ...?distractors['chinese_word']]),
         ),
         _Question(
           prompt: 'Which English word matches "$chi"?',
           correctAnswer: eng,
-          options: _shuffle([eng, ...results[2]]),
+          options: _shuffle([eng, ...?distractors['english_word']]),
         ),
       ];
 
