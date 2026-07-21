@@ -196,7 +196,7 @@ class _TeacherProjectionScreenState extends State<TeacherProjectionScreen> {
               ),
               const SizedBox(height: 28),
 
-              ...sessions.map(_buildSessionCard),
+              ..._buildSessionsByDate(sessions),
               const SizedBox(height: AppTheme.xxl),
             ],
           ),
@@ -228,12 +228,90 @@ class _TeacherProjectionScreenState extends State<TeacherProjectionScreen> {
     );
   }
 
+  /// Groups sessions under a heading per teaching day, newest day first.
+  /// `sessions` already arrives newest-first from the backend, and each carries
+  /// a `local_date`/`local_weekday` pre-converted to Malaysia time (GMT+8), so
+  /// a late-evening class can't be filed under the previous day.
+  List<Widget> _buildSessionsByDate(List<Map<String, dynamic>> sessions) {
+    final order = <String>[];
+    final grouped = <String, List<Map<String, dynamic>>>{};
+    for (final s in sessions) {
+      final date = s['local_date'] as String? ?? '';
+      if (!grouped.containsKey(date)) {
+        grouped[date] = [];
+        order.add(date);
+      }
+      grouped[date]!.add(s);
+    }
+
+    final widgets = <Widget>[];
+    for (final date in order) {
+      final daySessions = grouped[date]!;
+      final weekday = daySessions.first['local_weekday'] as String? ?? '';
+      widgets.add(_dateHeading(date, weekday, daySessions.length));
+      widgets.addAll(daySessions.map(_buildSessionCard));
+    }
+    return widgets;
+  }
+
+  Widget _dateHeading(String date, String weekday, int count) {
+    final label = date.isEmpty
+        ? 'Undated'
+        : '$weekday, ${_prettyDate(date)}';
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppTheme.md, top: AppTheme.xs),
+      child: Row(
+        children: [
+          const Text('🗓️', style: TextStyle(fontSize: 18)),
+          const SizedBox(width: AppTheme.sm),
+          Text(
+            label,
+            style: AppTheme.subheading.copyWith(fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(width: AppTheme.sm),
+          Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: AppTheme.primaryLight,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Text(
+              '$count session${count == 1 ? '' : 's'}',
+              style: AppTheme.caption.copyWith(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: AppTheme.primary,
+              ),
+            ),
+          ),
+          const Expanded(child: Divider(indent: 12)),
+        ],
+      ),
+    );
+  }
+
+  /// "2026-07-21" → "21 Jul 2026".
+  static String _prettyDate(String iso) {
+    final parts = iso.split('-');
+    if (parts.length != 3) return iso;
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    ];
+    final month = int.tryParse(parts[1]) ?? 0;
+    if (month < 1 || month > 12) return iso;
+    final day = int.tryParse(parts[2]) ?? 0;
+    return '$day ${months[month - 1]} ${parts[0]}';
+  }
+
   Widget _buildSessionCard(Map<String, dynamic> session) {
     final code = session['code'] as String? ?? '';
     final status = session['status'] as String? ?? 'ended';
     final studentCount = (session['student_count'] as num? ?? 0).toInt();
     final quizCount = (session['quiz_count'] as num? ?? 0).toInt();
-    final createdAt = _fmtDate(session['created_at'] as String?);
+    // Local (GMT+8) start time; the calendar date is shown in the day heading.
+    final localTime = session['local_time'] as String? ?? '';
     final leaderboard = (session['leaderboard'] as List? ?? [])
         .whereType<Map<String, dynamic>>()
         .toList();
@@ -265,9 +343,10 @@ class _TeacherProjectionScreenState extends State<TeacherProjectionScreen> {
               _statusBadge(status, isLive),
             ],
           ),
-          if (createdAt.isNotEmpty) ...[
+          if (localTime.isNotEmpty) ...[
             const SizedBox(height: 4),
-            Text(createdAt, style: AppTheme.caption.copyWith(fontSize: 12)),
+            Text('Started $localTime',
+                style: AppTheme.caption.copyWith(fontSize: 12)),
           ],
           const SizedBox(height: AppTheme.md),
 
@@ -330,19 +409,6 @@ class _TeacherProjectionScreenState extends State<TeacherProjectionScreen> {
     );
   }
 
-  /// Formats an ISO timestamp (UTC, from the backend) as "7 Jul 2026, 14:30".
-  static String _fmtDate(String? iso) {
-    if (iso == null || iso.isEmpty) return '';
-    final dt = DateTime.tryParse(iso);
-    if (dt == null) return iso;
-    const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
-    ];
-    String two(int n) => n.toString().padLeft(2, '0');
-    return '${dt.day} ${months[dt.month - 1]} ${dt.year}, '
-        '${two(dt.hour)}:${two(dt.minute)}';
-  }
 }
 
 /// Summary stat card for the top row.
