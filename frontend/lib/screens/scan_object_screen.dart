@@ -54,36 +54,36 @@ class _ScanObjectScreenState extends State<ScanObjectScreen> {
   // 30 classes). Kept in sync with the backend so the UI advertises exactly
   // what's scannable, not a hardcoded subset.
   static const List<Map<String, String>> _objects = [
-    {'emoji': '📚', 'label': 'Book'},
-    {'emoji': '🖊️', 'label': 'Pen'},
-    {'emoji': '📏', 'label': 'Ruler'},
-    {'emoji': '🎒', 'label': 'Backpack'},
-    {'emoji': '🍼', 'label': 'Bottle'},
-    {'emoji': '☕', 'label': 'Cup'},
-    {'emoji': '🥄', 'label': 'Spoon'},
-    {'emoji': '🍴', 'label': 'Fork'},
-    {'emoji': '🔪', 'label': 'Knife'},
-    {'emoji': '🍽️', 'label': 'Plate'},
-    {'emoji': '🥣', 'label': 'Bowl'},
-    {'emoji': '📺', 'label': 'Remote'},
-    {'emoji': '🍎', 'label': 'Apple'},
-    {'emoji': '🍌', 'label': 'Banana'},
-    {'emoji': '🍊', 'label': 'Orange'},
-    {'emoji': '🍞', 'label': 'Bread'},
-    {'emoji': '⚽', 'label': 'Ball'},
-    {'emoji': '🪑', 'label': 'Chair'},
-    {'emoji': '🛋️', 'label': 'Table'},
-    {'emoji': '⏰', 'label': 'Clock'},
-    {'emoji': '💡', 'label': 'Lamp'},
-    {'emoji': '👓', 'label': 'Glasses'},
-    {'emoji': '⌨️', 'label': 'Keyboard'},
-    {'emoji': '💻', 'label': 'Laptop'},
-    {'emoji': '📱', 'label': 'Phone'},
-    {'emoji': '✂️', 'label': 'Scissors'},
-    {'emoji': '👟', 'label': 'Shoe'},
-    {'emoji': '🧸', 'label': 'Teddy Bear'},
-    {'emoji': '🪥', 'label': 'Toothbrush'},
-    {'emoji': '☂️', 'label': 'Umbrella'},
+    {'icon': 'assets/icons/book.png', 'label': 'Book'},
+    {'icon': 'assets/icons/pen.png', 'label': 'Pen'},
+    {'icon': 'assets/icons/ruler.png', 'label': 'Ruler'},
+    {'icon': 'assets/icons/bagpack.png', 'label': 'Backpack'},
+    {'icon': 'assets/icons/bottle.png', 'label': 'Bottle'},
+    {'icon': 'assets/icons/coffee-cup.png', 'label': 'Cup'},
+    {'icon': 'assets/icons/spoon.png', 'label': 'Spoon'},
+    {'icon': 'assets/icons/fork.png', 'label': 'Fork'},
+    {'icon': 'assets/icons/knife.png', 'label': 'Knife'},
+    {'icon': 'assets/icons/plate.png', 'label': 'Plate'},
+    {'icon': 'assets/icons/bowl.png', 'label': 'Bowl'},
+    {'icon': 'assets/icons/remote control.png', 'label': 'Remote'},
+    {'icon': 'assets/icons/apple.png', 'label': 'Apple'},
+    {'icon': 'assets/icons/banana.png', 'label': 'Banana'},
+    {'icon': 'assets/icons/orange.png', 'label': 'Orange'},
+    {'icon': 'assets/icons/bread.png', 'label': 'Bread'},
+    {'icon': 'assets/icons/ball.png', 'label': 'Ball'},
+    {'icon': 'assets/icons/chair.png', 'label': 'Chair'},
+    {'icon': 'assets/icons/table.png', 'label': 'Table'},
+    {'icon': 'assets/icons/clock.png', 'label': 'Clock'},
+    {'icon': 'assets/icons/lamp.png', 'label': 'Lamp'},
+    {'icon': 'assets/icons/glasses.png', 'label': 'Glasses'},
+    {'icon': 'assets/icons/keyboard.png', 'label': 'Keyboard'},
+    {'icon': 'assets/icons/laptop.png', 'label': 'Laptop'},
+    {'icon': 'assets/icons/phone.png', 'label': 'Phone'},
+    {'icon': 'assets/icons/scissor.png', 'label': 'Scissors'},
+    {'icon': 'assets/icons/shoe.png', 'label': 'Shoe'},
+    {'icon': 'assets/icons/teddy bear.png', 'label': 'Teddy Bear'},
+    {'icon': 'assets/icons/toothbrush.png', 'label': 'Toothbrush'},
+    {'icon': 'assets/icons/umbrella.png', 'label': 'Umbrella'},
   ];
 
   @override
@@ -600,7 +600,7 @@ class _ScanObjectScreenState extends State<ScanObjectScreen> {
                   runSpacing: 10,
                   children: visible
                       .map((o) =>
-                          _ObjectChip(emoji: o['emoji']!, label: o['label']!))
+                          _ObjectChip(iconPath: o['icon']!, label: o['label']!))
                       .toList(),
                 );
               },
@@ -834,9 +834,9 @@ class _PreviewDialog extends StatelessWidget {
 // ── Scannable-object chip ──────────────────────────────────────────────────
 
 class _ObjectChip extends StatelessWidget {
-  final String emoji;
+  final String iconPath;
   final String label;
-  const _ObjectChip({required this.emoji, required this.label});
+  const _ObjectChip({required this.iconPath, required this.label});
 
   @override
   Widget build(BuildContext context) {
@@ -850,7 +850,13 @@ class _ObjectChip extends StatelessWidget {
       ),
       child: Column(
         children: [
-          Text(emoji, style: const TextStyle(fontSize: 26)),
+          Image.asset(
+            iconPath,
+            width: 48,
+            height: 48,
+            fit: BoxFit.contain,
+            errorBuilder: (_, _, _) => const Icon(Icons.image_not_supported, size: 48),
+          ),
           const SizedBox(height: AppTheme.xs),
           Text(
             label,
