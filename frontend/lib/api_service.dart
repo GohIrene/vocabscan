@@ -169,6 +169,33 @@ class ApiService {
     }
   }
 
+  /// Fetches all three distractor sets for a scanned word in ONE request
+  /// (combined GET /quiz/questions), so the quiz screen makes a single round
+  /// trip instead of three. Returns a map of field → distractor list, e.g.
+  /// {'malay_word': [...], 'chinese_word': [...], 'english_word': [...]}.
+  static Future<Map<String, List<String>>> getQuizQuestions({
+    required String englishKey,
+    int n = 3,
+  }) async {
+    final uri = Uri.parse('${AppConfig.baseUrl}/quiz/questions').replace(
+      queryParameters: {'english_key': englishKey, 'n': '$n'},
+    );
+    final response = await http.get(uri).timeout(const Duration(seconds: 10));
+    final body = utf8.decode(response.bodyBytes);
+    if (response.statusCode == 200) {
+      final data = jsonDecode(body) as Map<String, dynamic>;
+      final d = (data['distractors'] as Map?) ?? const {};
+      List<String> pick(String k) => ((d[k] as List?) ?? const []).cast<String>();
+      return {
+        'malay_word': pick('malay_word'),
+        'chinese_word': pick('chinese_word'),
+        'english_word': pick('english_word'),
+      };
+    } else {
+      throw Exception('getQuizQuestions failed (${response.statusCode}): $body');
+    }
+  }
+
   /// Fetches all Class Code sessions run by a teacher, newest first, each with
   /// its leaderboard and quiz count. GET /class/sessions/`teacherId`
   static Future<Map<String, dynamic>> getClassSessions(String teacherId) async {
