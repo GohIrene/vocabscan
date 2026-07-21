@@ -17,17 +17,24 @@ class VocabScanApp extends StatelessWidget {
       theme: AppTheme.themeData,
       home: const WelcomeScreen(),
       // The app's font (Nunito) covers Latin only, so the first time Chinese
-      // text is rendered (recognition result / quiz / speech screens), the
-      // web renderer has to fetch a CJK fallback font on the spot, stalling
-      // that render. Laying out (but never painting) a hidden Chinese string
-      // here, once, at startup triggers that fetch early so it's cached by
-      // the time the user reaches those screens.
+      // text is rendered (recognition result / quiz / speech screens), the web
+      // renderer has to fetch and rasterize a CJK fallback font on the spot,
+      // stalling that render. Warm it once at startup by *painting* a tiny,
+      // near-transparent Chinese sample — glyph rasterization on web happens at
+      // paint time, so an Offstage widget (never painted) wouldn't trigger it.
+      // Kept 2px, ~1/255 alpha, and non-interactive so the user never sees it.
       builder: (context, child) => Stack(
         children: [
           ?child,
-          const Offstage(
-            offstage: true,
-            child: Text('中文字体预热'),
+          const Positioned(
+            left: 0,
+            bottom: 0,
+            child: IgnorePointer(
+              child: Text(
+                '中文字体预热 苹果 书 桌子 椅子 香蕉 眼镜',
+                style: TextStyle(fontSize: 2, color: Color(0x01000000)),
+              ),
+            ),
           ),
         ],
       ),
