@@ -136,17 +136,14 @@ class QuizSummaryScreen extends StatelessWidget {
                   // ── Actions ──
                   FilledButton.icon(
                     onPressed: () {
-                      // Pop quiz + result screens back to ScanObjectScreen,
-                      // then replace it with a fresh one for the same child.
+                      // Unwind the quiz sub-flow back onto the scan screen that
+                      // started it. Reusing that instance (rather than pushing a
+                      // fresh one) keeps its camera live and, in Class Code mode,
+                      // keeps the teacher's live session context intact.
                       Navigator.of(context).popUntil(
-                        (route) => route.settings.name == '/parentHome',
-                      );
-                      Navigator.of(context).pushReplacement(
-                        MaterialPageRoute(
-                          settings:
-                              const RouteSettings(name: '/parentHome'),
-                          builder: (_) => ScanObjectScreen(childId: childId),
-                        ),
+                        (route) =>
+                            route.isFirst ||
+                            route.settings.name == ScanObjectScreen.routeName,
                       );
                     },
                     icon: const Icon(Icons.camera_alt_rounded, size: 18),
@@ -156,12 +153,20 @@ class QuizSummaryScreen extends StatelessWidget {
                   const SizedBox(height: AppTheme.md),
                   OutlinedButton(
                     onPressed: () {
-                      // Pop to ScanObjectScreen (named '/parentHome'), then
-                      // pop once more to reach ParentHomeScreen.
-                      Navigator.of(context).popUntil(
-                        (route) => route.settings.name == '/parentHome',
-                      );
-                      Navigator.of(context).pop();
+                      // Unwind one step further than "Scan Another Object" —
+                      // past the scan screen too — landing on whichever screen
+                      // opened it (parent home, teacher home, or a live class
+                      // session). Done as ONE popUntil so the navigator is never
+                      // re-entered through a context this pop has already torn
+                      // down, and isFirst stops it from emptying the stack if
+                      // the scan route is somehow missing.
+                      var passedScanScreen = false;
+                      Navigator.of(context).popUntil((route) {
+                        if (passedScanScreen || route.isFirst) return true;
+                        passedScanScreen =
+                            route.settings.name == ScanObjectScreen.routeName;
+                        return false;
+                      });
                     },
                     style: OutlinedButton.styleFrom(
                       minimumSize: const Size(200, 48),

@@ -154,6 +154,7 @@ class _TeacherClassSessionScreenState extends State<TeacherClassSessionScreen> {
     await Navigator.push(
       context,
       MaterialPageRoute(
+        settings: const RouteSettings(name: ScanObjectScreen.routeName),
         builder: (_) => ScanObjectScreen(
           classSession: ClassSessionContext(
             sessionId: sessionId,

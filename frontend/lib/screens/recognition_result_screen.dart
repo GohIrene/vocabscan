@@ -60,14 +60,19 @@ class _RecognitionResultScreenState extends State<RecognitionResultScreen> {
   }
 
   Future<void> _playAudio(String langCode, String wordText) async {
+    // Every await below can outlive this screen — the quiz flow above it can be
+    // unwound mid-playback — and touching a disposed AudioPlayer or calling
+    // setState on a dead element both throw. Re-check mounted after each.
     // Tap again while playing → stop
     if (_playingLang == langCode) {
       await _player.stop();
+      if (!mounted) return;
       setState(() => _playingLang = null);
       return;
     }
 
     await _player.stop();
+    if (!mounted) return;
     setState(() => _playingLang = langCode);
 
     final audioMap = widget.predictionData['audio'] as Map<String, dynamic>?;

@@ -195,7 +195,7 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
                                     context,
                                     MaterialPageRoute(
                                       settings: const RouteSettings(
-                                        name: '/parentHome',
+                                        name: ScanObjectScreen.routeName,
                                       ),
                                       builder: (_) =>
                                           ScanObjectScreen(childId: childId),
