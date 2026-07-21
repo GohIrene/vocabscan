@@ -14,11 +14,83 @@ class _AddChildScreenState extends State<AddChildScreen> {
   int _age = 5;
   String? _error;
   bool _loading = false;
+  String _selectedGender = 'boy';
+  String _selectedIcon = 'boy1';
 
   @override
   void dispose() {
     _nicknameCtrl.dispose();
     super.dispose();
+  }
+
+  List<String> _getIconsForGender() {
+    if (_selectedGender == 'boy') {
+      return ['boy1', 'boy2', 'boy3'];
+    } else {
+      return ['girl1', 'girl2'];
+    }
+  }
+
+  Widget _buildGenderOption(String gender, String label) {
+    final isSelected = _selectedGender == gender;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () {
+          setState(() {
+            _selectedGender = gender;
+            _selectedIcon = _getIconsForGender().first;
+          });
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          decoration: BoxDecoration(
+            color: isSelected ? AppTheme.primary : AppTheme.surface,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isSelected
+                  ? AppTheme.primary
+                  : AppTheme.primary.withValues(alpha: 0.2),
+              width: 2,
+            ),
+          ),
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+            style: AppTheme.body.copyWith(
+              fontWeight: FontWeight.w600,
+              color: isSelected ? Colors.white : AppTheme.textDark,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildIconOption(String icon) {
+    final isSelected = _selectedIcon == icon;
+    return GestureDetector(
+      onTap: () => setState(() => _selectedIcon = icon),
+      child: Container(
+        width: 80,
+        height: 80,
+        decoration: BoxDecoration(
+          color: AppTheme.surface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected
+                ? AppTheme.primary
+                : AppTheme.primary.withValues(alpha: 0.2),
+            width: isSelected ? 2.5 : 1.5,
+          ),
+        ),
+        child: Image.asset(
+          'assets/icons/$icon.png',
+          fit: BoxFit.contain,
+          errorBuilder: (_, _, _) =>
+              const Icon(Icons.image_not_supported, size: 40),
+        ),
+      ),
+    );
   }
 
   Future<void> _addChild() async {
@@ -37,6 +109,7 @@ class _AddChildScreenState extends State<AddChildScreen> {
       user['user_id'] as String,
       nickname,
       _age,
+      gender: _selectedGender,
     );
     if (!mounted) return;
     if (result['status'] == 'error') {
@@ -77,8 +150,6 @@ class _AddChildScreenState extends State<AddChildScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        const Text('🧒', style: TextStyle(fontSize: 48)),
-                        const SizedBox(height: AppTheme.sm),
                         Text(
                           'Add Child Profile',
                           style: AppTheme.heading.copyWith(
@@ -87,7 +158,7 @@ class _AddChildScreenState extends State<AddChildScreen> {
                           ),
                           textAlign: TextAlign.center,
                         ),
-                        const SizedBox(height: AppTheme.xxl),
+                        const SizedBox(height: AppTheme.md),
 
                         Text(
                           'Nickname',
@@ -169,6 +240,32 @@ class _AddChildScreenState extends State<AddChildScreen> {
                               ),
                             ],
                           ),
+                        ),
+                        const SizedBox(height: AppTheme.xl),
+
+                        Text(
+                          'Choose Icon',
+                          style:
+                              AppTheme.body.copyWith(fontWeight: FontWeight.w600),
+                        ),
+                        const SizedBox(height: AppTheme.md),
+
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children: [
+                            _buildGenderOption('boy', '👦 Boy'),
+                            _buildGenderOption('girl', '👧 Girl'),
+                          ],
+                        ),
+                        const SizedBox(height: AppTheme.md),
+
+                        Wrap(
+                          spacing: 12,
+                          runSpacing: 12,
+                          alignment: WrapAlignment.center,
+                          children: _getIconsForGender().map((icon) {
+                            return _buildIconOption(icon);
+                          }).toList(),
                         ),
 
                         if (_error != null) ...[

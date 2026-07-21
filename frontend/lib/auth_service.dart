@@ -65,13 +65,19 @@ class AuthService {
   }
 
   Future<Map<String, dynamic>> addChild(
-      String parentId, String nickname, int age) async {
+      String parentId, String nickname, int age,
+      {String? gender}) async {
     try {
+      final body = {
+        'parent_id': parentId,
+        'nickname': nickname,
+        'age': age,
+      };
+      if (gender != null) body['gender'] = gender;
       final response = await http.post(
         Uri.parse('${AppConfig.baseUrl}/children'),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode(
-            {'parent_id': parentId, 'nickname': nickname, 'age': age}),
+        body: jsonEncode(body),
       );
       return jsonDecode(response.body) as Map<String, dynamic>;
     } catch (e) {
