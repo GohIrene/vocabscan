@@ -122,7 +122,14 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
           constraints: const BoxConstraints(maxWidth: 800),
           child: Column(
             children: [
-              const Text('👨‍👩‍👧‍👦', style: TextStyle(fontSize: 48)),
+              Image.asset(
+                'assets/icons/family.png',
+                width: 48,
+                height: 48,
+                errorBuilder: (context, error, stackTrace) {
+                  return const Icon(Icons.people, size: 48);
+                },
+              ),
               const SizedBox(height: 6),
               Text(
                 "${widget.childNickname}'s Progress",
@@ -149,32 +156,32 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                 runSpacing: 14,
                 children: [
                   _StatCard(
-                    icon: '📚',
+                    icon: 'assets/icons/book.png',
                     label: 'Words Learned',
                     value: '$totalWords',
                     color: AppTheme.primary,
                   ),
                   _StatCard(
-                    icon: '📷',
+                    icon: 'assets/icons/camera.png',
                     label: 'Total Scans',
                     value: '$totalScans',
                     color: AppTheme.secondary,
                   ),
                   _StatCard(
-                    icon: '🎯',
+                    icon: 'assets/icons/target.png',
                     label: 'Quiz Accuracy',
                     value: '${quizAccuracy.toStringAsFixed(0)}%',
                     color: AppTheme.success,
                   ),
                   _StatCard(
-                    icon: '⚠️',
+                    icon: 'assets/icons/star.png',
                     label: 'To Review',
                     value: '${mistakes.length}',
                     color: AppTheme.warningLight,
                     dark: true,
                   ),
                   _StatCard(
-                    icon: '📅',
+                    icon: 'assets/icons/calendar.png',
                     label: 'Active Days',
                     value: '$activeDays',
                     color: const Color(0xFF8B5CF6), // violet
@@ -187,7 +194,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
               FilledButton.icon(
                 onPressed: () => _revise(),
                 icon: const Icon(Icons.refresh, size: 20),
-                label: Text('Revise ${widget.childNickname}\'s Words 🔁'),
+                label: Text('Revise ${widget.childNickname}\'s Words'),
                 style: AppTheme.primaryButton,
               ),
               const SizedBox(height: 28),
@@ -276,9 +283,23 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            '📅 Day-by-Day Progress',
-            style: AppTheme.subheading.copyWith(fontWeight: FontWeight.w700),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Image.asset(
+                'assets/icons/calendar.png',
+                width: 20,
+                height: 20,
+                errorBuilder: (context, error, stackTrace) {
+                  return const SizedBox(width: 20, height: 20);
+                },
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Day-by-Day Progress',
+                style: AppTheme.subheading.copyWith(fontWeight: FontWeight.w700),
+              ),
+            ],
           ),
           const SizedBox(height: 2),
           Text(
@@ -344,9 +365,22 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
             ),
           ),
           const SizedBox(height: 18),
-          Text(
-            'Tap a day to revise the words learned that day 🔁',
-            style: AppTheme.caption.copyWith(fontSize: 12),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Tap a day to revise the words learned that day ',
+                style: AppTheme.caption.copyWith(fontSize: 12),
+              ),
+              Image.asset(
+                'assets/icons/repeat.png',
+                width: 12,
+                height: 12,
+                errorBuilder: (context, error, stackTrace) {
+                  return const SizedBox(width: 12, height: 12);
+                },
+              ),
+            ],
           ),
           const SizedBox(height: 10),
 
@@ -394,11 +428,17 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                             ],
                           ),
                         ),
-                        _Badge(label: '📷 $scans', color: AppTheme.secondary),
+                        _Badge(
+                          label: '$scans',
+                          color: AppTheme.secondary,
+                          iconPath: 'assets/icons/camera.png',
+                        ),
                         const SizedBox(width: 6),
                         _Badge(
-                            label: '📚 $wordsPractised',
-                            color: AppTheme.primary),
+                          label: '$wordsPractised',
+                          color: AppTheme.primary,
+                          iconPath: 'assets/icons/book.png',
+                        ),
                         if (attempts > 0) ...[
                           const SizedBox(width: 6),
                           _Badge(
@@ -464,9 +504,23 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            '✨ Words Learned',
-            style: AppTheme.subheading.copyWith(fontWeight: FontWeight.w700),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Image.asset(
+                'assets/icons/sparkles.png',
+                width: 20,
+                height: 20,
+                errorBuilder: (context, error, stackTrace) {
+                  return const SizedBox(width: 20, height: 20);
+                },
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Words Learned',
+                style: AppTheme.subheading.copyWith(fontWeight: FontWeight.w700),
+              ),
+            ],
           ),
           const SizedBox(height: 14),
           ...words.asMap().entries.map((e) {
@@ -497,8 +551,11 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                   ),
                   const SizedBox(width: 6),
                   _Badge(
-                    label: isMastered ? '⭐ Mastered' : '📖 Learning',
+                    label: isMastered ? 'Mastered' : 'Learning',
                     color: isMastered ? AppTheme.success : AppTheme.warning,
+                    iconPath: isMastered
+                        ? 'assets/icons/star.png'
+                        : 'assets/icons/book.png',
                   ),
                   const SizedBox(width: 6),
                   _Badge(
@@ -521,9 +578,23 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            '📚 Words to Review',
-            style: AppTheme.subheading.copyWith(fontWeight: FontWeight.w700),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Image.asset(
+                'assets/icons/book.png',
+                width: 20,
+                height: 20,
+                errorBuilder: (context, error, stackTrace) {
+                  return const SizedBox(width: 20, height: 20);
+                },
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Words to Review',
+                style: AppTheme.subheading.copyWith(fontWeight: FontWeight.w700),
+              ),
+            ],
           ),
           const SizedBox(height: 14),
           if (mistakes.isEmpty)
@@ -534,10 +605,27 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                 color: AppTheme.primaryLight,
                 borderRadius: BorderRadius.circular(14),
               ),
-              child: Text(
-                '🎉 Great job! No words to review.',
-                textAlign: TextAlign.center,
-                style: AppTheme.body,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Image.asset(
+                    'assets/icons/confetti.png',
+                    width: 20,
+                    height: 20,
+                    errorBuilder: (context, error, stackTrace) {
+                      return const SizedBox(width: 20, height: 20);
+                    },
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Great job! No words to review.',
+                      textAlign: TextAlign.center,
+                      style: AppTheme.body,
+                    ),
+                  ),
+                ],
               ),
             )
           else ...[
@@ -596,13 +684,30 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                 color: AppTheme.warningLight,
                 borderRadius: BorderRadius.circular(14),
               ),
-              child: Text(
-                '💡 Practice these words again to improve!',
-                textAlign: TextAlign.center,
-                style: AppTheme.caption.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: AppTheme.textDark,
-                ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Image.asset(
+                    'assets/icons/lightbulb.png',
+                    width: 16,
+                    height: 16,
+                    errorBuilder: (context, error, stackTrace) {
+                      return const SizedBox(width: 16, height: 16);
+                    },
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'Practice these words again to improve!',
+                      textAlign: TextAlign.center,
+                      style: AppTheme.caption.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.textDark,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -644,7 +749,14 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
               ),
               child: Row(
                 children: [
-                  const Text('📷', style: TextStyle(fontSize: 20)),
+                  Image.asset(
+                    'assets/icons/camera.png',
+                    width: 20,
+                    height: 20,
+                    errorBuilder: (context, error, stackTrace) {
+                      return const Icon(Icons.camera_alt, size: 20);
+                    },
+                  ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
@@ -698,7 +810,13 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
 class _Badge extends StatelessWidget {
   final String label;
   final Color color;
-  const _Badge({required this.label, required this.color});
+  final String? iconPath;
+
+  const _Badge({
+    required this.label,
+    required this.color,
+    this.iconPath,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -708,14 +826,37 @@ class _Badge extends StatelessWidget {
         color: color,
         borderRadius: BorderRadius.circular(10),
       ),
-      child: Text(
-        label,
-        style: AppTheme.caption.copyWith(
-          color: AppTheme.surface,
-          fontWeight: FontWeight.w700,
-          fontSize: 11,
-        ),
-      ),
+      child: iconPath != null
+          ? Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Image.asset(
+                  iconPath!,
+                  width: 11,
+                  height: 11,
+                  errorBuilder: (context, error, stackTrace) {
+                    return const SizedBox(width: 11, height: 11);
+                  },
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  label,
+                  style: AppTheme.caption.copyWith(
+                    color: AppTheme.surface,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            )
+          : Text(
+              label,
+              style: AppTheme.caption.copyWith(
+                color: AppTheme.surface,
+                fontWeight: FontWeight.w700,
+                fontSize: 11,
+              ),
+            ),
     );
   }
 }
@@ -748,10 +889,27 @@ class _StatCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            '$icon $label',
-            style: AppTheme.caption
-                .copyWith(color: textColor.withValues(alpha: 0.85)),
+          Row(
+            children: [
+              Image.asset(
+                icon,
+                width: 28,
+                height: 28,
+                fit: BoxFit.contain,
+                errorBuilder: (_, _, _) => Text(
+                  '?',
+                  style: TextStyle(fontSize: 24, color: textColor),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  label,
+                  style: AppTheme.caption
+                      .copyWith(color: textColor.withValues(alpha: 0.85)),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: AppTheme.sm),
           Text(

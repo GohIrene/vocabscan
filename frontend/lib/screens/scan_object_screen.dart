@@ -305,7 +305,14 @@ class _ScanObjectScreenState extends State<ScanObjectScreen> {
                     child: Column(
                       children: [
                         // Header
-                        const Text('📷', style: TextStyle(fontSize: 44)),
+                        Image.asset(
+                          'assets/icons/camera.png',
+                          width: 44,
+                          height: 44,
+                          errorBuilder: (context, error, stackTrace) {
+                            return const Icon(Icons.camera_alt, size: 44);
+                          },
+                        ),
                         const SizedBox(height: 6),
                         Text(
                           'Scan an Object',
@@ -573,14 +580,40 @@ class _ScanObjectScreenState extends State<ScanObjectScreen> {
                 color: AppTheme.warningLight,
                 borderRadius: BorderRadius.circular(14),
               ),
-              child: Text(
-                '⭐ Scan ${_objects.length} everyday home & school objects! ⭐',
-                textAlign: TextAlign.center,
-                style: AppTheme.caption.copyWith(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: AppTheme.textDark,
-                ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Image.asset(
+                    'assets/icons/star.png',
+                    width: 16,
+                    height: 16,
+                    errorBuilder: (context, error, stackTrace) {
+                      return const SizedBox(width: 16, height: 16);
+                    },
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'Scan ${_objects.length} everyday home & school objects!',
+                      textAlign: TextAlign.center,
+                      style: AppTheme.caption.copyWith(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.textDark,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Image.asset(
+                    'assets/icons/star.png',
+                    width: 16,
+                    height: 16,
+                    errorBuilder: (context, error, stackTrace) {
+                      return const SizedBox(width: 16, height: 16);
+                    },
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 14),
@@ -636,11 +669,28 @@ class _ScanObjectScreenState extends State<ScanObjectScreen> {
                 color: AppTheme.primaryLight,
                 borderRadius: BorderRadius.circular(14),
               ),
-              child: Text(
-                '💡 Point your camera at any of these objects — '
-                'more coming in future versions!',
-                textAlign: TextAlign.center,
-                style: AppTheme.caption,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Image.asset(
+                    'assets/icons/lightbulb.png',
+                    width: 14,
+                    height: 14,
+                    errorBuilder: (context, error, stackTrace) {
+                      return const SizedBox(width: 14, height: 14);
+                    },
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'Point your camera at any of these objects — '
+                      'more coming in future versions!',
+                      textAlign: TextAlign.center,
+                      style: AppTheme.caption,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],

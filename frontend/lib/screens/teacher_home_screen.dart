@@ -67,7 +67,14 @@ class TeacherHomeScreen extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const SizedBox(height: AppTheme.md),
-                        const Text('👩‍🏫', style: TextStyle(fontSize: 44)),
+                        Image.asset(
+                          'assets/icons/teacher.png',
+                          width: 44,
+                          height: 44,
+                          errorBuilder: (context, error, stackTrace) {
+                            return const Icon(Icons.person_2_outlined, size: 44);
+                          },
+                        ),
                         const SizedBox(height: AppTheme.xs),
                         Text(
                           'Teacher Panel',
@@ -79,7 +86,7 @@ class TeacherHomeScreen extends StatelessWidget {
                         const SizedBox(height: AppTheme.xxl),
 
                         _ActionCard(
-                          emoji: '📽️',
+                          iconPath: 'assets/icons/camera.png',
                           title: 'Project Mode',
                           subtitle: 'Scan objects to display for your class',
                           color: AppTheme.primary,
@@ -93,7 +100,7 @@ class TeacherHomeScreen extends StatelessWidget {
                         const SizedBox(height: AppTheme.lg),
 
                         _ActionCard(
-                          emoji: '🔗',
+                          iconPath: 'assets/icons/link.png',
                           title: 'Create Class Session',
                           subtitle: 'Generate a code for students to join',
                           color: AppTheme.secondary,
@@ -109,7 +116,7 @@ class TeacherHomeScreen extends StatelessWidget {
                         const SizedBox(height: AppTheme.lg),
 
                         _ActionCard(
-                          emoji: '📊',
+                          iconPath: 'assets/icons/statistic.png',
                           title: 'Class Reports',
                           subtitle: 'View session summaries and progress',
                           color: AppTheme.success,
@@ -138,14 +145,14 @@ class TeacherHomeScreen extends StatelessWidget {
 }
 
 class _ActionCard extends StatefulWidget {
-  final String emoji;
+  final String iconPath;
   final String title;
   final String subtitle;
   final Color color;
   final VoidCallback onTap;
 
   const _ActionCard({
-    required this.emoji,
+    required this.iconPath,
     required this.title,
     required this.subtitle,
     required this.color,
@@ -196,8 +203,14 @@ class _ActionCardState extends State<_ActionCard> {
                   shape: BoxShape.circle,
                 ),
                 alignment: Alignment.center,
-                child: Text(widget.emoji,
-                    style: const TextStyle(fontSize: 24)),
+                child: Image.asset(
+                  widget.iconPath,
+                  width: 28,
+                  height: 28,
+                  errorBuilder: (context, error, stackTrace) {
+                    return const Icon(Icons.image_not_supported, size: 28);
+                  },
+                ),
               ),
               const SizedBox(width: AppTheme.lg),
               Expanded(

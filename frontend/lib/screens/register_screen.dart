@@ -89,15 +89,32 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Text(
-                          _isParent
-                              ? 'Create Parent Account 👨‍👩‍👧‍👦'
-                              : 'Create Teacher Account 👩‍🏫',
-                          style: AppTheme.heading.copyWith(
-                            fontSize: 24,
-                            fontWeight: FontWeight.w800,
-                          ),
-                          textAlign: TextAlign.center,
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              _isParent
+                                  ? 'Create Parent Account'
+                                  : 'Create Teacher Account',
+                              style: AppTheme.heading.copyWith(
+                                fontSize: 24,
+                                fontWeight: FontWeight.w800,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(width: 8),
+                            Image.asset(
+                              _isParent
+                                  ? 'assets/icons/family.png'
+                                  : 'assets/icons/teacher.png',
+                              width: 26,
+                              height: 26,
+                              errorBuilder: (context, error, stackTrace) {
+                                return const Icon(Icons.person, size: 26);
+                              },
+                            ),
+                          ],
                         ),
                         const SizedBox(height: AppTheme.xxl),
 

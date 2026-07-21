@@ -332,16 +332,44 @@ class _SpeechPracticeScreenState extends State<SpeechPracticeScreen> {
                                   ),
                                   child: Column(
                                     children: [
-                                      Text(
-                                        _isCorrect
-                                            ? '✅ Correct!'
-                                            : '❌ Try again',
-                                        style: AppTheme.subheading.copyWith(
-                                          color: _isCorrect
-                                              ? AppTheme.success
-                                              : Colors.red,
-                                          fontSize: 20,
-                                        ),
+                                      Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Image.asset(
+                                            _isCorrect
+                                                ? 'assets/icons/checkmark.png'
+                                                : 'assets/icons/cross.png',
+                                            width: 20,
+                                            height: 20,
+                                            errorBuilder: (context, error,
+                                                stackTrace) {
+                                              return Icon(
+                                                _isCorrect
+                                                    ? Icons.check_circle
+                                                    : Icons.cancel,
+                                                size: 20,
+                                                color: _isCorrect
+                                                    ? AppTheme.success
+                                                    : Colors.red,
+                                              );
+                                            },
+                                          ),
+                                          const SizedBox(width: 6),
+                                          Text(
+                                            _isCorrect
+                                                ? 'Correct!'
+                                                : 'Try again',
+                                            style:
+                                                AppTheme.subheading.copyWith(
+                                              color: _isCorrect
+                                                  ? AppTheme.success
+                                                  : Colors.red,
+                                              fontSize: 20,
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                       if (_transcript.isNotEmpty)
                                         Text(
@@ -463,9 +491,25 @@ class _SpeechPracticeScreenState extends State<SpeechPracticeScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text(
-                    score == total ? '🎉' : score > 0 ? '😊' : '💪',
-                    style: const TextStyle(fontSize: 72),
+                  Image.asset(
+                    score == total
+                        ? 'assets/icons/confetti.png'
+                        : score > 0
+                            ? 'assets/icons/smiley.png'
+                            : 'assets/icons/strong.png',
+                    width: 72,
+                    height: 72,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Icon(
+                        score == total
+                            ? Icons.celebration
+                            : score > 0
+                                ? Icons.sentiment_satisfied
+                                : Icons.fitness_center,
+                        size: 72,
+                        color: AppTheme.primary,
+                      );
+                    },
                   ),
                   const SizedBox(height: 16),
                   Text(

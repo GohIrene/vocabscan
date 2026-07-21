@@ -24,8 +24,13 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
     Color(0xFF8B5CF6), // violet
   ];
 
-  static const List<String> _childEmojis = [
-    '😊', '😄', '🌟', '🦋', '🐣', '🌈',
+  static const List<String> _childIcons = [
+    'assets/icons/smiley.png',
+    'assets/icons/happy.png',
+    'assets/icons/star.png',
+    'assets/icons/butterfly.png',
+    'assets/icons/egg.png',
+    'assets/icons/rainbow.png',
   ];
 
   List<Map<String, dynamic>> _children = [];
@@ -179,15 +184,15 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
                                 final child = e.value;
                                 final color =
                                     _childColors[i % _childColors.length];
-                                final emoji =
-                                    _childEmojis[i % _childEmojis.length];
+                                final iconPath =
+                                    _childIcons[i % _childIcons.length];
                                 final nickname =
                                     child['nickname'] as String? ?? '';
                                 final childId =
                                     child['child_id'] as String? ?? '';
                                 final age = child['age'] as int? ?? 0;
                                 return _ChildCard(
-                                  emoji: emoji,
+                                  iconPath: iconPath,
                                   nickname: nickname,
                                   age: age,
                                   color: color,
@@ -233,7 +238,7 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
 }
 
 class _ChildCard extends StatefulWidget {
-  final String emoji;
+  final String iconPath;
   final String nickname;
   final int age;
   final Color color;
@@ -241,7 +246,7 @@ class _ChildCard extends StatefulWidget {
   final VoidCallback onStatsTap;
 
   const _ChildCard({
-    required this.emoji,
+    required this.iconPath,
     required this.nickname,
     required this.age,
     required this.color,
@@ -291,9 +296,13 @@ class _ChildCardState extends State<_ChildCard> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text(
-                      widget.emoji,
-                      style: const TextStyle(fontSize: 40),
+                    Image.asset(
+                      widget.iconPath,
+                      width: 40,
+                      height: 40,
+                      errorBuilder: (context, error, stackTrace) {
+                        return const Icon(Icons.image_not_supported, size: 40);
+                      },
                     ),
                     const SizedBox(height: 10),
                     Text(
@@ -307,12 +316,27 @@ class _ChildCardState extends State<_ChildCard> {
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 4),
-                    Text(
-                      'Tap to learn! 🎯',
-                      style: AppTheme.caption.copyWith(
-                        color: AppTheme.surface.withValues(alpha: 0.85),
-                        fontSize: 11,
-                      ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'Tap to learn! ',
+                          style: AppTheme.caption.copyWith(
+                            color: AppTheme.surface.withValues(alpha: 0.85),
+                            fontSize: 11,
+                          ),
+                        ),
+                        Image.asset(
+                          'assets/icons/target.png',
+                          width: 12,
+                          height: 12,
+                          color: AppTheme.surface.withValues(alpha: 0.85),
+                          errorBuilder: (context, error, stackTrace) {
+                            return const SizedBox(width: 12, height: 12);
+                          },
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -323,7 +347,14 @@ class _ChildCardState extends State<_ChildCard> {
         const SizedBox(height: 6),
         TextButton.icon(
           onPressed: widget.onStatsTap,
-          icon: const Text('📊', style: TextStyle(fontSize: 14)),
+          icon: Image.asset(
+            'assets/icons/statistic.png',
+            width: 14,
+            height: 14,
+            errorBuilder: (context, error, stackTrace) {
+              return const Icon(Icons.bar_chart, size: 14);
+            },
+          ),
           label: const Text('View Progress'),
           style: TextButton.styleFrom(
             foregroundColor: AppTheme.textDark,

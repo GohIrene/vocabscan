@@ -49,7 +49,14 @@ class QuizSummaryScreen extends StatelessWidget {
               constraints: const BoxConstraints(maxWidth: 500),
               child: Column(
                 children: [
-                  const Text('🏆', style: TextStyle(fontSize: 56)),
+                  Image.asset(
+                    'assets/icons/trophy.png',
+                    width: 56,
+                    height: 56,
+                    errorBuilder: (context, error, stackTrace) {
+                      return const Icon(Icons.emoji_events, size: 56);
+                    },
+                  ),
                   const SizedBox(height: AppTheme.sm),
                   Text(
                     'Quiz Complete!',
@@ -105,9 +112,19 @@ class QuizSummaryScreen extends StatelessWidget {
                       ),
                       child: Row(
                         children: [
-                          Text(
-                            ok ? '✅' : '❌',
-                            style: const TextStyle(fontSize: 22),
+                          Image.asset(
+                            ok
+                                ? 'assets/icons/checkmark.png'
+                                : 'assets/icons/cross.png',
+                            width: 24,
+                            height: 24,
+                            errorBuilder: (context, error, stackTrace) {
+                              return Icon(
+                                ok ? Icons.check_circle : Icons.cancel,
+                                size: 24,
+                                color: ok ? AppTheme.success : AppTheme.error,
+                              );
+                            },
                           ),
                           const SizedBox(width: AppTheme.md),
                           Expanded(

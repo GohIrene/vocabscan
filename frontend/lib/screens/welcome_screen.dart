@@ -21,7 +21,14 @@ class WelcomeScreen extends StatelessWidget {
               constraints: const BoxConstraints(maxWidth: 480),
               child: Column(
                 children: [
-                  const Text('✨', style: TextStyle(fontSize: 56)),
+                  Image.asset(
+                    'assets/icons/sparkles.png',
+                    width: 56,
+                    height: 56,
+                    errorBuilder: (context, error, stackTrace) {
+                      return const Icon(Icons.wb_incandescent, size: 56);
+                    },
+                  ),
                   const SizedBox(height: AppTheme.sm),
                   Text(
                     'VocabScan',
@@ -65,7 +72,6 @@ class WelcomeScreen extends StatelessWidget {
                     children: [
                       Expanded(
                         child: _RoleCard(
-                          emoji: '👨‍👩‍👧‍👦',
                           title: 'Parent',
                           color: AppTheme.primary,
                           imagePath: 'assets/icons/family.png',
@@ -81,7 +87,6 @@ class WelcomeScreen extends StatelessWidget {
                       const SizedBox(width: 16),
                       Expanded(
                         child: _RoleCard(
-                          emoji: '👩‍🏫',
                           title: 'Teacher',
                           color: AppTheme.secondary,
                           imagePath: 'assets/icons/teacher.png',
@@ -102,11 +107,10 @@ class WelcomeScreen extends StatelessWidget {
                   SizedBox(
                     width: double.infinity,
                     child: _RoleCard(
-                      emoji: '🎓',
                       title: 'Join Class',
                       color: AppTheme.success,
                       wide: true,
-                      imagePath: 'assets/icons/students quiz.png',
+                      imagePath: 'assets/icons/mortarboard.png',
                       onTap: () => Navigator.push(
                         context,
                         MaterialPageRoute(
@@ -126,7 +130,6 @@ class WelcomeScreen extends StatelessWidget {
 }
 
 class _RoleCard extends StatefulWidget {
-  final String emoji;
   final String title;
   final Color color;
   final bool wide;
@@ -134,7 +137,6 @@ class _RoleCard extends StatefulWidget {
   final String? imagePath;
 
   const _RoleCard({
-    required this.emoji,
     required this.title,
     required this.color,
     required this.onTap,
@@ -190,9 +192,16 @@ class _RoleCardState extends State<_RoleCard> {
                       ),
                       alignment: Alignment.center,
                       child: widget.imagePath != null
-                          ? Image.asset(widget.imagePath!, width: 28, height: 28)
-                          : Text(widget.emoji,
-                              style: const TextStyle(fontSize: 24)),
+                          ? Image.asset(
+                              widget.imagePath!,
+                              width: 28,
+                              height: 28,
+                              errorBuilder: (context, error, stackTrace) {
+                                return const Icon(Icons.image_not_supported,
+                                    size: 28);
+                              },
+                            )
+                          : const Icon(Icons.image_not_supported, size: 28),
                     ),
                     const SizedBox(width: 14),
                     Text(
@@ -216,9 +225,16 @@ class _RoleCardState extends State<_RoleCard> {
                       ),
                       alignment: Alignment.center,
                       child: widget.imagePath != null
-                          ? Image.asset(widget.imagePath!, width: 36, height: 36)
-                          : Text(widget.emoji,
-                              style: const TextStyle(fontSize: 28)),
+                          ? Image.asset(
+                              widget.imagePath!,
+                              width: 36,
+                              height: 36,
+                              errorBuilder: (context, error, stackTrace) {
+                                return const Icon(Icons.image_not_supported,
+                                    size: 36);
+                              },
+                            )
+                          : const Icon(Icons.image_not_supported, size: 36),
                     ),
                     const SizedBox(height: 14),
                     Text(

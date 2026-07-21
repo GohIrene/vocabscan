@@ -122,7 +122,14 @@ class _RecognitionResultScreenState extends State<RecognitionResultScreen> {
                     child: Column(
                       children: [
                         const SizedBox(height: AppTheme.sm),
-                        const Text('🎉', style: TextStyle(fontSize: 52)),
+                        Image.asset(
+                          'assets/icons/confetti.png',
+                          width: 52,
+                          height: 52,
+                          errorBuilder: (context, error, stackTrace) {
+                            return const Icon(Icons.celebration, size: 52);
+                          },
+                        ),
                         const SizedBox(height: AppTheme.sm),
                         Text(
                           'Object Recognised!',
@@ -148,8 +155,14 @@ class _RecognitionResultScreenState extends State<RecognitionResultScreen> {
                           decoration: AppTheme.cardDecoration,
                           child: Column(
                             children: [
-                              const Text('📦',
-                                  style: TextStyle(fontSize: 56)),
+                              Image.asset(
+                                'assets/icons/box.png',
+                                width: 56,
+                                height: 56,
+                                errorBuilder: (context, error, stackTrace) {
+                                  return const Icon(Icons.card_giftcard, size: 56);
+                                },
+                              ),
                               const SizedBox(height: AppTheme.lg),
                               _VocabRow(
                                 flag: '🇬🇧',
@@ -183,8 +196,15 @@ class _RecognitionResultScreenState extends State<RecognitionResultScreen> {
                         if (widget.classSession != null) ...[
                           FilledButton.icon(
                             onPressed: _sendQuizToClass,
-                            icon: const Text('🎯',
-                                style: TextStyle(fontSize: 18)),
+                            icon: Image.asset(
+                              'assets/icons/target.png',
+                              width: 18,
+                              height: 18,
+                              errorBuilder: (context, error, stackTrace) {
+                                return const Icon(Icons.center_focus_strong,
+                                    size: 18);
+                              },
+                            ),
                             label: const Text('Send Quiz to Class'),
                             style: FilledButton.styleFrom(
                               backgroundColor: AppTheme.secondary,
@@ -214,8 +234,15 @@ class _RecognitionResultScreenState extends State<RecognitionResultScreen> {
                               ),
                             ),
                           ),
-                          icon: const Text('🎯',
-                              style: TextStyle(fontSize: 18)),
+                          icon: Image.asset(
+                            'assets/icons/target.png',
+                            width: 18,
+                            height: 18,
+                            errorBuilder: (context, error, stackTrace) {
+                              return const Icon(Icons.center_focus_strong,
+                                  size: 18);
+                            },
+                          ),
                           label: const Text('Practice Quiz'),
                           style: FilledButton.styleFrom(
                             backgroundColor: AppTheme.success,

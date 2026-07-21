@@ -185,7 +185,14 @@ class _RevisionQuizScreenState extends State<RevisionQuizScreen> {
         padding: const EdgeInsets.only(top: 60),
         child: Column(
           children: [
-            const Text('📭', style: TextStyle(fontSize: 64)),
+            Image.asset(
+              'assets/icons/mailbox.png',
+              width: 64,
+              height: 64,
+              errorBuilder: (context, error, stackTrace) {
+                return const Icon(Icons.mail_outline, size: 64);
+              },
+            ),
             const SizedBox(height: 16),
             Text('Nothing to revise yet', style: AppTheme.subheading),
             const SizedBox(height: 8),
@@ -208,7 +215,18 @@ class _RevisionQuizScreenState extends State<RevisionQuizScreen> {
         padding: const EdgeInsets.only(top: 40),
         child: Column(
           children: [
-            Text(pct >= 80 ? '🌟' : '💪', style: const TextStyle(fontSize: 64)),
+            Image.asset(
+              pct >= 80 ? 'assets/icons/star.png' : 'assets/icons/strong.png',
+              width: 64,
+              height: 64,
+              errorBuilder: (context, error, stackTrace) {
+                return Icon(
+                  pct >= 80 ? Icons.star : Icons.fitness_center,
+                  size: 64,
+                  color: AppTheme.primary,
+                );
+              },
+            ),
             const SizedBox(height: AppTheme.md),
             Text(
               'Revision Complete!',
@@ -247,7 +265,18 @@ class _RevisionQuizScreenState extends State<RevisionQuizScreen> {
         padding: const EdgeInsets.only(top: 40),
         child: Column(
           children: [
-            Text(correct ? '✅' : '❌', style: const TextStyle(fontSize: 72)),
+            Image.asset(
+              correct ? 'assets/icons/checkmark.png' : 'assets/icons/cross.png',
+              width: 72,
+              height: 72,
+              errorBuilder: (context, error, stackTrace) {
+                return Icon(
+                  correct ? Icons.check_circle : Icons.cancel,
+                  size: 72,
+                  color: correct ? AppTheme.success : AppTheme.error,
+                );
+              },
+            ),
             const SizedBox(height: AppTheme.md),
             Text(
               correct ? 'Correct!' : 'Not quite!',
@@ -286,7 +315,14 @@ class _RevisionQuizScreenState extends State<RevisionQuizScreen> {
     return Column(
       children: [
         const SizedBox(height: AppTheme.md),
-        const Text('🔁', style: TextStyle(fontSize: 48)),
+        Image.asset(
+          'assets/icons/repeat.png',
+          width: 48,
+          height: 48,
+          errorBuilder: (context, error, stackTrace) {
+            return const Icon(Icons.refresh, size: 48);
+          },
+        ),
         const SizedBox(height: AppTheme.sm),
         Text(
           'Revision Time!',

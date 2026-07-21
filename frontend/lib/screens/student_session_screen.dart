@@ -308,7 +308,14 @@ class _StudentSessionScreenState extends State<StudentSessionScreen> {
       return Column(
         children: [
           const SizedBox(height: AppTheme.md),
-          const Text('🎉', style: TextStyle(fontSize: 52)),
+          Image.asset(
+            'assets/icons/confetti.png',
+            width: 52,
+            height: 52,
+            errorBuilder: (context, error, stackTrace) {
+              return const Icon(Icons.celebration, size: 52);
+            },
+          ),
           const SizedBox(height: AppTheme.sm),
           Text(
             'Session Complete!',
@@ -342,7 +349,18 @@ class _StudentSessionScreenState extends State<StudentSessionScreen> {
         padding: const EdgeInsets.only(top: 40),
         child: Column(
           children: [
-            Text(correct ? '✅' : '❌', style: const TextStyle(fontSize: 72)),
+            Image.asset(
+              correct ? 'assets/icons/checkmark.png' : 'assets/icons/cross.png',
+              width: 72,
+              height: 72,
+              errorBuilder: (context, error, stackTrace) {
+                return Icon(
+                  correct ? Icons.check_circle : Icons.cancel,
+                  size: 72,
+                  color: correct ? AppTheme.success : AppTheme.error,
+                );
+              },
+            ),
             const SizedBox(height: AppTheme.md),
             Text(
               correct ? 'Correct!' : 'Not quite!',
@@ -360,7 +378,7 @@ class _StudentSessionScreenState extends State<StudentSessionScreen> {
               ),
             ],
             const SizedBox(height: 28),
-            _waitingChip('Waiting for the next question… 🧑‍🏫'),
+            _waitingChip('Waiting for the next question…'),
           ],
         ),
       );
@@ -371,7 +389,14 @@ class _StudentSessionScreenState extends State<StudentSessionScreen> {
       return Column(
         children: [
           const SizedBox(height: AppTheme.md),
-          const Text('🧠', style: TextStyle(fontSize: 48)),
+          Image.asset(
+            'assets/icons/brain.png',
+            width: 48,
+            height: 48,
+            errorBuilder: (context, error, stackTrace) {
+              return const Icon(Icons.psychology, size: 48);
+            },
+          ),
           const SizedBox(height: AppTheme.sm),
           Text(
             'Quiz Time!',
@@ -445,7 +470,14 @@ class _StudentSessionScreenState extends State<StudentSessionScreen> {
       padding: const EdgeInsets.only(top: 40),
       child: Column(
         children: [
-          const Text('🧑‍🏫', style: TextStyle(fontSize: 64)),
+          Image.asset(
+            'assets/icons/teacher.png',
+            width: 64,
+            height: 64,
+            errorBuilder: (context, error, stackTrace) {
+              return const Icon(Icons.person_2_outlined, size: 64);
+            },
+          ),
           const SizedBox(height: AppTheme.lg),
           Text(
             'Waiting for teacher…',
@@ -463,7 +495,7 @@ class _StudentSessionScreenState extends State<StudentSessionScreen> {
             style: AppTheme.caption,
           ),
           const SizedBox(height: 28),
-          _waitingChip('The teacher will send a quiz soon! 🎯'),
+          _waitingChip('The teacher will send a quiz soon!'),
         ],
       ),
     );
@@ -480,7 +512,14 @@ class _StudentSessionScreenState extends State<StudentSessionScreen> {
         padding: const EdgeInsets.only(top: 40),
         child: Column(
           children: [
-            const Text('🌟', style: TextStyle(fontSize: 64)),
+            Image.asset(
+              'assets/icons/star.png',
+              width: 64,
+              height: 64,
+              errorBuilder: (context, error, stackTrace) {
+                return const Icon(Icons.star, size: 64);
+              },
+            ),
             const SizedBox(height: AppTheme.md),
             Text(
               'Summary Complete!',
@@ -493,7 +532,7 @@ class _StudentSessionScreenState extends State<StudentSessionScreen> {
               style: AppTheme.body.copyWith(fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 28),
-            _waitingChip('Great work! Waiting for your teacher… 🧑‍🏫'),
+            _waitingChip('Great work! Waiting for your teacher…'),
           ],
         ),
       );
@@ -507,7 +546,18 @@ class _StudentSessionScreenState extends State<StudentSessionScreen> {
         padding: const EdgeInsets.only(top: 40),
         child: Column(
           children: [
-            Text(correct ? '✅' : '❌', style: const TextStyle(fontSize: 72)),
+            Image.asset(
+              correct ? 'assets/icons/checkmark.png' : 'assets/icons/cross.png',
+              width: 72,
+              height: 72,
+              errorBuilder: (context, error, stackTrace) {
+                return Icon(
+                  correct ? Icons.check_circle : Icons.cancel,
+                  size: 72,
+                  color: correct ? AppTheme.success : AppTheme.error,
+                );
+              },
+            ),
             const SizedBox(height: AppTheme.md),
             Text(
               correct ? 'Correct!' : 'Not quite!',

@@ -81,15 +81,32 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Text(
-                          _isParent
-                              ? 'Welcome, Parent! 👨‍👩‍👧‍👦'
-                              : 'Welcome, Teacher! 👩‍🏫',
-                          style: AppTheme.heading.copyWith(
-                            fontSize: 26,
-                            fontWeight: FontWeight.w800,
-                          ),
-                          textAlign: TextAlign.center,
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              _isParent
+                                  ? 'Welcome, Parent!'
+                                  : 'Welcome, Teacher!',
+                              style: AppTheme.heading.copyWith(
+                                fontSize: 26,
+                                fontWeight: FontWeight.w800,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(width: 8),
+                            Image.asset(
+                              _isParent
+                                  ? 'assets/icons/family.png'
+                                  : 'assets/icons/teacher.png',
+                              width: 28,
+                              height: 28,
+                              errorBuilder: (context, error, stackTrace) {
+                                return const Icon(Icons.person, size: 28);
+                              },
+                            ),
+                          ],
                         ),
                         const SizedBox(height: AppTheme.xxl),
 

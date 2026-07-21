@@ -115,13 +115,24 @@ class _JoinClassScreenState extends State<JoinClassScreen> {
                               shape: BoxShape.circle,
                             ),
                             alignment: Alignment.center,
-                            child: const Text(
-                              '👥',
-                              style: TextStyle(fontSize: 28),
+                            child: Image.asset(
+                              'assets/icons/Group_Tutoring.png',
+                              width: 40,
+                              height: 40,
+                              errorBuilder: (context, error, stackTrace) {
+                                return const Icon(Icons.people, size: 40);
+                              },
                             ),
                           ),
                           const SizedBox(height: 14),
-                          const Text('🎓', style: TextStyle(fontSize: 32)),
+                          Image.asset(
+                            'assets/icons/mortarboard.png',
+                            width: 32,
+                            height: 32,
+                            errorBuilder: (context, error, stackTrace) {
+                              return const Icon(Icons.school, size: 32);
+                            },
+                          ),
                           const SizedBox(height: 6),
                           Text(
                             'Join a Class',
@@ -294,7 +305,27 @@ class _JoinClassScreenState extends State<JoinClassScreen> {
                                         color: AppTheme.textDark,
                                       ),
                                     )
-                                  : const Text('Join Class 🎉'),
+                                  : Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const Text('Join Class'),
+                                        const SizedBox(width: 8),
+                                        Image.asset(
+                                          'assets/icons/confetti.png',
+                                          width: 20,
+                                          height: 20,
+                                          errorBuilder: (context, error,
+                                              stackTrace) {
+                                            return const SizedBox(
+                                              width: 20,
+                                              height: 20,
+                                            );
+                                          },
+                                        ),
+                                      ],
+                                    ),
                             ),
                           ),
                           const SizedBox(height: AppTheme.xl),
@@ -309,9 +340,14 @@ class _JoinClassScreenState extends State<JoinClassScreen> {
                             ),
                             child: Column(
                               children: [
-                                const Text(
-                                  '💡',
-                                  style: TextStyle(fontSize: 22),
+                                Image.asset(
+                                  'assets/icons/lightbulb.png',
+                                  width: 24,
+                                  height: 24,
+                                  errorBuilder: (context, error, stackTrace) {
+                                    return const Icon(Icons.lightbulb_outline,
+                                        size: 24);
+                                  },
                                 ),
                                 const SizedBox(height: AppTheme.xs),
                                 Text(

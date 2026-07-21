@@ -148,7 +148,14 @@ class _TeacherProjectionScreenState extends State<TeacherProjectionScreen> {
           constraints: const BoxConstraints(maxWidth: 820),
           child: Column(
             children: [
-              const Text('🏫', style: TextStyle(fontSize: 44)),
+              Image.asset(
+                'assets/icons/school.png',
+                width: 44,
+                height: 44,
+                errorBuilder: (context, error, stackTrace) {
+                  return const Icon(Icons.school, size: 44);
+                },
+              ),
               const SizedBox(height: AppTheme.xs),
               Text(
                 'Class Reports',
@@ -175,19 +182,19 @@ class _TeacherProjectionScreenState extends State<TeacherProjectionScreen> {
                 runSpacing: 14,
                 children: [
                   _SummaryCard(
-                    icon: '📋',
+                    iconPath: 'assets/icons/clipboard.png',
                     value: '$sessionCount',
                     label: 'Sessions Run',
                     color: AppTheme.primary,
                   ),
                   _SummaryCard(
-                    icon: '👥',
+                    iconPath: 'assets/icons/Group_Tutoring.png',
                     value: '$totalStudents',
                     label: 'Total Students',
                     color: AppTheme.secondary,
                   ),
                   _SummaryCard(
-                    icon: '🟢',
+                    iconPath: 'assets/icons/green-circle.png',
                     value: '$liveCount',
                     label: 'Live Now',
                     color: AppTheme.success,
@@ -212,7 +219,14 @@ class _TeacherProjectionScreenState extends State<TeacherProjectionScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('🧑‍🏫', style: TextStyle(fontSize: 64)),
+            Image.asset(
+              'assets/icons/teacher.png',
+              width: 64,
+              height: 64,
+              errorBuilder: (context, error, stackTrace) {
+                return const Icon(Icons.person_2_outlined, size: 64);
+              },
+            ),
             const SizedBox(height: 16),
             Text('No class sessions yet!', style: AppTheme.subheading),
             const SizedBox(height: 8),
@@ -329,7 +343,14 @@ class _TeacherProjectionScreenState extends State<TeacherProjectionScreen> {
           // ── Header row: code + status ──
           Row(
             children: [
-              const Text('🔗', style: TextStyle(fontSize: 20)),
+              Image.asset(
+                'assets/icons/link.png',
+                width: 20,
+                height: 20,
+                errorBuilder: (context, error, stackTrace) {
+                  return const Icon(Icons.link, size: 20);
+                },
+              ),
               const SizedBox(width: AppTheme.sm),
               Expanded(
                 child: Text(
@@ -353,10 +374,10 @@ class _TeacherProjectionScreenState extends State<TeacherProjectionScreen> {
           // ── Mini stats ──
           Row(
             children: [
-              _miniStat('👥', '$studentCount',
+              _miniStat('assets/icons/Group_Tutoring.png', '$studentCount',
                   studentCount == 1 ? 'student' : 'students'),
               const SizedBox(width: AppTheme.lg),
-              _miniStat('🎯', '$quizCount',
+              _miniStat('assets/icons/target.png', '$quizCount',
                   quizCount == 1 ? 'quiz' : 'quizzes'),
             ],
           ),
@@ -393,11 +414,18 @@ class _TeacherProjectionScreenState extends State<TeacherProjectionScreen> {
     );
   }
 
-  Widget _miniStat(String icon, String value, String label) {
+  Widget _miniStat(String iconPath, String value, String label) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(icon, style: const TextStyle(fontSize: 18)),
+        Image.asset(
+          iconPath,
+          width: 20,
+          height: 20,
+          errorBuilder: (context, error, stackTrace) {
+            return const SizedBox(width: 20, height: 20);
+          },
+        ),
         const SizedBox(width: 6),
         Text(
           value,
@@ -413,13 +441,13 @@ class _TeacherProjectionScreenState extends State<TeacherProjectionScreen> {
 
 /// Summary stat card for the top row.
 class _SummaryCard extends StatelessWidget {
-  final String icon;
+  final String iconPath;
   final String value;
   final String label;
   final Color color;
 
   const _SummaryCard({
-    required this.icon,
+    required this.iconPath,
     required this.value,
     required this.label,
     required this.color,
@@ -436,7 +464,14 @@ class _SummaryCard extends StatelessWidget {
       ),
       child: Column(
         children: [
-          Text(icon, style: const TextStyle(fontSize: 28)),
+          Image.asset(
+            iconPath,
+            width: 32,
+            height: 32,
+            errorBuilder: (context, error, stackTrace) {
+              return const Icon(Icons.image_not_supported, size: 32);
+            },
+          ),
           const SizedBox(height: AppTheme.sm),
           Text(
             value,

@@ -58,9 +58,17 @@ class QuizFeedbackScreen extends StatelessWidget {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
-                      isCorrect ? '🎉' : '😢',
-                      style: const TextStyle(fontSize: 56),
+                    Image.asset(
+                      isCorrect ? 'assets/icons/confetti.png' : 'assets/icons/sad.png',
+                      width: 56,
+                      height: 56,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Icon(
+                          isCorrect ? Icons.celebration : Icons.sentiment_dissatisfied,
+                          size: 56,
+                          color: accentColor,
+                        );
+                      },
                     ),
                     const SizedBox(height: AppTheme.md),
                     Text(
@@ -89,9 +97,24 @@ class QuizFeedbackScreen extends StatelessWidget {
                       const SizedBox(height: 18),
                     ],
                     if (isCorrect)
-                      Text(
-                        'Great job! Keep going! 🌟',
-                        style: AppTheme.body.copyWith(color: AppTheme.success),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'Great job! Keep going!',
+                            style: AppTheme.body.copyWith(color: AppTheme.success),
+                          ),
+                          const SizedBox(width: 6),
+                          Image.asset(
+                            'assets/icons/star.png',
+                            width: 18,
+                            height: 18,
+                            errorBuilder: (context, error, stackTrace) {
+                              return const SizedBox(width: 18, height: 18);
+                            },
+                          ),
+                        ],
                       ),
                     const SizedBox(height: AppTheme.xl),
                     FilledButton.icon(

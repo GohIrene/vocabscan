@@ -195,7 +195,7 @@ class _TeacherClassSessionScreenState extends State<TeacherClassSessionScreen> {
     final chosen = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Revise a Past Word 🔁'),
+        title: const Text('Revise a Past Word'),
         content: SizedBox(
           width: 360,
           height: 380,
@@ -338,7 +338,14 @@ class _TeacherClassSessionScreenState extends State<TeacherClassSessionScreen> {
       return Column(
         children: [
           const SizedBox(height: AppTheme.md),
-          const Text('🎉', style: TextStyle(fontSize: 52)),
+          Image.asset(
+            'assets/icons/confetti.png',
+            width: 52,
+            height: 52,
+            errorBuilder: (context, error, stackTrace) {
+              return const Icon(Icons.celebration, size: 52);
+            },
+          ),
           const SizedBox(height: AppTheme.sm),
           Text(
             'Session Ended',
@@ -437,7 +444,14 @@ class _TeacherClassSessionScreenState extends State<TeacherClassSessionScreen> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Text('👥', style: TextStyle(fontSize: 26)),
+              Image.asset(
+                'assets/icons/Group_Tutoring.png',
+                width: 26,
+                height: 26,
+                errorBuilder: (context, error, stackTrace) {
+                  return const Icon(Icons.people, size: 26);
+                },
+              ),
               const SizedBox(width: 10),
               Text(
                 '$_studentCount student${_studentCount == 1 ? '' : 's'} joined',
@@ -460,9 +474,24 @@ class _TeacherClassSessionScreenState extends State<TeacherClassSessionScreen> {
             ),
             child: Column(
               children: [
-                Text('Quiz sent! 🎯',
-                    style:
-                        AppTheme.body.copyWith(fontWeight: FontWeight.w700)),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text('Quiz sent!',
+                        style: AppTheme.body.copyWith(
+                            fontWeight: FontWeight.w700)),
+                    const SizedBox(width: 6),
+                    Image.asset(
+                      'assets/icons/target.png',
+                      width: 16,
+                      height: 16,
+                      errorBuilder: (context, error, stackTrace) {
+                        return const SizedBox(width: 16, height: 16);
+                      },
+                    ),
+                  ],
+                ),
                 const SizedBox(height: 4),
                 Text(
                   '$_answeredCount of $_quizStudentCount answered',
@@ -510,7 +539,7 @@ class _TeacherClassSessionScreenState extends State<TeacherClassSessionScreen> {
         OutlinedButton.icon(
           onPressed: _revisePastWord,
           icon: const Icon(Icons.history, size: 18),
-          label: const Text('Revise a Past Word 🔁'),
+          label: const Text('Revise a Past Word'),
           style: AppTheme.secondaryButton,
         ),
         const SizedBox(height: 14),
