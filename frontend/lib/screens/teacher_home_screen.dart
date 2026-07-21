@@ -86,9 +86,6 @@ class TeacherHomeScreen extends StatelessWidget {
                           onTap: () => Navigator.push(
                             context,
                             MaterialPageRoute(
-                              settings: const RouteSettings(
-                                name: ScanObjectScreen.routeName,
-                              ),
                               builder: (_) => const ScanObjectScreen(),
                             ),
                           ),

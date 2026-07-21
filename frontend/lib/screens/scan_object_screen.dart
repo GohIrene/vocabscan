@@ -18,12 +18,6 @@ const double _focusW = 0.70;
 const double _focusH = 0.50;
 
 class ScanObjectScreen extends StatefulWidget {
-  /// Every push of this screen tags its route with this name so the quiz
-  /// sub-flow above it (result → practice → summary) can unwind back to exactly
-  /// here without knowing whether a parent, a teacher, or a live class session
-  /// opened it.
-  static const String routeName = '/scan';
-
   final String? childId;
 
   /// Non-null only in Class Code mode (teacher scanning to push a quiz).

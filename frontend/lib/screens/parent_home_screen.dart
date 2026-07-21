@@ -194,9 +194,6 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
                                   onTap: () => Navigator.push(
                                     context,
                                     MaterialPageRoute(
-                                      settings: const RouteSettings(
-                                        name: ScanObjectScreen.routeName,
-                                      ),
                                       builder: (_) =>
                                           ScanObjectScreen(childId: childId),
                                     ),

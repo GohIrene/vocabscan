@@ -1,6 +1,20 @@
 import 'package:flutter/material.dart';
-import 'scan_object_screen.dart';
 import '../theme/app_theme.dart';
+
+/// Pops exactly [count] routes off the navigator, or fewer if the stack runs
+/// out first. Deliberately unnamed/count-based rather than matching a
+/// RouteSettings name: naming a route makes Flutter Web reflect it in the
+/// browser's address bar, and an unrelated page reload while sitting on that
+/// URL has nowhere to restore to in this app (no route table), which dumps
+/// the whole session back to the welcome screen.
+void _popRoutes(BuildContext context, int count) {
+  var remaining = count;
+  Navigator.of(context).popUntil((route) {
+    if (route.isFirst || remaining <= 0) return true;
+    remaining--;
+    return false;
+  });
+}
 
 /// Screen 6 – Quiz Summary
 /// Shows overall score and per-question results after completing the quiz.
@@ -136,15 +150,18 @@ class QuizSummaryScreen extends StatelessWidget {
                   // ── Actions ──
                   FilledButton.icon(
                     onPressed: () {
-                      // Unwind the quiz sub-flow back onto the scan screen that
-                      // started it. Reusing that instance (rather than pushing a
-                      // fresh one) keeps its camera live and, in Class Code mode,
-                      // keeps the teacher's live session context intact.
-                      Navigator.of(context).popUntil(
-                        (route) =>
-                            route.isFirst ||
-                            route.settings.name == ScanObjectScreen.routeName,
-                      );
+                      // Unwind the quiz sub-flow (Result, Practice, this Summary
+                      // screen -- 3 routes) back onto the scan screen that started
+                      // it. Reusing that instance (rather than pushing a fresh
+                      // one) keeps its camera live and, in Class Code mode, keeps
+                      // the teacher's live session context intact.
+                      //
+                      // Counts routes rather than matching a name/predicate: a
+                      // named route makes Flutter Web reflect it in the browser
+                      // URL bar, and a stray reload while sitting on that URL has
+                      // nowhere to restore to (this app has no route table),
+                      // dumping the whole session back to the welcome screen.
+                      _popRoutes(context, 3);
                     },
                     icon: const Icon(Icons.camera_alt_rounded, size: 18),
                     label: const Text('Scan Another Object'),
@@ -153,20 +170,10 @@ class QuizSummaryScreen extends StatelessWidget {
                   const SizedBox(height: AppTheme.md),
                   OutlinedButton(
                     onPressed: () {
-                      // Unwind one step further than "Scan Another Object" —
-                      // past the scan screen too — landing on whichever screen
-                      // opened it (parent home, teacher home, or a live class
-                      // session). Done as ONE popUntil so the navigator is never
-                      // re-entered through a context this pop has already torn
-                      // down, and isFirst stops it from emptying the stack if
-                      // the scan route is somehow missing.
-                      var passedScanScreen = false;
-                      Navigator.of(context).popUntil((route) {
-                        if (passedScanScreen || route.isFirst) return true;
-                        passedScanScreen =
-                            route.settings.name == ScanObjectScreen.routeName;
-                        return false;
-                      });
+                      // One route further than "Scan Another Object" -- past the
+                      // scan screen too -- landing on whichever screen opened it
+                      // (parent home, teacher home, or a live class session).
+                      _popRoutes(context, 4);
                     },
                     style: OutlinedButton.styleFrom(
                       minimumSize: const Size(200, 48),

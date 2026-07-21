@@ -151,6 +151,25 @@ class SocketService {
   void dispose() {
     _socket?.dispose();
     _socket = null;
+    // socket_io_client's dispose() already clears its own listeners, but an
+    // event that was already mid-dispatch at the JS layer the instant
+    // dispose() ran (a real race on Flutter Web hot restart, which tears
+    // down the Dart widget tree while the underlying JS socket/timers keep
+    // running underneath it) can still invoke these closures one more time.
+    // Null them so a late call is a no-op instead of a setState on a
+    // widget the framework already considers gone.
+    onNewQuiz = null;
+    onAnswerResult = null;
+    onAnswerReceived = null;
+    onStudentJoined = null;
+    onStudentLeft = null;
+    onSessionEnded = null;
+    onAnswerRejected = null;
+    onSessionError = null;
+    onConnectionChange = null;
+    onSummaryQuiz = null;
+    onSummaryAnswerResult = null;
+    onSummaryProgress = null;
   }
 
   static Map<String, dynamic> _asMap(dynamic data) {
