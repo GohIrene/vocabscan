@@ -89,6 +89,72 @@ except Exception as e:
     print(f"MongoDB connection failed: {e}")
 
 
+# ---------------------------------------------------------------------------
+# Startup: indexes + static vocab cache
+# ---------------------------------------------------------------------------
+
+def _ensure_indexes():
+    """Create an index on every field the app filters/sorts by. Each index is
+    created independently so one failure (e.g. a pre-existing duplicate) never
+    blocks the rest. Idempotent — safe to run on every boot."""
+    if db is None:
+        return
+    specs = [
+        (db.users, "username", {"unique": True}),
+        (db.children, "parent_id", {}),
+        (db.scan_logs, "child_id", {}),
+        (db.quiz_logs, [("child_id", 1), ("english_key", 1)], {}),
+        (db.speech_logs, [("child_id", 1), ("english_key", 1)], {}),
+        (db.vocab, "english_key", {"unique": True}),
+        (db.class_sessions, "code", {}),
+        (db.class_sessions, "teacher_id", {}),
+        (db.class_sessions, "students.sid", {}),
+    ]
+    created = 0
+    for coll, keys, opts in specs:
+        try:
+            coll.create_index(keys, **opts)
+            created += 1
+        except PyMongoError as e:
+            print(f"Index on {keys} skipped: {e}")
+    print(f"MongoDB indexes ensured ({created}/{len(specs)}).")
+
+
+# The vocab collection is 30 rows that never change at runtime, yet it was
+# re-read from Mongo on every scan and three times per quiz. Load it once at
+# startup into a dict keyed by english_key; fall back to the bundled VOCABULARY
+# map when the DB is empty/unavailable. _resolve_vocab and _random_distractors
+# read from this cache instead of hitting Mongo per request.
+_VOCAB_CACHE = {}
+
+
+def _load_vocab_cache():
+    """Populate _VOCAB_CACHE from Mongo (DB-first), then fill any gaps from the
+    in-memory VOCABULARY so recognition/quizzes still work without Mongo."""
+    global _VOCAB_CACHE
+    cache = {}
+    if db is not None:
+        try:
+            for doc in db.vocab.find():
+                key = doc.get("english_key")
+                if key:
+                    cache[key] = {
+                        "english_word": doc.get("english_word", key),
+                        "malay_word": doc.get("malay_word", ""),
+                        "chinese_word": doc.get("chinese_word", ""),
+                    }
+        except PyMongoError as e:
+            print(f"Vocab cache load failed, using in-memory fallback: {e}")
+    for key, item in VOCABULARY.items():
+        cache.setdefault(key, item)
+    _VOCAB_CACHE = cache
+    print(f"Vocab cache ready: {len(_VOCAB_CACHE)} words.")
+
+
+_ensure_indexes()
+_load_vocab_cache()
+
+
 def _db_required():
     """Return a 503 response tuple when db is unavailable, or None if it is."""
     if db is None:
@@ -157,20 +223,9 @@ def predict_mock():
 
 
 def _resolve_vocab(english_key):
-    """Look up a word's translations, DB-first with the in-memory fallback."""
-    if db is not None:
-        try:
-            doc = db.vocab.find_one({"english_key": english_key})
-            if doc:
-                return {
-                    "english_word": doc.get("english_word", english_key),
-                    "malay_word": doc.get("malay_word", ""),
-                    "chinese_word": doc.get("chinese_word", ""),
-                }
-        except PyMongoError as e:
-            print(f"MongoDB vocab lookup failed, falling back to in-memory: {e}")
-
-    item = VOCABULARY.get(english_key)
+    """Look up a word's translations from the in-memory vocab cache (loaded once
+    at startup, DB-first; see _load_vocab_cache)."""
+    item = _VOCAB_CACHE.get(english_key)
     if item is None:
         return {"english_word": english_key, "malay_word": "", "chinese_word": ""}
     return item
@@ -489,30 +544,17 @@ def _generate_code():
 
 
 def _random_distractors(field, answer, english_key, n):
-    """Pick up to n distinct `field` values from vocab, excluding the answer.
-
-    DB-first (the vocab collection), falling back to the in-memory VOCABULARY.
-    Never hardcoded word lists.
-    """
+    """Pick up to n distinct `field` values from the in-memory vocab cache,
+    excluding the answer and the word itself. Never hardcoded word lists."""
     values = []
     seen = set()
-    if db is not None:
-        try:
-            for doc in db.vocab.find({"english_key": {"$ne": english_key}}):
-                v = doc.get(field)
-                if v and v != answer and v not in seen:
-                    seen.add(v)
-                    values.append(v)
-        except PyMongoError:
-            values = []
-    if not values:
-        for key, item in VOCABULARY.items():
-            if key == english_key:
-                continue
-            v = item.get(field)
-            if v and v != answer and v not in seen:
-                seen.add(v)
-                values.append(v)
+    for key, item in _VOCAB_CACHE.items():
+        if key == english_key:
+            continue
+        v = item.get(field)
+        if v and v != answer and v not in seen:
+            seen.add(v)
+            values.append(v)
     random.shuffle(values)
     return values[:n]
 
@@ -572,6 +614,38 @@ def quiz_distractors():
 
     options = _random_distractors(field, answer, english_key, n)
     return jsonify({"distractors": options})
+
+
+@app.get("/quiz/questions")
+def quiz_questions():
+    """All three MCQ distractor sets for one scanned word in a single request,
+    so the Home-mode quiz screen makes one round trip instead of three. Built
+    from the in-memory vocab cache (no per-request DB scans). The per-field
+    `/quiz/distractors` endpoint above is kept for backward compatibility."""
+    english_key = request.args.get("english_key", "")
+    n = request.args.get("n", "3")
+    if not english_key:
+        return jsonify({"status": "error", "message": "english_key is required"}), 400
+    try:
+        n = max(1, min(int(n), 10))
+    except ValueError:
+        n = 3
+
+    vocab = _resolve_vocab(english_key)
+    mal = vocab.get("malay_word", "")
+    chi = vocab.get("chinese_word", "")
+    eng = vocab.get("english_word", "")
+    return jsonify({
+        "english_key": english_key,
+        "english_word": eng,
+        "malay_word": mal,
+        "chinese_word": chi,
+        "distractors": {
+            "malay_word": _random_distractors("malay_word", mal, english_key, n),
+            "chinese_word": _random_distractors("chinese_word", chi, english_key, n),
+            "english_word": _random_distractors("english_word", eng, english_key, n),
+        },
+    })
 
 
 def _count_connected(session):
