@@ -77,6 +77,13 @@ def _resolve_vocab(english_key):
     return item
 
 
+def _is_known(english_key):
+    """True only for a key the vocab cache can actually build a quiz from.
+    Guards against a blank/unrecognised key reaching push_quiz and producing a
+    question with an empty prompt and an empty option."""
+    return bool(english_key) and english_key in _VOCAB_CACHE
+
+
 def _audio_urls(english_key):
     return {
         "en": f"/static/audio/{english_key}_en.mp3",

@@ -8,6 +8,7 @@ from pymongo.errors import PyMongoError
 import class_sessions as cs
 import quiz_logic
 import state
+import vocab
 
 socketio = state.socketio
 
@@ -57,12 +58,17 @@ def on_connect_session(data):
             summary = session.get("summary_quiz")
             if session.get("status") == "summary" and summary:
                 done = (me.get("summary_answered") or []) if me else []
+                right = (me.get("summary_correct") or []) if me else []
                 questions = summary.get("questions", [])
                 if len(done) < len(questions):
                     emit("summary_quiz", {
                         "summary_id": summary["summary_id"],
                         "total": len(questions),
                         "answered": done,
+                        # Score so far, so the end-of-recap card is right for a
+                        # student who reconnected partway through rather than
+                        # counting only what they answered after reconnecting.
+                        "correct_count": len(right),
                         "questions": [
                             {"quiz_id": q["quiz_id"], "prompt": q["prompt"],
                              "options": q["options"]}
@@ -72,12 +78,23 @@ def on_connect_session(data):
 
             emit(
                 "student_joined",
-                {"nickname": nickname, "student_count": cs._count_connected(session)},
+                {
+                    "nickname": nickname,
+                    "student_count": cs._count_connected(session),
+                    "word_count": cs._count_words(session),
+                },
                 to=code,
             )
         else:
             # Teacher: sync current connected count to this socket only (no phantom join).
-            emit("student_joined", {"nickname": None, "student_count": cs._count_connected(session)})
+            # word_count comes from the session doc rather than the teacher
+            # counting their own pushes, so the summary-quiz button is correct
+            # immediately on (re)connect instead of resetting to disabled.
+            emit("student_joined", {
+                "nickname": None,
+                "student_count": cs._count_connected(session),
+                "word_count": cs._count_words(session),
+            })
     except PyMongoError:
         emit("session_error", {"message": "Could not connect to the class. Please try again."})
 
@@ -88,7 +105,17 @@ def on_push_quiz(data):
         return
     data = data or {}
     session_id = data.get("session_id")
-    english_key = data.get("english_key")
+    english_key = (data.get("english_key") or "").strip()
+
+    # A failed/low-confidence scan used to arrive here as an empty key, which
+    # got recorded in word_keys and produced a quiz with a blank prompt and a
+    # blank option — and later a summary quiz made of those blanks. Reject it
+    # at the door so nothing unquizzable ever enters the session.
+    if not vocab._is_known(english_key):
+        emit("session_error", {
+            "message": "That word isn't in the vocabulary list — try scanning again."
+        })
+        return
 
     try:
         session = state.db.class_sessions.find_one({"session_id": session_id, "status": {"$ne": "ended"}})
@@ -118,9 +145,18 @@ def on_push_quiz(data):
         if push_ops:
             update["$push"] = push_ops
         state.db.class_sessions.update_one({"session_id": session_id}, update)
+        # Post-push distinct word count, so the teacher's summary-quiz gate is
+        # server-derived rather than a local tally of their own pushes.
+        word_count = len({k for k in (session.get("word_keys") or []) if vocab._is_known(k)}
+                         | {english_key})
         emit(
             "new_quiz",
-            {"quiz_id": quiz["quiz_id"], "prompt": quiz["prompt"], "options": quiz["options"]},
+            {
+                "quiz_id": quiz["quiz_id"],
+                "prompt": quiz["prompt"],
+                "options": quiz["options"],
+                "word_count": word_count,
+            },
             to=session["code"],
         )
     except PyMongoError:
@@ -200,7 +236,10 @@ def on_push_summary_quiz(data):
             emit("session_error", {"message": "Session not active"})
             return
 
-        word_keys = session.get("word_keys") or []
+        # Only keys the vocab cache can build a real question from. Older
+        # sessions can hold a blank key from a failed scan; recapping it would
+        # show the class an empty question.
+        word_keys = [k for k in (session.get("word_keys") or []) if vocab._is_known(k)]
         if not word_keys:
             emit("session_error", {
                 "message": "Send at least one word to the class before the summary quiz."
@@ -230,6 +269,7 @@ def on_push_summary_quiz(data):
                 "current_quiz": None,
                 "status": "summary",
                 "students.$[].summary_answered": [],
+                "students.$[].summary_correct": [],
             },
         }
         if push_ops:
@@ -251,6 +291,12 @@ def on_push_summary_quiz(data):
         )
     except PyMongoError:
         emit("session_error", {"message": "Could not send the summary quiz. Please try again."})
+    except Exception as e:
+        # Building N questions at once has more ways to fail than a single
+        # push. Without this the handler died inside Socket.IO and the teacher
+        # saw a button that simply did nothing.
+        print(f"push_summary_quiz failed: {e}")
+        emit("session_error", {"message": "Could not build the summary quiz. Please try again."})
 
 
 @socketio.on("submit_summary_answer")
@@ -302,6 +348,10 @@ def on_submit_summary_answer(data):
         correct = chosen == question.get("correct_answer")
         update = {"$addToSet": {"students.$.summary_answered": quiz_id}}
         if correct:
+            # Tracked as quiz_ids rather than a counter for the same reason as
+            # summary_answered: $addToSet makes a duplicate submission a no-op,
+            # so a reconnecting student's replayed score can't be inflated.
+            update["$addToSet"]["students.$.summary_correct"] = quiz_id
             update["$inc"] = {"students.$.score": 1}
         state.db.class_sessions.update_one(
             {"session_id": session_id, "students.nickname": nickname},

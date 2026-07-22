@@ -229,6 +229,27 @@ class _ScanObjectScreenState extends State<ScanObjectScreen> {
     try {
       final data = await ApiService.predictObject(bytes);
       if (!mounted) return;
+
+      // /predict answers success:false for a low-confidence or failed
+      // recognition, with no english_key. Showing the result screen anyway
+      // rendered a blank word — and in Class Code mode let the teacher push a
+      // quiz with an empty key, which the class saw as an empty question.
+      if (data['success'] != true) {
+        final confidence = (data['confidence'] as num?)?.toDouble();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              data['reason'] == 'low_confidence'
+                  ? "Not sure what that is${confidence == null ? '' : ' (${(confidence * 100).toStringAsFixed(0)}% sure)'} — try moving closer or improving the light."
+                  : (data['message'] as String?) ??
+                      'Could not recognise that, please try again',
+            ),
+            backgroundColor: AppTheme.error,
+          ),
+        );
+        return;
+      }
+
       final sentQuiz = await Navigator.push<bool>(
         context,
         MaterialPageRoute(

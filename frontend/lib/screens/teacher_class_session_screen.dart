@@ -37,10 +37,11 @@ class _TeacherClassSessionScreenState extends State<TeacherClassSessionScreen> {
   int _answeredCount = 0;
   int _quizStudentCount = 0;
 
-  // Quizzes pushed so far. The server builds the summary from the DISTINCT
-  // words behind them, so this is only used to gate the button — it stays
-  // disabled until the class has actually been sent something to recap.
-  int _quizzesSent = 0;
+  // Distinct quizzable words the SERVER says this session has covered — the
+  // same set it would build a summary quiz from. Server-derived rather than a
+  // local tally of our own pushes, so it stays correct across a reconnect
+  // (a local counter reset to 0 and left the button permanently disabled).
+  int _wordCount = 0;
 
   bool _summaryLive = false;
   int _summaryFinished = 0;
@@ -81,7 +82,12 @@ class _TeacherClassSessionScreenState extends State<TeacherClassSessionScreen> {
       }
       ..onStudentJoined = (d) {
         if (mounted) {
-          setState(() => _studentCount = (d['student_count'] ?? 0) as int);
+          setState(() {
+            _studentCount = (d['student_count'] ?? 0) as int;
+            // Present on our own join sync and on every student join, so the
+            // count re-syncs after a dropped connection too.
+            _wordCount = (d['word_count'] ?? _wordCount) as int;
+          });
         }
       }
       ..onStudentLeft = (d) {
@@ -89,13 +95,13 @@ class _TeacherClassSessionScreenState extends State<TeacherClassSessionScreen> {
           setState(() => _studentCount = (d['student_count'] ?? 0) as int);
         }
       }
-      ..onNewQuiz = (_) {
+      ..onNewQuiz = (d) {
         if (mounted) {
           setState(() {
             _quizLive = true;
             _answeredCount = 0;
             _quizStudentCount = _studentCount;
-            _quizzesSent++;
+            _wordCount = (d['word_count'] ?? _wordCount) as int;
             // A normal quiz supersedes a live summary (server does the same).
             _summaryLive = false;
           });
@@ -546,12 +552,13 @@ class _TeacherClassSessionScreenState extends State<TeacherClassSessionScreen> {
 
         // ── Summary quiz: available any time once words have been sent ──
         OutlinedButton.icon(
-          onPressed: _quizzesSent == 0 ? null : _sendSummaryQuiz,
+          onPressed: _wordCount == 0 ? null : _sendSummaryQuiz,
           icon: const Icon(Icons.checklist_rtl, size: 18),
           label: Text(
-            _quizzesSent == 0
+            _wordCount == 0
                 ? 'Summary Quiz (send a word first)'
-                : 'Send Summary Quiz 📝',
+                : 'Send Summary Quiz 📝 ($_wordCount word'
+                    '${_wordCount == 1 ? '' : 's'})',
           ),
           style: AppTheme.secondaryButton,
         ),

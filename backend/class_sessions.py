@@ -1,6 +1,7 @@
 import random
 
 import state
+import vocab
 
 # 6-char code alphabet, excluding ambiguous 0/O/1/I.
 _CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
@@ -23,6 +24,12 @@ def _generate_code():
 
 def _count_connected(session):
     return sum(1 for s in session.get("students", []) if s.get("connected"))
+
+
+def _count_words(session):
+    """Distinct quizzable words pushed this session — what a summary quiz would
+    actually be built from, so the teacher's button gate matches reality."""
+    return len({k for k in (session.get("word_keys") or []) if vocab._is_known(k)})
 
 
 def _count_answered(session):

@@ -49,11 +49,13 @@ class _RecognitionResultScreenState extends State<RecognitionResultScreen> {
     super.dispose();
   }
 
+  String get _englishKey =>
+      widget.predictionData['english_key'] as String? ?? '';
+
   void _sendQuizToClass() {
     final cs = widget.classSession;
-    if (cs == null) return;
-    final englishKey = widget.predictionData['english_key'] as String? ?? '';
-    cs.socket.pushQuiz(cs.sessionId, englishKey);
+    if (cs == null || _englishKey.isEmpty) return;
+    cs.socket.pushQuiz(cs.sessionId, _englishKey);
     // Returning true tells the scan screen to pop too, landing the teacher
     // back on the class session screen.
     Navigator.pop(context, true);
@@ -193,7 +195,10 @@ class _RecognitionResultScreenState extends State<RecognitionResultScreen> {
                         const SizedBox(height: 28),
 
                         // ── Class Code mode: push this word as a quiz ──
-                        if (widget.classSession != null) ...[
+                        // Hidden without a usable key: pushing an empty one
+                        // gives the whole class a blank question.
+                        if (widget.classSession != null &&
+                            _englishKey.isNotEmpty) ...[
                           FilledButton.icon(
                             onPressed: _sendQuizToClass,
                             icon: Image.asset(
