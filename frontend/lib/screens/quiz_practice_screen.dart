@@ -2,7 +2,9 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'quiz_feedback_screen.dart';
 import '../api_service.dart';
+import '../socket_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/vocab_icon.dart';
 
 /// Screen 4 – Quiz Practice
 /// Presents a multiple-choice question for the scanned vocabulary word.
@@ -10,7 +12,17 @@ class QuizPracticeScreen extends StatefulWidget {
   final Map<String, dynamic> vocab;
   final String? childId;
 
-  const QuizPracticeScreen({super.key, required this.vocab, this.childId});
+  /// Non-null only in Class Code mode (teacher previewing before pushing).
+  /// Threaded through to QuizSummaryScreen so its "Done" button can return to
+  /// the recognition screen instead of skipping past it.
+  final ClassSessionContext? classSession;
+
+  const QuizPracticeScreen({
+    super.key,
+    required this.vocab,
+    this.childId,
+    this.classSession,
+  });
 
   @override
   State<QuizPracticeScreen> createState() => _QuizPracticeScreenState();
@@ -54,16 +66,22 @@ class _QuizPracticeScreenState extends State<QuizPracticeScreen> {
           prompt: 'What is "$eng" in Malay?',
           correctAnswer: mal,
           options: _shuffle([mal, ...?distractors['malay_word']]),
+          // Object icon is safe here — the prompt already names the English
+          // word, so the picture doesn't add information.
+          showIcon: true,
         ),
         _Question(
           prompt: 'What is "$eng" in Chinese?',
           correctAnswer: chi,
           options: _shuffle([chi, ...?distractors['chinese_word']]),
+          showIcon: true,
         ),
         _Question(
           prompt: 'Which English word matches "$chi"?',
           correctAnswer: eng,
           options: _shuffle([eng, ...?distractors['english_word']]),
+          // Hidden: the answer IS the English word, so the icon would show it.
+          showIcon: false,
         ),
       ];
 
@@ -122,6 +140,7 @@ class _QuizPracticeScreenState extends State<QuizPracticeScreen> {
           results: _results,
           vocab: widget.vocab,
           childId: widget.childId,
+          classSession: widget.classSession,
           onNext: () {
             Navigator.pop(context);
             setState(() {
@@ -248,6 +267,13 @@ class _QuizPracticeScreenState extends State<QuizPracticeScreen> {
                           decoration: AppTheme.cardDecoration,
                           child: Column(
                             children: [
+                              if (q.showIcon) ...[
+                                VocabIcon(
+                                  englishKey:
+                                      widget.vocab['english_key'] as String?,
+                                ),
+                                const SizedBox(height: AppTheme.md),
+                              ],
                               Text(
                                 q.prompt,
                                 textAlign: TextAlign.center,
@@ -326,10 +352,12 @@ class _Question {
   final String prompt;
   final String correctAnswer;
   final List<String> options;
+  final bool showIcon;
 
   _Question({
     required this.prompt,
     required this.correctAnswer,
     required this.options,
+    required this.showIcon,
   });
 }

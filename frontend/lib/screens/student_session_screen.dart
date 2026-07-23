@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../socket_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/class_leaderboard.dart';
+import '../widgets/vocab_icon.dart';
 
 /// Live Class Code session (student side).
 ///
@@ -34,6 +35,8 @@ class _StudentSessionScreenState extends State<StudentSessionScreen> {
   String? _quizId;
   String? _prompt;
   List<String> _options = [];
+  String? _quizEnglishKey;
+  String? _quizPattern;
 
   String? _selectedOption;
   bool _awaitingResult = false;
@@ -92,6 +95,8 @@ class _StudentSessionScreenState extends State<StudentSessionScreen> {
             _quizId = d['quiz_id'] as String?;
             _prompt = d['prompt'] as String?;
             _options = ((d['options'] ?? []) as List).cast<String>();
+            _quizEnglishKey = d['english_key'] as String?;
+            _quizPattern = d['pattern'] as String?;
             _selectedOption = null;
             _awaitingResult = false;
             _lastCorrect = null;
@@ -121,7 +126,10 @@ class _StudentSessionScreenState extends State<StudentSessionScreen> {
           _summaryAnswered
             ..clear()
             ..addAll(answered);
-          _summaryScore = 0;
+          // Server-supplied, so a student who reconnects partway through the
+          // recap keeps the points they'd already earned instead of the final
+          // card counting only what they answered after reconnecting.
+          _summaryScore = (d['correct_count'] ?? 0) as int;
           _summaryAwaiting = false;
           _summarySelected = null;
           _summaryLastCorrect = null;
@@ -410,6 +418,10 @@ class _StudentSessionScreenState extends State<StudentSessionScreen> {
             decoration: AppTheme.cardDecoration,
             child: Column(
               children: [
+                if (_quizPattern != 'zh_en') ...[
+                  VocabIcon(englishKey: _quizEnglishKey),
+                  const SizedBox(height: AppTheme.md),
+                ],
                 Text(
                   _prompt!,
                   textAlign: TextAlign.center,
@@ -592,6 +604,9 @@ class _StudentSessionScreenState extends State<StudentSessionScreen> {
     final prompt = question['prompt'] as String? ?? '';
     final options = ((question['options'] ?? []) as List).cast<String>();
     final answeredCount = _summaryAnswered.length;
+    final iconKey = question['pattern'] == 'zh_en'
+        ? null
+        : question['english_key'] as String?;
 
     return Column(
       children: [
@@ -625,6 +640,10 @@ class _StudentSessionScreenState extends State<StudentSessionScreen> {
           decoration: AppTheme.cardDecoration,
           child: Column(
             children: [
+              if (iconKey != null) ...[
+                VocabIcon(englishKey: iconKey),
+                const SizedBox(height: AppTheme.md),
+              ],
               Text(
                 prompt,
                 textAlign: TextAlign.center,

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../socket_service.dart';
 import '../theme/app_theme.dart';
 
 /// Pops exactly [count] routes off the navigator, or fewer if the stack runs
@@ -23,11 +24,16 @@ class QuizSummaryScreen extends StatelessWidget {
   final Map<String, dynamic> vocab;
   final String? childId;
 
+  /// Non-null only in Class Code mode (teacher previewing before pushing a
+  /// quiz). Changes what "Done" pops back to — see its onPressed below.
+  final ClassSessionContext? classSession;
+
   const QuizSummaryScreen({
     super.key,
     required this.results,
     required this.vocab,
     this.childId,
+    this.classSession,
   });
 
   @override
@@ -187,9 +193,18 @@ class QuizSummaryScreen extends StatelessWidget {
                   const SizedBox(height: AppTheme.md),
                   OutlinedButton(
                     onPressed: () {
+                      if (classSession != null) {
+                        // Class Code mode: this was a teacher preview, not a
+                        // real practice session, so "Done" returns to the
+                        // recognition screen (2 routes: this + Practice Quiz)
+                        // rather than skipping past it to the class session,
+                        // since the teacher still needs "Send Quiz to Class".
+                        _popRoutes(context, 2);
+                        return;
+                      }
                       // One route further than "Scan Another Object" -- past the
                       // scan screen too -- landing on whichever screen opened it
-                      // (parent home, teacher home, or a live class session).
+                      // (parent home or teacher home).
                       _popRoutes(context, 4);
                     },
                     style: OutlinedButton.styleFrom(

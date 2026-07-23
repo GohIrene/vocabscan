@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../api_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/vocab_icon.dart';
 
 /// Revision quiz — re-practises vocabulary the child has already learned,
 /// without needing the physical object to scan again.
@@ -311,6 +312,11 @@ class _RevisionQuizScreenState extends State<RevisionQuizScreen> {
     final prompt = q['prompt'] as String? ?? '';
     final options = ((q['options'] ?? const []) as List).cast<String>();
     final total = _questions.length;
+    // Hidden for zh_en: the answer there IS the English word, so the icon
+    // would show it.
+    final iconKey = q['pattern'] == 'zh_en'
+        ? null
+        : q['english_key'] as String?;
 
     return Column(
       children: [
@@ -356,6 +362,10 @@ class _RevisionQuizScreenState extends State<RevisionQuizScreen> {
           decoration: AppTheme.cardDecoration,
           child: Column(
             children: [
+              if (iconKey != null) ...[
+                VocabIcon(englishKey: iconKey),
+                const SizedBox(height: AppTheme.md),
+              ],
               Text(
                 prompt,
                 textAlign: TextAlign.center,

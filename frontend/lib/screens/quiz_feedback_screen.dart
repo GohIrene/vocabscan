@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'quiz_summary_screen.dart';
+import '../socket_service.dart';
 import '../theme/app_theme.dart';
 
 /// Screen 5 – Quiz Feedback
@@ -15,6 +16,9 @@ class QuizFeedbackScreen extends StatelessWidget {
   final VoidCallback onNext;
   final String? childId;
 
+  /// Non-null only in Class Code mode; threaded through to QuizSummaryScreen.
+  final ClassSessionContext? classSession;
+
   const QuizFeedbackScreen({
     super.key,
     required this.isCorrect,
@@ -26,6 +30,7 @@ class QuizFeedbackScreen extends StatelessWidget {
     required this.vocab,
     required this.onNext,
     this.childId,
+    this.classSession,
   });
 
   @override
@@ -127,6 +132,7 @@ class QuizFeedbackScreen extends StatelessWidget {
                                     results: results,
                                     vocab: vocab,
                                     childId: childId,
+                                    classSession: classSession,
                                   ),
                                 ),
                               );

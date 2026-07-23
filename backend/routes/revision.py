@@ -67,6 +67,7 @@ def revision_quiz(child_id):
             q = quiz_logic._build_quiz(key)
             questions.append({
                 "english_key": key,
+                "pattern": q["pattern"],
                 "prompt": q["prompt"],
                 "options": q["options"],
                 "correct_answer": q["correct_answer"],

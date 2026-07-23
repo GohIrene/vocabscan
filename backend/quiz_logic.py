@@ -35,6 +35,9 @@ def _build_quiz(english_key):
     return {
         "quiz_id": str(uuid.uuid4()),
         "english_key": english_key,
+        # Lets the UI show the object's icon, but hide it for zh_en — there the
+        # answer IS the english word, so the icon would show the answer.
+        "pattern": pattern,
         "prompt": prompt,
         "options": options,
         "correct_answer": answer,

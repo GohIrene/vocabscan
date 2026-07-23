@@ -236,6 +236,7 @@ class _RecognitionResultScreenState extends State<RecognitionResultScreen> {
                               builder: (_) => QuizPracticeScreen(
                                 vocab: widget.predictionData,
                                 childId: widget.childId,
+                                classSession: widget.classSession,
                               ),
                             ),
                           ),

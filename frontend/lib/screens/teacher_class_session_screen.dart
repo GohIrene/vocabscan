@@ -5,6 +5,7 @@ import '../api_service.dart';
 import '../socket_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/class_leaderboard.dart';
+import '../widgets/vocab_icon.dart';
 import 'scan_object_screen.dart';
 
 /// Live Class Code session (teacher side).
@@ -36,6 +37,7 @@ class _TeacherClassSessionScreenState extends State<TeacherClassSessionScreen> {
   bool _quizLive = false;
   int _answeredCount = 0;
   int _quizStudentCount = 0;
+  String? _quizEnglishKey;
 
   // Distinct quizzable words the SERVER says this session has covered — the
   // same set it would build a summary quiz from. Server-derived rather than a
@@ -101,6 +103,7 @@ class _TeacherClassSessionScreenState extends State<TeacherClassSessionScreen> {
             _quizLive = true;
             _answeredCount = 0;
             _quizStudentCount = _studentCount;
+            _quizEnglishKey = d['english_key'] as String?;
             _wordCount = (d['word_count'] ?? _wordCount) as int;
             // A normal quiz supersedes a live summary (server does the same).
             _summaryLive = false;
@@ -480,6 +483,10 @@ class _TeacherClassSessionScreenState extends State<TeacherClassSessionScreen> {
             ),
             child: Column(
               children: [
+                // No answer-leak concern here — the teacher isn't taking the
+                // quiz, so the icon shows regardless of question pattern.
+                VocabIcon(englishKey: _quizEnglishKey, size: 40),
+                const SizedBox(height: 6),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   mainAxisSize: MainAxisSize.min,

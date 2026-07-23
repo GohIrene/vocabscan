@@ -50,6 +50,8 @@ def on_connect_session(data):
                         "quiz_id": quiz["quiz_id"],
                         "prompt": quiz["prompt"],
                         "options": quiz["options"],
+                        "english_key": quiz.get("english_key"),
+                        "pattern": quiz.get("pattern"),
                     })
 
             # Same contract for a live summary quiz: resend it with the questions
@@ -71,7 +73,8 @@ def on_connect_session(data):
                         "correct_count": len(right),
                         "questions": [
                             {"quiz_id": q["quiz_id"], "prompt": q["prompt"],
-                             "options": q["options"]}
+                             "options": q["options"], "english_key": q.get("english_key"),
+                             "pattern": q.get("pattern")}
                             for q in questions
                         ],
                     })
@@ -156,6 +159,8 @@ def on_push_quiz(data):
                 "prompt": quiz["prompt"],
                 "options": quiz["options"],
                 "word_count": word_count,
+                "english_key": quiz["english_key"],
+                "pattern": quiz["pattern"],
             },
             to=session["code"],
         )
@@ -283,7 +288,8 @@ def on_push_summary_quiz(data):
                 "total": len(questions),
                 # correct_answer is deliberately omitted — scoring is server-side.
                 "questions": [
-                    {"quiz_id": q["quiz_id"], "prompt": q["prompt"], "options": q["options"]}
+                    {"quiz_id": q["quiz_id"], "prompt": q["prompt"], "options": q["options"],
+                     "english_key": q["english_key"], "pattern": q["pattern"]}
                     for q in questions
                 ],
             },
