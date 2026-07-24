@@ -64,9 +64,16 @@ class AuthService {
     }
   }
 
+  /// Creates a child profile. [avatarId] is the animal buddy's id from
+  /// avatar_config.dart (never a list index). [childPin] is optional — null or
+  /// blank means the child has no PIN and is picked by tapping their face.
+  ///
+  /// [gender] and [icon] predate the animal avatars and are no longer sent by
+  /// the add-child wizard; they remain here so nothing that still passes them
+  /// breaks, and the backend still stores them.
   Future<Map<String, dynamic>> addChild(
       String parentId, String nickname, int age,
-      {String? gender, String? icon}) async {
+      {String? gender, String? icon, String? avatarId, String? childPin}) async {
     try {
       final body = {
         'parent_id': parentId,
@@ -76,6 +83,8 @@ class AuthService {
       if (gender != null) body['gender'] = gender;
       // Asset name of the icon the parent picked, so the child's card shows it.
       if (icon != null) body['icon'] = icon;
+      if (avatarId != null) body['avatar_id'] = avatarId;
+      if (childPin != null && childPin.isNotEmpty) body['child_pin'] = childPin;
       final response = await http.post(
         Uri.parse('${AppConfig.baseUrl}/children'),
         headers: {'Content-Type': 'application/json'},

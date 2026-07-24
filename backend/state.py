@@ -77,7 +77,11 @@ def _ensure_indexes():
         return
     specs = [
         (db.users, "username", {"unique": True}),
+        (db.users, "user_id", {}),
         (db.children, "parent_id", {}),
+        # Looked up per child by /log/speech's mastery write and by every
+        # Home Adventure read, which previously meant a collection scan.
+        (db.children, "child_id", {}),
         (db.scan_logs, "child_id", {}),
         (db.quiz_logs, [("child_id", 1), ("english_key", 1)], {}),
         (db.speech_logs, [("child_id", 1), ("english_key", 1)], {}),

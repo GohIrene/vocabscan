@@ -65,6 +65,9 @@ flutter:
   assets:
     - assets/icons/
     - assets/images/
+    # Listed separately because a directory entry is not recursive — without
+    # this line the avatar stage artwork is not bundled.
+    - assets/images/avatars/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

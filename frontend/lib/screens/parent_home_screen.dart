@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../auth_service.dart';
+import '../avatar_config.dart';
+import '../widgets/child_avatar.dart';
 import 'add_child_screen.dart';
 import 'scan_object_screen.dart';
 import 'parent_dashboard_screen.dart';
@@ -192,6 +194,22 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
                                 final iconPath = chosenIcon.isNotEmpty
                                     ? 'assets/icons/$chosenIcon.png'
                                     : _childIcons[i % _childIcons.length];
+                                // A stored `icon` wins over the animal buddy:
+                                // every profile now reads back with an
+                                // avatar_id (the backend defaults it), so
+                                // preferring the buddy would silently replace
+                                // the face a parent chose under the old
+                                // screen. Only profiles created by the new
+                                // wizard have a blank icon, and those show
+                                // their buddy. When Phase 7 lets a parent
+                                // change a legacy child's buddy, it must
+                                // clear `icon` for the new choice to show.
+                                final avatarId = chosenIcon.isEmpty
+                                    ? child['avatar_id'] as String?
+                                    : null;
+                                final avatarStage =
+                                    (child['avatar_stage'] as num?)?.toInt() ??
+                                        1;
                                 final nickname =
                                     child['nickname'] as String? ?? '';
                                 final childId =
@@ -199,6 +217,8 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
                                 final age = child['age'] as int? ?? 0;
                                 return _ChildCard(
                                   iconPath: iconPath,
+                                  avatarId: avatarId,
+                                  avatarStage: avatarStage,
                                   nickname: nickname,
                                   age: age,
                                   color: color,
@@ -244,7 +264,13 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
 }
 
 class _ChildCard extends StatefulWidget {
+  /// Fallback face, used when the child has no animal buddy to show.
   final String iconPath;
+
+  /// The child's animal buddy, or null to fall back to [iconPath].
+  final String? avatarId;
+  final int avatarStage;
+
   final String nickname;
   final int age;
   final Color color;
@@ -253,6 +279,8 @@ class _ChildCard extends StatefulWidget {
 
   const _ChildCard({
     required this.iconPath,
+    required this.avatarId,
+    required this.avatarStage,
     required this.nickname,
     required this.age,
     required this.color,
@@ -302,14 +330,22 @@ class _ChildCardState extends State<_ChildCard> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Image.asset(
-                      widget.iconPath,
-                      width: 40,
-                      height: 40,
-                      errorBuilder: (context, error, stackTrace) {
-                        return const Icon(Icons.image_not_supported, size: 40);
-                      },
-                    ),
+                    if (avatarById(widget.avatarId) != null)
+                      ChildAvatar(
+                        avatarId: widget.avatarId,
+                        stage: widget.avatarStage,
+                        size: 56,
+                      )
+                    else
+                      Image.asset(
+                        widget.iconPath,
+                        width: 40,
+                        height: 40,
+                        errorBuilder: (context, error, stackTrace) {
+                          return const Icon(Icons.image_not_supported,
+                              size: 40);
+                        },
+                      ),
                     const SizedBox(height: 10),
                     Text(
                       widget.nickname,
