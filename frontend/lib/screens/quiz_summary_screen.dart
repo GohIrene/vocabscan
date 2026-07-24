@@ -171,50 +171,59 @@ class QuizSummaryScreen extends StatelessWidget {
                   const SizedBox(height: 20),
 
                   // ── Actions ──
-                  FilledButton.icon(
-                    onPressed: () {
-                      // Unwind the quiz sub-flow (Result, Practice, this Summary
-                      // screen -- 3 routes) back onto the scan screen that started
-                      // it. Reusing that instance (rather than pushing a fresh
-                      // one) keeps its camera live and, in Class Code mode, keeps
-                      // the teacher's live session context intact.
-                      //
-                      // Counts routes rather than matching a name/predicate: a
-                      // named route makes Flutter Web reflect it in the browser
-                      // URL bar, and a stray reload while sitting on that URL has
-                      // nowhere to restore to (this app has no route table),
-                      // dumping the whole session back to the welcome screen.
-                      _popRoutes(context, 3);
-                    },
-                    icon: const Icon(Icons.camera_alt_rounded, size: 18),
-                    label: const Text('Scan Another Object'),
-                    style: AppTheme.primaryButton,
-                  ),
-                  const SizedBox(height: AppTheme.md),
-                  OutlinedButton(
-                    onPressed: () {
-                      if (classSession != null) {
-                        // Class Code mode: this was a teacher preview, not a
-                        // real practice session, so "Done" returns to the
-                        // recognition screen (2 routes: this + Practice Quiz)
-                        // rather than skipping past it to the class session,
-                        // since the teacher still needs "Send Quiz to Class".
-                        _popRoutes(context, 2);
-                        return;
-                      }
-                      // One route further than "Scan Another Object" -- past the
-                      // scan screen too -- landing on whichever screen opened it
-                      // (parent home or teacher home).
-                      _popRoutes(context, 4);
-                    },
-                    style: OutlinedButton.styleFrom(
-                      minimumSize: const Size(200, 48),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
+                  // Route counts (not names/predicates) are used deliberately: a
+                  // named route makes Flutter Web reflect it in the browser URL
+                  // bar, and a stray reload while sitting on that URL has nowhere
+                  // to restore to (this app has no route table), dumping the whole
+                  // session back to the welcome screen. Stack above this Summary:
+                  // ...Home, Scan, Result (object recognised), Practice, Summary.
+                  if (classSession != null) ...[
+                    // Class Code mode (teacher preview) — unchanged: scan another
+                    // object (3 routes back onto the still-live scan screen)...
+                    FilledButton.icon(
+                      onPressed: () => _popRoutes(context, 3),
+                      icon: const Icon(Icons.camera_alt_rounded, size: 18),
+                      label: const Text('Scan Another Object'),
+                      style: AppTheme.primaryButton,
                     ),
-                    child: const Text('Done'),
-                  ),
+                    const SizedBox(height: AppTheme.md),
+                    // ...or Done back to the recognition screen (2 routes), since
+                    // the teacher still needs its "Send Quiz to Class" button.
+                    OutlinedButton(
+                      onPressed: () => _popRoutes(context, 2),
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size(200, 48),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      child: const Text('Done'),
+                    ),
+                  ] else ...[
+                    // Home practice: finishing a quiz returns the child to the
+                    // word they scanned (the "Object Recognised" screen, 2 routes
+                    // up) so they can replay the audio, try Speech Practice, or
+                    // scan another — instead of being dropped all the way back at
+                    // the "Who is learning today?" home.
+                    FilledButton.icon(
+                      onPressed: () => _popRoutes(context, 2),
+                      icon: const Icon(Icons.arrow_back_rounded, size: 18),
+                      label: const Text('Back to Word'),
+                      style: AppTheme.primaryButton,
+                    ),
+                    const SizedBox(height: AppTheme.md),
+                    // Done: all the way home (parent home / child picker).
+                    OutlinedButton(
+                      onPressed: () => _popRoutes(context, 4),
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size(200, 48),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      child: const Text('Done'),
+                    ),
+                  ],
                   const SizedBox(height: AppTheme.xxl),
                 ],
               ),

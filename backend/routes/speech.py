@@ -103,11 +103,14 @@ def transcribe():
     audio.save(tmp_path)
 
     try:
-        # Whisper decoding is a blocking native call; hand it to eventlet's
-        # native thread pool so it doesn't stall other green threads (e.g. a
-        # live class session sharing this eventlet worker).
-        from eventlet import tpool
-        transcript = tpool.execute(_transcribe, tmp_path, lang)
+        # NOTE: we deliberately do NOT offload this to eventlet.tpool. ctranslate2
+        # (faster-whisper's backend) spawns its own native threads, and handing
+        # the call to tpool under eventlet's monkey-patched threading triggers
+        # "greenlet.error: Cannot switch to a different thread", which hangs the
+        # request forever (the "stuck transcribing" bug). Calling it directly
+        # works reliably; it blocks this eventlet worker for ~3s per clip, which
+        # is acceptable for solo speech practice.
+        transcript = _transcribe(tmp_path, lang)
     except RuntimeError as e:
         return jsonify({"status": "error", "message": str(e)}), 503
     except Exception as e:  # noqa: BLE001 — surface decode/model errors to client
