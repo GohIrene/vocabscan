@@ -292,7 +292,79 @@ class ApiService {
     }
   }
 
-  /// Children behind a parent's username, for the welcome-page Child entry.
+  // ── Family Code (Home Mode child entry) ────────────────────────────────────
+
+  /// The parent's standing family code, assigned on first view.
+  /// GET /family-code/`parentId`
+  static Future<Map<String, dynamic>> getFamilyCode(String parentId) async {
+    try {
+      final response = await http
+          .get(Uri.parse('${AppConfig.baseUrl}/family-code/$parentId'))
+          .timeout(const Duration(seconds: 10));
+      return jsonDecode(utf8.decode(response.bodyBytes))
+          as Map<String, dynamic>;
+    } catch (e) {
+      return {'status': 'error', 'message': 'Network error: $e'};
+    }
+  }
+
+  /// Issues a new family code, invalidating the previous one. Gate this behind
+  /// the parent PIN dialog — any child holding the old code loses access.
+  /// POST /family-code/regenerate
+  static Future<Map<String, dynamic>> regenerateFamilyCode(
+      String parentId) async {
+    try {
+      final response = await http.post(
+        Uri.parse('${AppConfig.baseUrl}/family-code/regenerate'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'parent_id': parentId}),
+      );
+      return jsonDecode(utf8.decode(response.bodyBytes))
+          as Map<String, dynamic>;
+    } catch (e) {
+      return {'status': 'error', 'message': 'Network error: $e'};
+    }
+  }
+
+  /// Redeems a family code, returning the active child profiles behind it.
+  /// POST /child-access/family
+  static Future<Map<String, dynamic>> childAccessByFamilyCode(
+      String familyCode) async {
+    try {
+      final response = await http.post(
+        Uri.parse('${AppConfig.baseUrl}/child-access/family'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'family_code': familyCode}),
+      );
+      return jsonDecode(utf8.decode(response.bodyBytes))
+          as Map<String, dynamic>;
+    } catch (e) {
+      return {'status': 'error', 'message': 'Network error: $e'};
+    }
+  }
+
+  /// Checks a child's optional 4-digit PIN. A child with no PIN always passes,
+  /// so this can be called unconditionally. POST /child-access/verify-pin
+  static Future<Map<String, dynamic>> verifyChildPin(
+      String childId, String pin) async {
+    try {
+      final response = await http.post(
+        Uri.parse('${AppConfig.baseUrl}/child-access/verify-pin'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'child_id': childId, 'pin': pin}),
+      );
+      return jsonDecode(utf8.decode(response.bodyBytes))
+          as Map<String, dynamic>;
+    } catch (e) {
+      return {'status': 'error', 'message': 'Network error: $e'};
+    }
+  }
+
+  /// Children behind a parent's username.
+  ///
+  /// LEGACY — superseded by [childAccessByFamilyCode]. Kept only so anything
+  /// still pointing at it keeps working; no Home Mode screen calls it, and it
+  /// can be deleted in a later cleanup phase.
   /// GET /children/by-username/`username`
   static Future<Map<String, dynamic>> getChildrenByUsername(
       String username) async {

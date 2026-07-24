@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+// Clipboard/ClipboardData live here, not in material.dart.
+import 'package:flutter/services.dart';
+import '../api_service.dart';
 import '../auth_service.dart';
 import '../avatar_config.dart';
 import '../widgets/child_avatar.dart';
@@ -38,10 +41,91 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
   List<Map<String, dynamic>> _children = [];
   bool _loadingChildren = true;
 
+  /// The code a child types to reach Home Mode. Assigned by the backend on
+  /// first view, so a parent who has never opened this screen still gets one.
+  String? _familyCode;
+  bool _loadingCode = true;
+
   @override
   void initState() {
     super.initState();
     _loadChildren();
+    _loadFamilyCode();
+  }
+
+  Future<void> _loadFamilyCode() async {
+    final user = AuthService.instance.currentUser;
+    if (user == null) return;
+    setState(() => _loadingCode = true);
+    final res = await ApiService.getFamilyCode(user['user_id'] as String);
+    if (!mounted) return;
+    setState(() {
+      _familyCode = res['status'] == 'ok' ? res['family_code'] as String? : null;
+      _loadingCode = false;
+    });
+  }
+
+  Future<void> _regenerateFamilyCode() async {
+    final user = AuthService.instance.currentUser;
+    if (user == null) return;
+
+    // Destructive from a child's point of view: anyone still holding the old
+    // code is locked out the moment this succeeds. Confirm the parent is the
+    // one asking, then say plainly what will happen.
+    final confirmed = await showPinConfirmDialog(
+      context,
+      message: 'Enter your PIN to create a new family code.',
+    );
+    if (!confirmed || !mounted) return;
+
+    final proceed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('New family code?'),
+        content: const Text(
+          'Your current code will stop working straight away. '
+          'Anyone using it will need the new one.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Create new code'),
+          ),
+        ],
+      ),
+    );
+    if (proceed != true || !mounted) return;
+
+    setState(() => _loadingCode = true);
+    final res =
+        await ApiService.regenerateFamilyCode(user['user_id'] as String);
+    if (!mounted) return;
+    setState(() {
+      if (res['status'] == 'ok') _familyCode = res['family_code'] as String?;
+      _loadingCode = false;
+    });
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(res['status'] == 'ok'
+            ? 'New family code created'
+            : 'Could not create a new code — please try again'),
+      ),
+    );
+  }
+
+  Future<void> _copyFamilyCode() async {
+    final code = _familyCode;
+    if (code == null) return;
+    await Clipboard.setData(ClipboardData(text: code));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Family code copied')),
+    );
   }
 
   Future<void> _loadChildren() async {
@@ -135,6 +219,14 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
                             fontSize: 28,
                             fontWeight: FontWeight.w800,
                           ),
+                        ),
+                        const SizedBox(height: AppTheme.xl),
+
+                        _FamilyCodeCard(
+                          code: _familyCode,
+                          loading: _loadingCode,
+                          onCopy: _copyFamilyCode,
+                          onRegenerate: _regenerateFamilyCode,
                         ),
                         const SizedBox(height: AppTheme.xxl),
 
@@ -258,6 +350,115 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// The family code, shown so a parent can read it out to their child.
+///
+/// PHASE 2 SCOPE — Phase 7 folds this into the full Parent Dashboard. The
+/// regenerate action is PIN-gated by the caller.
+class _FamilyCodeCard extends StatelessWidget {
+  final String? code;
+  final bool loading;
+  final VoidCallback onCopy;
+  final VoidCallback onRegenerate;
+
+  const _FamilyCodeCard({
+    required this.code,
+    required this.loading,
+    required this.onCopy,
+    required this.onRegenerate,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppTheme.lg),
+      decoration: BoxDecoration(
+        color: AppTheme.secondaryLight,
+        borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+        border: Border.all(color: AppTheme.secondary.withValues(alpha: 0.35)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.vpn_key_rounded,
+                  size: 18, color: AppTheme.secondary),
+              const SizedBox(width: AppTheme.sm),
+              Expanded(
+                child: Text(
+                  'Family Code',
+                  style: AppTheme.body.copyWith(fontWeight: FontWeight.w700),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppTheme.xs),
+          Text(
+            'Your child types this to start learning at home.',
+            style: AppTheme.caption,
+          ),
+          const SizedBox(height: AppTheme.md),
+          // Wrap rather than Row: on a narrow browser the code and its two
+          // actions would otherwise overflow.
+          Wrap(
+            spacing: AppTheme.md,
+            runSpacing: AppTheme.sm,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppTheme.lg,
+                  vertical: AppTheme.sm,
+                ),
+                decoration: BoxDecoration(
+                  color: AppTheme.surface,
+                  borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+                  border: Border.all(
+                    color: AppTheme.secondary.withValues(alpha: 0.4),
+                  ),
+                ),
+                child: loading
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : Text(
+                        code ?? 'Unavailable',
+                        style: AppTheme.heading.copyWith(
+                          fontSize: 26,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 6,
+                          color: code == null
+                              ? AppTheme.textLight
+                              : AppTheme.textDark,
+                        ),
+                      ),
+              ),
+              if (!loading && code != null)
+                TextButton.icon(
+                  onPressed: onCopy,
+                  icon: const Icon(Icons.copy_rounded, size: 16),
+                  label: const Text('Copy'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppTheme.secondary,
+                  ),
+                ),
+              TextButton.icon(
+                onPressed: loading ? null : onRegenerate,
+                icon: const Icon(Icons.refresh_rounded, size: 16),
+                label: const Text('New Code'),
+                style: TextButton.styleFrom(foregroundColor: AppTheme.textLight),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

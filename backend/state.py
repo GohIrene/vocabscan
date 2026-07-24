@@ -78,6 +78,10 @@ def _ensure_indexes():
     specs = [
         (db.users, "username", {"unique": True}),
         (db.users, "user_id", {}),
+        # Sparse + unique: a family code must identify exactly one parent, but
+        # teacher accounts (and parents who've never viewed theirs) have no
+        # code at all, and a plain unique index would collide on those nulls.
+        (db.users, "family_code", {"unique": True, "sparse": True}),
         (db.children, "parent_id", {}),
         # Looked up per child by /log/speech's mastery write and by every
         # Home Adventure read, which previously meant a collection scan.
