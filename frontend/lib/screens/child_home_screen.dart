@@ -5,6 +5,7 @@ import '../avatar_config.dart';
 import '../theme/app_theme.dart';
 import '../widgets/child_avatar.dart';
 import '../widgets/child_nav_sidebar.dart';
+import 'child_adventure_map_screen.dart';
 import 'scan_object_screen.dart';
 
 /// Home base for a child in Home Adventure mode.
@@ -45,9 +46,12 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
   /// Below this the stat tiles stack instead of sitting side by side.
   static const double _compactBreakpoint = 640;
 
-  /// Destinations whose screens exist. Phase 4 adds the adventure map,
-  /// Phase 6 the treasure album; the rest of the sidebar renders as locked.
-  static const Set<ChildNavItem> _enabledNav = {ChildNavItem.home};
+  /// Destinations whose screens exist. Phase 6 adds the treasure album; the
+  /// rest of the sidebar renders as locked until then.
+  static const Set<ChildNavItem> _enabledNav = {
+    ChildNavItem.home,
+    ChildNavItem.adventureMap,
+  };
 
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
@@ -123,6 +127,18 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
     });
   }
 
+  void _openAdventureMap() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ChildAdventureMapScreen(childId: widget.childId),
+      ),
+    ).then((_) {
+      // Progress may have moved while the child was on the map.
+      if (mounted) _load();
+    });
+  }
+
   void _onNavSelect(ChildNavItem item) {
     if (!_enabledNav.contains(item)) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -130,9 +146,12 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
       );
       return;
     }
+    // Close the drawer first on a narrow layout, so the child isn't left
+    // looking at the menu on top of the screen they just opened.
     if (_scaffoldKey.currentState?.isDrawerOpen ?? false) {
       Navigator.pop(context);
     }
+    if (item == ChildNavItem.adventureMap) _openAdventureMap();
   }
 
   void _exit() {
@@ -360,6 +379,9 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
         value: adventure['current_area_name'] as String? ?? 'Home Village',
         progress: areaProgress / 100,
         trailing: '$areaProgress%',
+        // Second way into the map, next to the sidebar item — this tile is
+        // what a child looks at when wondering how their place is doing.
+        onTap: _openAdventureMap,
       ),
       _StatTile(
         icon: Icons.vpn_key_rounded,
@@ -656,6 +678,10 @@ class _StatTile extends StatelessWidget {
   final double? progress;
   final String? trailing;
 
+  /// Optional — a tile with somewhere to go becomes tappable and shows a
+  /// pointer cursor; the rest stay as plain readouts.
+  final VoidCallback? onTap;
+
   const _StatTile({
     required this.icon,
     required this.tint,
@@ -664,10 +690,20 @@ class _StatTile extends StatelessWidget {
     this.caption,
     this.progress,
     this.trailing,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
+    final card = _buildCard();
+    if (onTap == null) return card;
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(onTap: onTap, child: card),
+    );
+  }
+
+  Widget _buildCard() {
     return Container(
       padding: const EdgeInsets.all(AppTheme.lg),
       decoration: BoxDecoration(

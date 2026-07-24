@@ -90,6 +90,14 @@ def _ensure_indexes():
         (db.quiz_logs, [("child_id", 1), ("english_key", 1)], {}),
         (db.speech_logs, [("child_id", 1), ("english_key", 1)], {}),
         (db.vocab, "english_key", {"unique": True}),
+        # Unique so a word can only ever be discovered once per child — this
+        # index IS the duplicate-treasure guard, not an app-level check.
+        (db.child_treasures, [("child_id", 1), ("english_key", 1)],
+         {"unique": True}),
+        (db.child_treasures, [("child_id", 1), ("discovered_at", -1)], {}),
+        # Unique so a replayed /learning/complete cannot award twice.
+        (db.learning_completions, "completion_id", {"unique": True}),
+        (db.learning_completions, [("child_id", 1), ("created_at", -1)], {}),
         (db.class_sessions, "code", {}),
         (db.class_sessions, "teacher_id", {}),
         (db.class_sessions, "students.sid", {}),

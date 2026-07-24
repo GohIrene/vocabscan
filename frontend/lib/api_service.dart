@@ -308,6 +308,20 @@ class ApiService {
     throw Exception('getChildHome failed (${response.statusCode}): $body');
   }
 
+  /// The full adventure route for the map screen — every area with its
+  /// progress, decoration stage, keys and locked/current/completed status.
+  /// GET /child/adventure/`childId`
+  static Future<Map<String, dynamic>> getChildAdventure(String childId) async {
+    final response = await http
+        .get(Uri.parse('${AppConfig.baseUrl}/child/adventure/$childId'))
+        .timeout(const Duration(seconds: 10));
+    final body = utf8.decode(response.bodyBytes);
+    if (response.statusCode == 200) {
+      return jsonDecode(body) as Map<String, dynamic>;
+    }
+    throw Exception('getChildAdventure failed (${response.statusCode}): $body');
+  }
+
   // ── Family Code (Home Mode child entry) ────────────────────────────────────
 
   /// The parent's standing family code, assigned on first view.

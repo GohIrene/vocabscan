@@ -18,6 +18,20 @@ from time_utils import _clean
 bp = Blueprint("child", __name__)
 
 
+def _load_active_child(child_id):
+    """(raw_doc, serialised, error_response). Deactivated reads as not found,
+    so a child whose profile a parent switched off can't slip back in."""
+    raw = state.db.children.find_one({"child_id": child_id})
+    if raw is None:
+        return None, None, (jsonify({"status": "error",
+                                     "message": "Child not found"}), 404)
+    child = apply_child_defaults(_clean(raw))
+    if not child.get("is_active"):
+        return None, None, (jsonify({"status": "error",
+                                     "message": "Child not found"}), 404)
+    return raw, child, None
+
+
 @bp.get("/child/home/<child_id>")
 def child_home(child_id):
     err = state._db_required()
@@ -25,21 +39,18 @@ def child_home(child_id):
         return err
 
     try:
-        raw = state.db.children.find_one({"child_id": child_id})
-        if raw is None:
-            return jsonify({"status": "error", "message": "Child not found"}), 404
-
-        child = apply_child_defaults(_clean(raw))
-        if not child.get("is_active"):
-            return jsonify({"status": "error", "message": "Child not found"}), 404
+        raw, child, missing = _load_active_child(child_id)
+        if missing:
+            return missing
 
         total_xp = int(child.get("total_xp") or 0)
         # Recomputed from XP rather than trusting the stored stage, so a
         # missed write during a reward can't leave a buddy visually stuck.
         stage = cp.stage_for_xp(total_xp)
 
-        area_id = adventure.current_area_id(raw)
-        area = adventure.area_summary(raw, area_id)
+        # Derived from progress, not the stored pointer — see
+        # adventure.current_area_id.
+        area = adventure.area_summary(raw, adventure.current_area_id(raw))
 
         streak = child.get("streak") or {}
 
@@ -73,6 +84,42 @@ def child_home(child_id):
             "treasure_count": cp.treasure_count(state.db, child_id),
             "achievement_count": cp.achievement_count(state.db, raw, child_id),
             "achievement_total": len(cp.ACHIEVEMENTS),
+        })
+    except PyMongoError:
+        return jsonify({"status": "error", "message": "Database error"}), 500
+
+
+@bp.get("/child/adventure/<child_id>")
+def child_adventure(child_id):
+    """The whole adventure route for the map screen.
+
+    Every area is returned, including locked ones — a child can look ahead at
+    where they're going, they just can't grow anything but the current area
+    (`can_grow`). Status, progress, decoration stage and keys are all derived
+    from one stored number per area, so nothing here can contradict the home
+    screen.
+    """
+    err = state._db_required()
+    if err:
+        return err
+
+    try:
+        raw, child, missing = _load_active_child(child_id)
+        if missing:
+            return missing
+
+        summary = adventure.adventure_summary(raw)
+        return jsonify({
+            "status": "ok",
+            "child": {
+                "child_id": child_id,
+                "nickname": child.get("nickname", ""),
+            },
+            "avatar": {
+                "avatar_id": child.get("avatar_id"),
+                "stage": cp.stage_for_xp(child.get("total_xp", 0)),
+            },
+            **summary,
         })
     except PyMongoError:
         return jsonify({"status": "error", "message": "Database error"}), 500

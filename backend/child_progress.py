@@ -11,6 +11,7 @@ on a teacher's roster. Different audience, different rules, deliberately not
 shared.
 """
 
+import treasures
 from adventure import AREA_IDS, MAX_PROGRESS, all_area_progress
 from avatars import clamp_stage
 from time_utils import local_day_start_utc, local_today
@@ -86,18 +87,19 @@ def next_stage_xp(total_xp):
 # ── Derived counts ───────────────────────────────────────────────────────────
 
 def discovered_words(db, child_id):
-    """Distinct words this child has ever scanned — their Treasure Album.
+    """Words this child has discovered in Home Adventure — their album.
 
-    Derived from scan_logs rather than a separate collection, so a treasure
-    can never be double-awarded and the album needs no back-fill.
+    Read from the Adventure Treasure records, NOT from scan_logs. A scan log
+    means recognition happened in some mode; a treasure means this child was
+    actually rewarded for discovering the word inside their adventure. Using
+    scan logs here would let teacher-projection scans and old test data award
+    treasures a child never earned.
     """
-    if db is None:
-        return []
-    return [k for k in db.scan_logs.distinct("english_key", {"child_id": child_id}) if k]
+    return treasures.discovered_keys(db, child_id)
 
 
 def treasure_count(db, child_id):
-    return len(discovered_words(db, child_id))
+    return treasures.count(db, child_id)
 
 
 def daily_mission(db, child_id):
@@ -118,22 +120,21 @@ def daily_mission(db, child_id):
     if db is None:
         return empty
 
-    start = local_day_start_utc()
-    today = {"child_id": child_id, "created_at": {"$gte": start}}
-    before = {"child_id": child_id, "created_at": {"$lt": start}}
+    today = {"child_id": child_id, "created_at": {"$gte": local_day_start_utc()}}
 
-    scanned_today = {k for k in db.scan_logs.distinct("english_key", today) if k}
-    scanned_before = {k for k in db.scan_logs.distinct("english_key", before) if k}
-    new_today = scanned_today - scanned_before
+    # New words come from Treasure records, so the goal tracks genuine first
+    # discoveries in the adventure — re-scanning the same chair all afternoon
+    # never completes it, and unrelated scan history can never pre-complete it.
+    new_today = treasures.discovered_today(db, child_id)
 
-    # Counted as distinct words, not raw attempts: three tries at one word is
-    # practice, not three missions done.
+    # Practice goals stay on the logs, counted as distinct words rather than
+    # raw attempts: three tries at one word is practice, not three missions.
     spoken_today = {k for k in db.speech_logs.distinct("english_key", today) if k}
     quizzed_today = {k for k in db.quiz_logs.distinct("english_key", today) if k}
 
     return {
         **empty,
-        "new_words_completed": min(len(new_today), DAILY_NEW_WORDS_TARGET),
+        "new_words_completed": min(new_today, DAILY_NEW_WORDS_TARGET),
         "speech_completed": min(len(spoken_today), DAILY_SPEECH_TARGET),
         "quiz_completed": min(len(quizzed_today), DAILY_QUIZ_TARGET),
     }
