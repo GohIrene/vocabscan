@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import '../adventure_config.dart';
 import '../api_service.dart';
+import '../avatar_config.dart';
 import '../theme/app_theme.dart';
+import '../widgets/child_avatar.dart';
 import 'revision_quiz_screen.dart';
 
 class ParentDashboardScreen extends StatefulWidget {
@@ -93,6 +96,153 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
     );
   }
 
+  /// Buddy, XP, treasures, streak and adventure standing.
+  ///
+  /// Reads the `profile` block the report now returns. Renders nothing at all
+  /// when it's absent, so an older backend still shows the original report
+  /// rather than an empty panel.
+  Widget _buildAdventureOverview() {
+    final profile = (_data?['profile'] as Map?)?.cast<String, dynamic>();
+    if (profile == null) return const SizedBox.shrink();
+
+    final avatar =
+        (profile['avatar'] as Map?)?.cast<String, dynamic>() ?? const {};
+    final adventure =
+        (profile['adventure'] as Map?)?.cast<String, dynamic>() ?? const {};
+    final stage = (avatar['stage'] as num?)?.toInt() ?? 1;
+    final totalXp = (avatar['total_xp'] as num?)?.toInt() ?? 0;
+    final nextXp = (avatar['next_stage_xp'] as num?)?.toInt();
+    final theme = areaThemeById(adventure['current_area_id'] as String?);
+    final progress = (adventure['progress_percentage'] as num?)?.toInt() ?? 0;
+    final completed = (adventure['completed_areas'] as num?)?.toInt() ?? 0;
+    final areaCount = (adventure['area_count'] as num?)?.toInt() ?? 0;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(AppTheme.lg),
+          decoration: BoxDecoration(
+            color: AppTheme.surface,
+            borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+            boxShadow: const [
+              BoxShadow(color: AppTheme.shadowColor, blurRadius: 14,
+                  offset: Offset(0, 5)),
+            ],
+          ),
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  ChildAvatar(
+                    avatarId: avatar['avatar_id'] as String?,
+                    stage: stage,
+                    size: 62,
+                    showStageBadge: true,
+                  ),
+                  const SizedBox(width: AppTheme.md),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${avatarByIdOrDefault(avatar['avatar_id'] as String?).displayName}'
+                          ' · Stage $stage',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTheme.body
+                              .copyWith(fontWeight: FontWeight.w800),
+                        ),
+                        const SizedBox(height: 4),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(6),
+                          child: LinearProgressIndicator(
+                            // Null once fully grown — a filled bar reads
+                            // better than progress toward nothing.
+                            value: nextXp == null || nextXp == 0
+                                ? 1.0
+                                : (totalXp / nextXp).clamp(0.0, 1.0),
+                            minHeight: 8,
+                            backgroundColor:
+                                AppTheme.primary.withValues(alpha: 0.15),
+                            color: AppTheme.primary,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          nextXp == null
+                              ? '$totalXp XP · fully grown'
+                              : '$totalXp / $nextXp XP to next stage',
+                          style: AppTheme.caption.copyWith(fontSize: 11),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppTheme.lg),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Adventure: ${theme.name}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTheme.caption
+                          .copyWith(color: AppTheme.textDark),
+                    ),
+                  ),
+                  Text('$progress%',
+                      style: AppTheme.caption.copyWith(
+                          fontWeight: FontWeight.w800, color: theme.accent)),
+                ],
+              ),
+              const SizedBox(height: 6),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(6),
+                child: LinearProgressIndicator(
+                  value: progress / 100,
+                  minHeight: 10,
+                  backgroundColor: theme.accent.withValues(alpha: 0.18),
+                  color: theme.accent,
+                ),
+              ),
+              const SizedBox(height: AppTheme.md),
+              Wrap(
+                spacing: 14,
+                runSpacing: 10,
+                children: [
+                  _MiniFact(
+                      emoji: '🎁',
+                      label: 'Treasures',
+                      value: '${profile['treasure_count'] ?? 0}'),
+                  _MiniFact(
+                      emoji: '🔥',
+                      label: 'Streak',
+                      value: '${profile['streak_days'] ?? 0} days'),
+                  _MiniFact(
+                      emoji: '🗺️',
+                      label: 'Areas done',
+                      value: '$completed / $areaCount'),
+                  _MiniFact(
+                      emoji: '🔑',
+                      label: 'Keys here',
+                      value: '${adventure['keys'] ?? 0}'),
+                  _MiniFact(
+                      emoji: '🏆',
+                      label: 'Achievements',
+                      value: '${profile['achievement_count'] ?? 0}'
+                          ' / ${profile['achievement_total'] ?? 0}'),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
+      ],
+    );
+  }
+
   Widget _buildContent() {
     final data = _data!;
     final totalWords = (data['total_words'] as num? ?? 0).toInt();
@@ -149,6 +299,13 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                 ),
               ],
               const SizedBox(height: AppTheme.xl),
+
+              // ── Home Adventure standing ──
+              // Added above the original stat cards rather than replacing
+              // them: everything below here — the day-by-day chart, mastery
+              // lists, common mistakes and both revision entry points —
+              // continues to work exactly as before.
+              _buildAdventureOverview(),
 
               // ── Stat cards ──
               Wrap(
@@ -919,6 +1076,49 @@ class _StatCard extends StatelessWidget {
               fontWeight: FontWeight.w800,
               color: textColor,
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// One emoji-labelled fact in the adventure overview.
+class _MiniFact extends StatelessWidget {
+  final String emoji;
+  final String label;
+  final String value;
+
+  const _MiniFact({
+    required this.emoji,
+    required this.label,
+    required this.value,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppTheme.md, vertical: AppTheme.sm),
+      decoration: BoxDecoration(
+        color: AppTheme.background,
+        borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+        border: Border.all(color: AppTheme.primary.withValues(alpha: 0.12)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(emoji, style: const TextStyle(fontSize: 16)),
+          const SizedBox(width: 6),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(value,
+                  style: AppTheme.body.copyWith(
+                      fontWeight: FontWeight.w800, fontSize: 14)),
+              Text(label, style: AppTheme.caption.copyWith(fontSize: 10.5)),
+            ],
           ),
         ],
       ),

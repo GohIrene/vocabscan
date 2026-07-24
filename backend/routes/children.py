@@ -105,6 +105,132 @@ def add_child():
         return jsonify({"status": "error", "message": "Database error"}), 500
 
 
+@bp.patch("/children/<child_id>")
+def update_child(child_id):
+    """Edit a child profile: name, age, buddy, PIN, or active state.
+
+    Every field is optional — only what's sent is changed — so the same route
+    serves the edit form, the deactivate toggle and a PIN reset without any of
+    them clobbering the others.
+    """
+    err = state._db_required()
+    if err:
+        return err
+
+    data = request.get_json() or {}
+    try:
+        existing = state.db.children.find_one({"child_id": child_id})
+        if existing is None:
+            return jsonify({"status": "error", "message": "Child not found"}), 404
+
+        update = {}
+
+        if "nickname" in data:
+            nickname = (data.get("nickname") or "").strip()
+            if not nickname:
+                return jsonify({"status": "error",
+                                "message": "nickname is required"}), 400
+            # Same per-parent, case-insensitive rule as creation, but ignoring
+            # this child — otherwise saving a profile unchanged would 409.
+            clash = state.db.children.find_one({
+                "parent_id": existing.get("parent_id"),
+                "child_id": {"$ne": child_id},
+                "nickname": {"$regex": f"^{re.escape(nickname)}$",
+                             "$options": "i"},
+            })
+            if clash:
+                return jsonify({
+                    "status": "error",
+                    "message": "You already have a child with that name",
+                }), 409
+            update["nickname"] = nickname
+
+        if "age" in data:
+            age = data.get("age")
+            if not isinstance(age, int) or not (3 <= age <= 10):
+                return jsonify({"status": "error",
+                                "message": "Age must be between 3 and 10"}), 400
+            update["age"] = age
+
+        if "avatar_id" in data:
+            avatar_id, avatar_error = validate_avatar_id(data.get("avatar_id"))
+            if avatar_error:
+                return jsonify({"status": "error", "message": avatar_error}), 400
+            update["avatar_id"] = avatar_id
+            # Clear the legacy face: it takes precedence over the buddy when
+            # rendering, so leaving it set would silently discard the parent's
+            # new choice.
+            update["icon"] = ""
+
+        if "is_active" in data:
+            update["is_active"] = bool(data.get("is_active"))
+
+        unset = {}
+        if "child_pin" in data:
+            raw_pin = data.get("child_pin")
+            if raw_pin is None or str(raw_pin).strip() == "":
+                # Explicitly clearing the PIN. Removed rather than nulled, so
+                # "has a PIN" stays a plain existence check.
+                unset["child_pin_hash"] = ""
+            else:
+                pin_hash, pin_error = validate_child_pin(raw_pin)
+                if pin_error:
+                    return jsonify({"status": "error",
+                                    "message": pin_error}), 400
+                update["child_pin_hash"] = pin_hash
+
+        if not update and not unset:
+            return jsonify({"status": "error",
+                            "message": "Nothing to update"}), 400
+
+        change = {}
+        if update:
+            change["$set"] = update
+        if unset:
+            change["$unset"] = unset
+        state.db.children.update_one({"child_id": child_id}, change)
+
+        updated = state.db.children.find_one({"child_id": child_id})
+        return jsonify({"status": "ok", "child": _serialise(updated)})
+    except PyMongoError:
+        return jsonify({"status": "error", "message": "Database error"}), 500
+
+
+@bp.delete("/children/<child_id>")
+def delete_child(child_id):
+    """Permanently remove a child and everything recorded about them.
+
+    Their logs, treasures and completion records go too — leaving those behind
+    would orphan rows that no screen can reach and that would silently rejoin
+    a future profile if an id were ever reused.
+    """
+    err = state._db_required()
+    if err:
+        return err
+
+    try:
+        existing = state.db.children.find_one({"child_id": child_id})
+        if existing is None:
+            return jsonify({"status": "error", "message": "Child not found"}), 404
+
+        removed = {
+            "scan_logs": state.db.scan_logs.delete_many(
+                {"child_id": child_id}).deleted_count,
+            "quiz_logs": state.db.quiz_logs.delete_many(
+                {"child_id": child_id}).deleted_count,
+            "speech_logs": state.db.speech_logs.delete_many(
+                {"child_id": child_id}).deleted_count,
+            "treasures": state.db.child_treasures.delete_many(
+                {"child_id": child_id}).deleted_count,
+            "completions": state.db.learning_completions.delete_many(
+                {"child_id": child_id}).deleted_count,
+        }
+        state.db.children.delete_one({"child_id": child_id})
+        return jsonify({"status": "ok", "child_id": child_id, "removed": removed})
+    except PyMongoError:
+        return jsonify({"status": "error", "message": "Database error"}), 500
+
+
 @bp.get("/children/by-username/<username>")
 def get_children_by_username(username):
     """Children behind a parent's username, for the welcome-page Child entry.

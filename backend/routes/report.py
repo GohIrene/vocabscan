@@ -3,10 +3,63 @@ from datetime import datetime
 from flask import Blueprint, jsonify
 from pymongo.errors import PyMongoError
 
+import adventure
+import child_progress as cp
 import state
+import treasures
+from child_profile import apply_child_defaults
 from time_utils import _clean, _local_day, _local_time
 
 bp = Blueprint("report", __name__)
+
+
+def _adventure_block(child_id):
+    """Home Adventure standing, appended to the existing report.
+
+    Added alongside the original fields rather than replacing any of them, so
+    the parent dashboard's stat cards, day-by-day chart, mastery lists and
+    revision buttons keep working untouched.
+    """
+    raw = state.db.children.find_one({"child_id": child_id})
+    if raw is None:
+        return None
+
+    child = apply_child_defaults(_clean(raw))
+    total_xp = int(child.get("total_xp") or 0)
+    area_id = adventure.current_area_id(raw)
+    area = adventure.area_summary(raw, area_id)
+    progress = adventure.all_area_progress(raw)
+    streak = child.get("streak") or {}
+
+    return {
+        "nickname": child.get("nickname", ""),
+        "age": child.get("age"),
+        "avatar": {
+            "avatar_id": child.get("avatar_id"),
+            "stage": cp.stage_for_xp(total_xp),
+            "total_xp": total_xp,
+            "next_stage_xp": cp.next_stage_xp(total_xp),
+        },
+        "adventure": {
+            "current_area_id": area["area_id"],
+            "current_area_name": area["area_name"],
+            "emoji": area["emoji"],
+            "progress_percentage": area["progress_percentage"],
+            "visual_stage": area["visual_stage"],
+            "keys": area["keys"],
+            "completed_areas": sum(
+                1 for a in adventure.AREA_IDS
+                if progress.get(a, 0) >= adventure.MAX_PROGRESS),
+            "area_count": len(adventure.AREA_IDS),
+            "areas": [adventure.area_summary(raw, a)
+                      for a in adventure.AREA_IDS],
+        },
+        "treasure_count": treasures.count(state.db, child_id),
+        "streak_days": int(streak.get("current_days") or 0),
+        "achievement_count": cp.achievement_count(state.db, raw, child_id),
+        "achievement_total": len(cp.ACHIEVEMENTS),
+        "is_active": child.get("is_active", True),
+    }
 
 
 @bp.get("/report/<child_id>")
@@ -167,6 +220,9 @@ def get_report(child_id):
 
         return jsonify({
             "child_id": child_id,
+            # Home Adventure standing, added without touching the fields the
+            # existing dashboard already reads.
+            "profile": _adventure_block(child_id),
             "total_words": len(scan_counts),
             "total_scans": len(scan_logs),
             "quiz_accuracy": quiz_accuracy,

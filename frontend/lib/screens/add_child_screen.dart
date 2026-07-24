@@ -302,12 +302,12 @@ class _AddChildScreenState extends State<AddChildScreen> {
     return Column(
       children: [
         Text(
-          'Choose a buddy',
+          'Choose a Learning Buddy',
           style: AppTheme.subheading.copyWith(fontWeight: FontWeight.w700),
         ),
         const SizedBox(height: AppTheme.xs),
         Text(
-          'Your buddy grows as you learn new words!',
+          "Your child's buddy will grow with them!",
           textAlign: TextAlign.center,
           style: AppTheme.caption,
         ),

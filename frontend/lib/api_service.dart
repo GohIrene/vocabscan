@@ -372,6 +372,88 @@ class ApiService {
     throw Exception('getChildAdventure failed (${response.statusCode}): $body');
   }
 
+  // ── Parent dashboard ───────────────────────────────────────────────────────
+
+  /// Everything the Parent Dashboard draws, in one round trip: children with
+  /// their adventure standing, today's totals, the week trend and the family
+  /// code. GET /parent/summary/`parentId`
+  static Future<Map<String, dynamic>> getParentSummary(String parentId) async {
+    final response = await http
+        .get(Uri.parse('${AppConfig.baseUrl}/parent/summary/$parentId'))
+        .timeout(const Duration(seconds: 15));
+    final body = utf8.decode(response.bodyBytes);
+    if (response.statusCode == 200) {
+      return jsonDecode(body) as Map<String, dynamic>;
+    }
+    throw Exception('getParentSummary failed (${response.statusCode}): $body');
+  }
+
+  /// Recent learning events across all of a parent's children, newest first.
+  /// GET /parent/activity/`parentId`
+  static Future<Map<String, dynamic>> getParentActivity(String parentId,
+      {int n = 60}) async {
+    final response = await http
+        .get(Uri.parse('${AppConfig.baseUrl}/parent/activity/$parentId?n=$n'))
+        .timeout(const Duration(seconds: 15));
+    final body = utf8.decode(response.bodyBytes);
+    if (response.statusCode == 200) {
+      return jsonDecode(body) as Map<String, dynamic>;
+    }
+    throw Exception('getParentActivity failed (${response.statusCode}): $body');
+  }
+
+  /// Edits a child profile. Only the fields passed are changed, so the same
+  /// call serves the edit form, the deactivate toggle and a PIN reset.
+  ///
+  /// Pass [clearPin] to remove a PIN entirely (distinct from leaving it
+  /// untouched). Setting [avatarId] also clears the legacy `icon`, which
+  /// otherwise takes precedence when rendering.
+  /// PATCH /children/`childId`
+  static Future<Map<String, dynamic>> updateChild(
+    String childId, {
+    String? nickname,
+    int? age,
+    String? avatarId,
+    String? childPin,
+    bool clearPin = false,
+    bool? isActive,
+  }) async {
+    try {
+      final body = <String, dynamic>{};
+      if (nickname != null) body['nickname'] = nickname;
+      if (age != null) body['age'] = age;
+      if (avatarId != null) body['avatar_id'] = avatarId;
+      if (isActive != null) body['is_active'] = isActive;
+      if (clearPin) {
+        body['child_pin'] = null;
+      } else if (childPin != null && childPin.isNotEmpty) {
+        body['child_pin'] = childPin;
+      }
+      final response = await http.patch(
+        Uri.parse('${AppConfig.baseUrl}/children/$childId'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(body),
+      );
+      return jsonDecode(utf8.decode(response.bodyBytes))
+          as Map<String, dynamic>;
+    } catch (e) {
+      return {'status': 'error', 'message': 'Network error: $e'};
+    }
+  }
+
+  /// Permanently deletes a child and everything recorded about them.
+  /// DELETE /children/`childId`
+  static Future<Map<String, dynamic>> deleteChild(String childId) async {
+    try {
+      final response = await http
+          .delete(Uri.parse('${AppConfig.baseUrl}/children/$childId'));
+      return jsonDecode(utf8.decode(response.bodyBytes))
+          as Map<String, dynamic>;
+    } catch (e) {
+      return {'status': 'error', 'message': 'Network error: $e'};
+    }
+  }
+
   // ── Family Code (Home Mode child entry) ────────────────────────────────────
 
   /// The parent's standing family code, assigned on first view.
