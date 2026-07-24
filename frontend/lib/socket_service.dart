@@ -38,6 +38,9 @@ class SocketService {
   void Function(Map<String, dynamic> data)? onSummaryQuiz;
   void Function(Map<String, dynamic> data)? onSummaryAnswerResult;
   void Function(Map<String, dynamic> data)? onSummaryProgress;
+  // Teacher-only: fresh word_count after a batch of photos is staged into the
+  // session pool (no live quiz), so the summary-quiz button gate updates.
+  void Function(Map<String, dynamic> data)? onWordsStaged;
 
   bool get isConnected => _socket?.connected ?? false;
 
@@ -88,6 +91,7 @@ class SocketService {
     socket.on(
         'summary_answer_result', (d) => onSummaryAnswerResult?.call(_asMap(d)));
     socket.on('summary_progress', (d) => onSummaryProgress?.call(_asMap(d)));
+    socket.on('words_staged', (d) => onWordsStaged?.call(_asMap(d)));
 
     socket.connect();
   }
@@ -124,6 +128,23 @@ class SocketService {
   /// Teacher: send a recap covering every word pushed so far this session.
   void pushSummaryQuiz(String sessionId) {
     _socket?.emit('push_summary_quiz', {'session_id': sessionId});
+  }
+
+  /// Teacher: send a batch of photo-recognised words as one multi-question quiz.
+  void pushBatchQuiz(String sessionId, List<String> englishKeys) {
+    _socket?.emit('push_batch_quiz', {
+      'session_id': sessionId,
+      'english_keys': englishKeys,
+    });
+  }
+
+  /// Teacher: add a batch of photo-recognised words to the session pool without
+  /// sending a live quiz (send them later via the summary quiz).
+  void stageBatchWords(String sessionId, List<String> englishKeys) {
+    _socket?.emit('stage_batch_words', {
+      'session_id': sessionId,
+      'english_keys': englishKeys,
+    });
   }
 
   /// Student: answer one question of the summary quiz.
@@ -170,6 +191,7 @@ class SocketService {
     onSummaryQuiz = null;
     onSummaryAnswerResult = null;
     onSummaryProgress = null;
+    onWordsStaged = null;
   }
 
   static Map<String, dynamic> _asMap(dynamic data) {

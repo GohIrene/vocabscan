@@ -6,6 +6,7 @@ import '../socket_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/class_leaderboard.dart';
 import '../widgets/vocab_icon.dart';
+import 'batch_upload_screen.dart';
 import 'scan_object_screen.dart';
 
 /// Live Class Code session (teacher side).
@@ -154,6 +155,13 @@ class _TeacherClassSessionScreenState extends State<TeacherClassSessionScreen> {
           );
         }
       }
+      ..onWordsStaged = (d) {
+        // Batch photos added to the pool without a live quiz — refresh the
+        // summary-quiz button gate so it enables/updates its count.
+        if (mounted) {
+          setState(() => _wordCount = (d['word_count'] ?? _wordCount) as int);
+        }
+      }
       ..connect(code: code, role: 'teacher');
   }
 
@@ -164,6 +172,24 @@ class _TeacherClassSessionScreenState extends State<TeacherClassSessionScreen> {
       context,
       MaterialPageRoute(
         builder: (_) => ScanObjectScreen(
+          classSession: ClassSessionContext(
+            sessionId: sessionId,
+            socket: _socket,
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Opens the batch-upload flow: the teacher picks several photos at once,
+  /// each is recognised, then sent as one quiz or staged into the word pool.
+  Future<void> _batchUpload() async {
+    final sessionId = _sessionId;
+    if (sessionId == null) return;
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => BatchUploadScreen(
           classSession: ClassSessionContext(
             sessionId: sessionId,
             socket: _socket,
@@ -545,6 +571,15 @@ class _TeacherClassSessionScreenState extends State<TeacherClassSessionScreen> {
           icon: const Icon(Icons.center_focus_strong, size: 20),
           label: const Text('Scan Object → Send Quiz'),
           style: AppTheme.primaryButton,
+        ),
+        const SizedBox(height: 14),
+
+        // ── Upload several photos at once → quiz set ──
+        OutlinedButton.icon(
+          onPressed: _batchUpload,
+          icon: const Icon(Icons.photo_library_outlined, size: 18),
+          label: const Text('Upload Photos → Quiz Set'),
+          style: AppTheme.secondaryButton,
         ),
         const SizedBox(height: 14),
 

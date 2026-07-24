@@ -385,6 +385,130 @@ def on_submit_summary_answer(data):
         emit("answer_rejected", {"reason": "server_error"})
 
 
+@socketio.on("push_batch_quiz")
+def on_push_batch_quiz(data):
+    """Send a multi-question quiz built from a batch of pre-uploaded photos.
+
+    The teacher uploads several images at once (each recognised via /predict on
+    the client) and sends the recognised words as one self-paced recap. It
+    reuses the summary-quiz delivery path, so the student app needs no new
+    handling, and the words also enter word_keys for later revision/summaries.
+    """
+    if state.db is None:
+        return
+    data = data or {}
+    session_id = data.get("session_id")
+    raw_keys = data.get("english_keys") or []
+
+    try:
+        session = state.db.class_sessions.find_one(
+            {"session_id": session_id, "status": {"$ne": "ended"}}
+        )
+        if session is None:
+            emit("session_error", {"message": "Session not active"})
+            return
+
+        # Only keys the vocab cache can build a real question from — an
+        # unrecognised photo could otherwise reach here and show a blank
+        # question. Then the same young-child cap the summary quiz uses; the
+        # batch is kept in the teacher's chosen order, so the first N win.
+        keys = [k for k in raw_keys if vocab._is_known(k)][:cs._MAX_SUMMARY_QUESTIONS]
+        if not keys:
+            emit("session_error", {
+                "message": "None of those photos matched a word we can quiz — try again."
+            })
+            return
+
+        questions = [quiz_logic._build_quiz(k) for k in keys]
+        summary = {
+            "summary_id": str(uuid.uuid4()),
+            "questions": questions,
+            "pushed_at": datetime.utcnow(),
+        }
+
+        push_ops = {}
+        if session.get("current_quiz"):
+            push_ops["quiz_history"] = session["current_quiz"]
+        if session.get("summary_quiz"):
+            push_ops["summary_history"] = session["summary_quiz"]
+
+        update = {
+            "$set": {
+                "summary_quiz": summary,
+                "current_quiz": None,
+                "status": "summary",
+                "students.$[].summary_answered": [],
+                "students.$[].summary_correct": [],
+            },
+            "$addToSet": {"word_keys": {"$each": keys}},
+        }
+        if push_ops:
+            update["$push"] = push_ops
+        state.db.class_sessions.update_one({"session_id": session_id}, update)
+
+        emit(
+            "summary_quiz",
+            {
+                "summary_id": summary["summary_id"],
+                "total": len(questions),
+                "questions": [
+                    {"quiz_id": q["quiz_id"], "prompt": q["prompt"], "options": q["options"],
+                     "english_key": q["english_key"], "pattern": q["pattern"]}
+                    for q in questions
+                ],
+            },
+            to=session["code"],
+        )
+    except PyMongoError:
+        emit("session_error", {"message": "Could not send the quiz. Please try again."})
+    except Exception as e:
+        # Building N questions at once has more failure modes than one push;
+        # without this the handler dies silently inside Socket.IO.
+        print(f"push_batch_quiz failed: {e}")
+        emit("session_error", {"message": "Could not build the quiz. Please try again."})
+
+
+@socketio.on("stage_batch_words")
+def on_stage_batch_words(data):
+    """Add a batch of recognised words to the session pool WITHOUT a live quiz.
+
+    Lets a teacher prep words from photos ahead of time and send them later via
+    the summary quiz. Returns the fresh word_count to the teacher only, so the
+    summary-quiz button gate updates immediately.
+    """
+    if state.db is None:
+        return
+    data = data or {}
+    session_id = data.get("session_id")
+    raw_keys = data.get("english_keys") or []
+
+    try:
+        session = state.db.class_sessions.find_one(
+            {"session_id": session_id, "status": {"$ne": "ended"}}
+        )
+        if session is None:
+            emit("session_error", {"message": "Session not active"})
+            return
+
+        keys = [k for k in raw_keys if vocab._is_known(k)]
+        if not keys:
+            emit("session_error", {
+                "message": "None of those photos matched a word we can quiz — try again."
+            })
+            return
+
+        state.db.class_sessions.update_one(
+            {"session_id": session_id},
+            {"$addToSet": {"word_keys": {"$each": keys}}},
+        )
+        session = state.db.class_sessions.find_one({"session_id": session_id})
+
+        # Requester (teacher) only — students shouldn't learn words were staged.
+        emit("words_staged", {"word_count": cs._count_words(session)})
+    except PyMongoError:
+        emit("session_error", {"message": "Could not add the words. Please try again."})
+
+
 @socketio.on("end_session")
 def on_end_session(data):
     if state.db is None:
