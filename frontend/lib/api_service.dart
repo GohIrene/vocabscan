@@ -255,6 +255,35 @@ class ApiService {
     }
   }
 
+  /// Sends a recorded audio clip to the backend for Whisper transcription and
+  /// matching against [target]. Returns the decoded map
+  /// ({'transcript': String, 'correct': bool}). Used for languages the
+  /// browser's Web Speech API can't handle reliably (e.g. Malay).
+  static Future<Map<String, dynamic>> transcribeSpeech({
+    required Uint8List audioBytes,
+    required String lang,
+    required String target,
+  }) async {
+    final request = http.MultipartRequest(
+      'POST',
+      Uri.parse('${AppConfig.baseUrl}/speech/transcribe'),
+    );
+    request.fields['lang'] = lang;
+    request.fields['target'] = target;
+    request.files.add(http.MultipartFile.fromBytes(
+      'audio',
+      audioBytes,
+      filename: 'speech.webm',
+    ));
+    final streamed =
+        await request.send().timeout(const Duration(seconds: 30));
+    final body = utf8.decode(await streamed.stream.toBytes());
+    if (streamed.statusCode == 200) {
+      return jsonDecode(body) as Map<String, dynamic>;
+    }
+    throw Exception('transcribe failed (${streamed.statusCode}): $body');
+  }
+
   /// Fire-and-forget speech-practice attempt log. Never throws.
   static Future<void> logSpeech(
     String childId,

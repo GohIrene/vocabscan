@@ -32,32 +32,62 @@ class _SpeechPracticeScreenState extends State<SpeechPracticeScreen> {
 
   int _currentIndex = 0;
   bool _isListening = false;
+  bool _isProcessing = false;
   bool _hasResult = false;
   bool _isCorrect = false;
   String _transcript = '';
   final List<bool> _results = [];
   bool _speechSupported = true;
+  bool _recordingSupported = false;
   String? _errorMessage;
   Timer? _listenTimer;
+  Timer? _stopFallbackTimer;
   JSObject? _activeRecognition;
+  JSObject? _mediaRecorder;
+  JSObject? _mediaStream;
 
   static const _listenTimeout = Duration(seconds: 10);
+
+  /// Languages Chrome's Web Speech API can't recognise reliably are routed
+  /// through the backend (MediaRecorder → Whisper) instead. Malay is the one
+  /// that doesn't work in the browser today.
+  static const _serverLangCodes = {'ms'};
+
+  bool get _isServerLang =>
+      _serverLangCodes.contains(_languages[_currentIndex]['code']);
+
+  /// Whether the mic can be used for the current language given browser
+  /// capabilities: recording languages need MediaRecorder + getUserMedia,
+  /// browser languages need SpeechRecognition.
+  bool get _micSupported =>
+      _isServerLang ? _recordingSupported : _speechSupported;
 
   @override
   void initState() {
     super.initState();
     _speechSupported = globalContext.has('SpeechRecognition') ||
         globalContext.has('webkitSpeechRecognition');
+    final mediaDevices =
+        (globalContext['navigator'] as JSObject?)?['mediaDevices'];
+    _recordingSupported =
+        globalContext.has('MediaRecorder') && mediaDevices != null;
     WidgetsBinding.instance.addPostFrameCallback((_) => _playAudio());
   }
 
   @override
   void dispose() {
     _listenTimer?.cancel();
+    _stopFallbackTimer?.cancel();
     _stopRecognition();
+    _stopRecording();
+    _releaseStream();
     _player.dispose();
     super.dispose();
   }
+
+  /// Mic tap dispatches to the browser or backend path depending on language.
+  void _startActive() => _isServerLang ? _startRecording() : _startListening();
+  void _stopActive() => _isServerLang ? _stopRecording() : _stopRecognition();
 
   void _stopRecognition() {
     final recognition = _activeRecognition;
@@ -65,6 +95,186 @@ class _SpeechPracticeScreenState extends State<SpeechPracticeScreen> {
     try {
       (recognition['stop'] as JSFunction).callAsFunction(recognition);
     } catch (_) {}
+    // Some languages (notably ms-MY) are poorly supported by Chrome's Web
+    // Speech service, which then never fires onend/onerror after stop(). That
+    // leaves _isListening stuck true and the mic frozen in the "Listening..."
+    // state. This fallback force-stops the recognition and resets the UI if
+    // the browser callbacks haven't fired shortly after we asked it to stop.
+    _stopFallbackTimer?.cancel();
+    _stopFallbackTimer = Timer(const Duration(seconds: 2), () {
+      if (!mounted || !_isListening) return;
+      try {
+        (recognition['abort'] as JSFunction).callAsFunction(recognition);
+      } catch (_) {}
+      _listenTimer?.cancel();
+      _listenTimer = null;
+      _activeRecognition = null;
+      setState(() => _isListening = false);
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Backend recording path (used for languages the browser can't recognise).
+  // Records a short clip with MediaRecorder, then POSTs it to /speech/transcribe
+  // where Whisper handles languages like Malay that Web Speech doesn't support.
+  // ---------------------------------------------------------------------------
+
+  Future<void> _startRecording() async {
+    if (_isListening || _isProcessing) return;
+    setState(() {
+      _isListening = true;
+      _hasResult = false;
+      _transcript = '';
+      _errorMessage = null;
+    });
+
+    try {
+      final mediaDevices =
+          (globalContext['navigator'] as JSObject)['mediaDevices'] as JSObject;
+      final constraints = JSObject();
+      constraints['audio'] = true.toJS;
+      final streamPromise = (mediaDevices['getUserMedia'] as JSFunction)
+          .callAsFunction(mediaDevices, constraints) as JSPromise;
+      final stream = (await streamPromise.toDart) as JSObject;
+      _mediaStream = stream;
+
+      final recorder = (globalContext['MediaRecorder'] as JSFunction)
+          .callAsConstructor<JSObject>(stream);
+      _mediaRecorder = recorder;
+
+      // Collect the audio Blob parts as they arrive; combined on stop.
+      final chunks =
+          (globalContext['Array'] as JSFunction).callAsConstructor<JSObject>();
+
+      void onData(JSObject event) {
+        final data = event['data'];
+        if (data != null) {
+          (chunks['push'] as JSFunction).callAsFunction(chunks, data);
+        }
+      }
+
+      void onStop(JSObject event) {
+        _finishRecording(chunks);
+      }
+
+      recorder['ondataavailable'] = onData.toJS;
+      recorder['onstop'] = onStop.toJS;
+      (recorder['start'] as JSFunction).callAsFunction(recorder);
+
+      _listenTimer = Timer(_listenTimeout, _stopRecording);
+    } catch (e) {
+      _releaseStream();
+      if (mounted) {
+        setState(() {
+          _isListening = false;
+          _errorMessage = 'Microphone error: $e';
+        });
+      }
+    }
+  }
+
+  void _stopRecording() {
+    _listenTimer?.cancel();
+    _listenTimer = null;
+    final recorder = _mediaRecorder;
+    if (recorder == null) return;
+    try {
+      final state = (recorder['state'] as JSString?)?.toDart;
+      if (state != 'inactive') {
+        (recorder['stop'] as JSFunction).callAsFunction(recorder);
+      }
+    } catch (_) {}
+  }
+
+  /// Stops the mic tracks so the browser's recording indicator clears.
+  void _releaseStream() {
+    final stream = _mediaStream;
+    _mediaStream = null;
+    _mediaRecorder = null;
+    if (stream == null) return;
+    try {
+      final tracks = (stream['getTracks'] as JSFunction)
+          .callAsFunction(stream) as JSObject;
+      final length = (tracks['length'] as JSNumber).toDartInt;
+      for (var i = 0; i < length; i++) {
+        final track = tracks[i.toString()] as JSObject;
+        (track['stop'] as JSFunction).callAsFunction(track);
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _finishRecording(JSObject chunks) async {
+    _releaseStream();
+    if (mounted) {
+      setState(() {
+        _isListening = false;
+        _isProcessing = true;
+      });
+    }
+
+    try {
+      final opts = JSObject();
+      opts['type'] = 'audio/webm'.toJS;
+      final blob = (globalContext['Blob'] as JSFunction)
+          .callAsConstructor<JSObject>(chunks, opts);
+      final bufferPromise =
+          (blob['arrayBuffer'] as JSFunction).callAsFunction(blob) as JSPromise;
+      final buffer = (await bufferPromise.toDart) as JSArrayBuffer;
+      final bytes = buffer.toDart.asUint8List();
+
+      final lang = _languages[_currentIndex];
+      final result = await ApiService.transcribeSpeech(
+        audioBytes: bytes,
+        lang: lang['code']!,
+        target: _currentWord(),
+      );
+      final transcript = _normalize((result['transcript'] as String?) ?? '');
+      final correct = (result['correct'] as bool?) ?? false;
+
+      final cid = widget.childId;
+      final englishKey = widget.vocab['english_key'] as String? ?? '';
+      if (cid != null) {
+        ApiService.logSpeech(cid, englishKey, lang['code']!, correct);
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _isProcessing = false;
+        if (transcript.isEmpty) {
+          _errorMessage =
+              'No speech detected. Check your microphone and try again.';
+        } else {
+          _hasResult = true;
+          _isCorrect = correct;
+          _transcript = transcript;
+        }
+      });
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isProcessing = false;
+          _errorMessage = 'Could not transcribe: $e';
+        });
+      }
+    }
+  }
+
+  /// Skips the current word (counts as not correct) and moves on — the escape
+  /// hatch when recognition just won't cooperate.
+  void _skip() {
+    _listenTimer?.cancel();
+    if (_isServerLang) {
+      _stopRecording();
+      _releaseStream();
+    } else {
+      _stopRecognition();
+    }
+    setState(() {
+      _isListening = false;
+      _isProcessing = false;
+      _isCorrect = false;
+    });
+    _nextLanguage();
   }
 
   /// Lowercases, strips punctuation (incl. Chinese full-width punctuation
@@ -164,6 +374,8 @@ class _SpeechPracticeScreenState extends State<SpeechPracticeScreen> {
       void finish() {
         _listenTimer?.cancel();
         _listenTimer = null;
+        _stopFallbackTimer?.cancel();
+        _stopFallbackTimer = null;
         _activeRecognition = null;
         final transcript = _normalize(buffer.toString());
 
@@ -207,6 +419,8 @@ class _SpeechPracticeScreenState extends State<SpeechPracticeScreen> {
       void onError(JSObject event) {
         _listenTimer?.cancel();
         _listenTimer = null;
+        _stopFallbackTimer?.cancel();
+        _stopFallbackTimer = null;
         _activeRecognition = null;
         final errorJS = event['error'];
         final errorType = errorJS != null ? (errorJS as JSString).toDart : null;
@@ -380,7 +594,7 @@ class _SpeechPracticeScreenState extends State<SpeechPracticeScreen> {
                                   ),
                                 ),
                               ],
-                              if (!_speechSupported)
+                              if (!_micSupported)
                                 Padding(
                                   padding: const EdgeInsets.only(top: 12),
                                   child: Text(
@@ -401,7 +615,7 @@ class _SpeechPracticeScreenState extends State<SpeechPracticeScreen> {
                           style: AppTheme.secondaryButton,
                         ),
                         const SizedBox(height: 16),
-                        if (_speechSupported && !_hasResult)
+                        if (_micSupported && !_hasResult && !_isProcessing)
                           AnimatedContainer(
                             duration: const Duration(milliseconds: 300),
                             decoration: BoxDecoration(
@@ -413,8 +627,8 @@ class _SpeechPracticeScreenState extends State<SpeechPracticeScreen> {
                             child: IconButton(
                               iconSize: 64,
                               onPressed: _isListening
-                                  ? _stopRecognition
-                                  : _startListening,
+                                  ? _stopActive
+                                  : _startActive,
                               icon: Icon(
                                 _isListening ? Icons.mic : Icons.mic_none,
                                 size: 64,
@@ -427,6 +641,22 @@ class _SpeechPracticeScreenState extends State<SpeechPracticeScreen> {
                                   : 'Tap to speak',
                             ),
                           ),
+                        if (_isProcessing)
+                          Column(
+                            children: [
+                              const SizedBox(
+                                width: 32,
+                                height: 32,
+                                child: CircularProgressIndicator(strokeWidth: 3),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Transcribing...',
+                                style: AppTheme.caption
+                                    .copyWith(color: AppTheme.primary),
+                              ),
+                            ],
+                          ),
                         if (_isListening)
                           Padding(
                             padding: const EdgeInsets.only(top: 8),
@@ -434,6 +664,21 @@ class _SpeechPracticeScreenState extends State<SpeechPracticeScreen> {
                               'Listening... (tap mic to stop)',
                               style: AppTheme.caption
                                   .copyWith(color: Colors.red),
+                            ),
+                          ),
+                        if (!_hasResult && !_isListening && !_isProcessing)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: TextButton(
+                              onPressed: _skip,
+                              child: Text(
+                                _currentIndex < 2
+                                    ? 'Skip this word →'
+                                    : 'Skip & see results →',
+                                style: AppTheme.caption.copyWith(
+                                  color: AppTheme.textLight,
+                                ),
+                              ),
                             ),
                           ),
                         if (_errorMessage != null)
