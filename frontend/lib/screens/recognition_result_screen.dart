@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'quiz_practice_screen.dart';
 import 'speech_practice_screen.dart';
 import '../config.dart';
+import '../learning_flow.dart';
 import '../socket_service.dart';
 import '../theme/app_theme.dart';
 
@@ -19,11 +20,18 @@ class RecognitionResultScreen extends StatefulWidget {
   /// Non-null only in Class Code mode (teacher scanning to push a quiz).
   final ClassSessionContext? classSession;
 
+  /// Defaults to the free-navigation behaviour; only the guided child flow
+  /// changes what buttons appear.
+  final LearningFlowMode flowMode;
+  final LearningCycle? cycle;
+
   const RecognitionResultScreen({
     super.key,
     required this.predictionData,
     this.childId,
     this.classSession,
+    this.flowMode = LearningFlowMode.parentRevision,
+    this.cycle,
   });
 
   @override
@@ -59,6 +67,22 @@ class _RecognitionResultScreenState extends State<RecognitionResultScreen> {
     // Returning true tells the scan screen to pop too, landing the teacher
     // back on the class session screen.
     Navigator.pop(context, true);
+  }
+
+  /// Guided flow: the only way forward, straight into speaking practice.
+  void _continueToSpeaking() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => SpeechPracticeScreen(
+          vocab: widget.predictionData,
+          childId: widget.childId,
+          flowMode: widget.flowMode,
+          cycle: widget.cycle,
+          avatarId: widget.cycle?.avatarId,
+        ),
+      ),
+    );
   }
 
   Future<void> _playAudio(String langCode, String wordText) async {
@@ -194,6 +218,30 @@ class _RecognitionResultScreenState extends State<RecognitionResultScreen> {
                         ),
                         const SizedBox(height: 28),
 
+                        // ── Guided child flow: one way forward ──
+                        // No Quiz / Speech / Scan-Another buttons here: the
+                        // sequence is fixed, and offering side doors is
+                        // exactly what lets a child skip the speaking step.
+                        if (widget.flowMode.isGuidedChildFlow) ...[
+                          FilledButton.icon(
+                            onPressed: _continueToSpeaking,
+                            icon: const Text('🎤',
+                                style: TextStyle(fontSize: 18)),
+                            label: const Text('Continue to Speaking'),
+                            style: FilledButton.styleFrom(
+                              backgroundColor: AppTheme.primary,
+                              foregroundColor: Colors.white,
+                              minimumSize: const Size(260, 58),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(18),
+                              ),
+                              textStyle:
+                                  AppTheme.buttonText.copyWith(fontSize: 17),
+                            ),
+                          ),
+                          const SizedBox(height: AppTheme.xxl),
+                        ] else ...[
+
                         // ── Class Code mode: push this word as a quiz ──
                         // Hidden without a usable key: pushing an empty one
                         // gives the whole class a blank question.
@@ -308,6 +356,7 @@ class _RecognitionResultScreenState extends State<RecognitionResultScreen> {
                           style: AppTheme.secondaryButton,
                         ),
                         const SizedBox(height: AppTheme.xxl),
+                        ],
                       ],
                     ),
                   ),

@@ -11,6 +11,7 @@ import 'package:flutter/material.dart';
 
 import '../api_service.dart';
 import '../image_upload_utils.dart';
+import '../learning_flow.dart';
 import '../socket_service.dart';
 import 'recognition_result_screen.dart';
 import '../theme/app_theme.dart';
@@ -24,7 +25,22 @@ class ScanObjectScreen extends StatefulWidget {
   /// Non-null only in Class Code mode (teacher scanning to push a quiz).
   final ClassSessionContext? classSession;
 
-  const ScanObjectScreen({super.key, this.childId, this.classSession});
+  /// Which experience this scan belongs to. Defaults to the free-navigation
+  /// behaviour the app has always had, so existing call sites are unaffected;
+  /// only [LearningFlowMode.childAdventure] changes anything.
+  final LearningFlowMode flowMode;
+
+  /// Carries the cycle's completion id and outcomes in the guided flow. Null
+  /// in every other mode.
+  final LearningCycle? cycle;
+
+  const ScanObjectScreen({
+    super.key,
+    this.childId,
+    this.classSession,
+    this.flowMode = LearningFlowMode.parentRevision,
+    this.cycle,
+  });
 
   @override
   State<ScanObjectScreen> createState() => _ScanObjectScreenState();
@@ -256,6 +272,17 @@ class _ScanObjectScreenState extends State<ScanObjectScreen> {
         return;
       }
 
+      // Logged before the result screen in the guided flow: the reward
+      // endpoint reads scan history, and the child may complete the whole
+      // cycle without ever coming back to this screen.
+      final guided = widget.flowMode.isGuidedChildFlow;
+      final cid = widget.childId;
+      final key = data['english_key'] as String? ?? '';
+      if (guided && cid != null) {
+        ApiService.logScan(
+            cid, key, (data['confidence'] as num? ?? 0).toDouble(), 'home');
+      }
+
       final sentQuiz = await Navigator.push<bool>(
         context,
         MaterialPageRoute(
@@ -263,6 +290,8 @@ class _ScanObjectScreenState extends State<ScanObjectScreen> {
             predictionData: data,
             childId: widget.childId,
             classSession: widget.classSession,
+            flowMode: widget.flowMode,
+            cycle: widget.cycle,
           ),
         ),
       );
@@ -272,15 +301,12 @@ class _ScanObjectScreenState extends State<ScanObjectScreen> {
         Navigator.pop(context);
         return;
       }
-      // Fire and forget — don't block navigation
-      final cid = widget.childId;
-      final englishKey = data['english_key'] as String? ?? '';
-      // ignore: avoid_print
-      print('LOG SCAN: childId=$cid, key=$englishKey');
-      if (cid != null) {
+      // Fire and forget — don't block navigation. Skipped in the guided flow,
+      // which already logged the scan on the way in.
+      if (!guided && cid != null) {
         ApiService.logScan(
           cid,
-          englishKey,
+          key,
           (data['confidence'] as num? ?? 0).toDouble(),
           'home',
         );

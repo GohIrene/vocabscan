@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../api_service.dart';
+import '../learning_flow.dart';
 import '../socket_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/class_leaderboard.dart';
@@ -183,7 +184,10 @@ class _TeacherClassSessionScreenState extends State<TeacherClassSessionScreen> {
     await Navigator.push(
       context,
       MaterialPageRoute(
+        // Labelled for clarity only — the live Class Code path is unchanged;
+        // no guided-flow branch applies to it.
         builder: (_) => ScanObjectScreen(
+          flowMode: LearningFlowMode.classSession,
           classSession: ClassSessionContext(
             sessionId: sessionId,
             socket: _socket,

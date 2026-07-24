@@ -18,8 +18,10 @@ from pymongo.errors import DuplicateKeyError, PyMongoError
 
 import state
 
-# No 0/O/1/I/L: a code gets read off a screen and typed by a young child, and
-# those pairs are what they get wrong. Matches class_sessions._CODE_ALPHABET.
+# No 0/O/1/I: a code gets read off a screen and typed by a young child, and
+# those are the pairs they confuse. L is kept — with both 1 and I absent there
+# is nothing left for it to be mistaken for. Character-for-character identical
+# to class_sessions._CODE_ALPHABET, so the two kinds of code look alike.
 FAMILY_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 FAMILY_CODE_LENGTH = 6
 

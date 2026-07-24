@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../adventure_config.dart';
 import '../api_service.dart';
+import '../learning_flow.dart';
 import '../theme/app_theme.dart';
 import 'scan_object_screen.dart';
 
@@ -33,6 +34,10 @@ class ChildAdventureAreaScreen extends StatefulWidget {
 class _ChildAdventureAreaScreenState extends State<ChildAdventureAreaScreen> {
   Map<String, dynamic>? _area;
   String? _unlockedBy;
+
+  /// Carried into a learning cycle so the speaking step can name the buddy.
+  String? _avatarId;
+
   bool _loading = true;
   String? _error;
 
@@ -58,6 +63,7 @@ class _ChildAdventureAreaScreenState extends State<ChildAdventureAreaScreen> {
       final index = areas.indexWhere((a) => a['area_id'] == widget.areaId);
 
       setState(() {
+        _avatarId = ((data['avatar'] as Map?)?['avatar_id']) as String?;
         _area = index >= 0 ? areas[index] : null;
         // For a locked area, name the place that has to be finished first —
         // "locked" on its own tells a child nothing actionable.
@@ -77,12 +83,23 @@ class _ChildAdventureAreaScreenState extends State<ChildAdventureAreaScreen> {
   }
 
   void _goScan() {
-    // Phase 5 threads the guided childAdventure flow and a completion anchor
-    // through here. For now this opens the existing scan flow unchanged.
+    // Same guided cycle as ChildHome, anchored on this screen instead, so
+    // finishing a word returns the child to the area they were growing.
+    final cycle = LearningCycle(
+      childId: widget.childId,
+      mode: LearningFlowMode.childAdventure,
+      completionAnchor: ModalRoute.of(context),
+      avatarId: _avatarId,
+    );
+
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => ScanObjectScreen(childId: widget.childId),
+        builder: (_) => ScanObjectScreen(
+          childId: widget.childId,
+          flowMode: LearningFlowMode.childAdventure,
+          cycle: cycle,
+        ),
       ),
     ).then((_) {
       if (mounted) _load();

@@ -30,33 +30,53 @@ bp = Blueprint("learning", __name__)
 def _parse_speech(data):
     """Accept the structured shape, falling back to the flat one.
 
-    The flow sends `speech: {...}`; the flatter `speech_attempted` /
-    `speech_success` pair from the original spec still works so an older
-    client isn't broken by this endpoint.
+    The guided flow sends `speech: {..., languages: [...]}`; the flatter
+    `speech_attempted` / `speech_success` pair from the original spec still
+    works, so an older client isn't broken by this endpoint.
+
+    The language counts are always *derived* from the per-language list rather
+    than trusted from the request, so a client can't inflate its own speech
+    bonus by claiming a count the outcomes don't support. One entry per
+    language is kept, the best result winning, so repeated attempts at the
+    same language can never count as extra languages.
     """
     speech = data.get("speech")
     if isinstance(speech, dict):
         attempts = speech.get("attempts")
+        best = {}
+        for entry in (speech.get("languages") or []):
+            if not isinstance(entry, dict):
+                continue
+            code = str(entry.get("language") or "").strip()
+            if not code:
+                continue
+            best[code] = bool(best.get(code)) or bool(entry.get("correct"))
+        languages = [{"language": code, "correct": ok}
+                     for code, ok in best.items()]
+        succeeded = sum(1 for ok in best.values() if ok)
         return {
-            "attempted": bool(speech.get("attempted", False)),
-            "success": bool(speech.get("success", False)),
+            "attempted": bool(speech.get("attempted", False)) or bool(best),
+            # Kept for anything still reading the old boolean.
+            "success": succeeded > 0,
             "attempts": max(0, int(attempts)) if isinstance(attempts, int) else 0,
             "skipped": bool(speech.get("skipped", False)),
-            # Per-language outcomes, recorded for the response only — the
-            # authoritative record is already in speech_logs.
-            "languages": [
-                {"language": str(l.get("language") or ""),
-                 "correct": bool(l.get("correct"))}
-                for l in (speech.get("languages") or [])
-                if isinstance(l, dict)
-            ],
+            "languages": languages,
+            "languages_attempted": len(best),
+            "languages_succeeded": succeeded,
         }
+
+    # Legacy flat payload: one implied language, so it earns the 1-language
+    # tier — exactly what it earned before language counting existed.
+    success = bool(data.get("speech_success", False))
+    attempted = bool(data.get("speech_attempted", False))
     return {
-        "attempted": bool(data.get("speech_attempted", False)),
-        "success": bool(data.get("speech_success", False)),
+        "attempted": attempted,
+        "success": success,
         "attempts": 0,
         "skipped": False,
-        "languages": [],
+        "languages": [{"language": "en", "correct": success}] if attempted else [],
+        "languages_attempted": 1 if attempted else 0,
+        "languages_succeeded": 1 if success else 0,
     }
 
 

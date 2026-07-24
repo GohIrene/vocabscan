@@ -4,17 +4,32 @@ import 'dart:js_interop_unsafe';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import '../api_service.dart';
+import '../avatar_config.dart';
 import '../config.dart';
+import '../learning_flow.dart';
 import '../theme/app_theme.dart';
+import 'quiz_practice_screen.dart';
 
 class SpeechPracticeScreen extends StatefulWidget {
   final Map<String, dynamic> vocab;
   final String? childId;
 
+  /// Defaults to the existing standalone drill; only the guided child flow
+  /// changes the wording, the progression rules and where "next" leads.
+  final LearningFlowMode flowMode;
+  final LearningCycle? cycle;
+
+  /// The child's buddy, so the guided flow can say "Teach Kitty the word
+  /// Chair!" instead of a generic instruction.
+  final String? avatarId;
+
   const SpeechPracticeScreen({
     super.key,
     required this.vocab,
     this.childId,
+    this.flowMode = LearningFlowMode.parentRevision,
+    this.cycle,
+    this.avatarId,
   });
 
   @override
@@ -47,6 +62,156 @@ class _SpeechPracticeScreenState extends State<SpeechPracticeScreen> {
   JSObject? _mediaStream;
 
   static const _listenTimeout = Duration(seconds: 10);
+
+  // ── Guided child flow ──────────────────────────────────────────────────────
+  // Trilingual learning is the point of the app, so the guided step offers all
+  // three languages — but only ONE is required, and it defaults to English.
+  // The other two are optional bonus practice worth extra XP and can never
+  // block progress.
+  //
+  // Speech recognition is also the least reliable part of this app, especially
+  // for a young voice, so the step must never become a wall: a child may move
+  // on once any language succeeds, after two genuine tries in the language
+  // they're on, by skipping, or immediately if the browser can't listen.
+
+  /// Best result per language index — once a language is said correctly it
+  /// stays correct, so a later failed retry can't take the bonus away.
+  final Map<int, bool> _langCorrect = {};
+
+  /// Genuine attempts per language: a result came back, or the recogniser
+  /// errored. A silent timeout doesn't count, so an untouched mic can't
+  /// unlock Continue.
+  final Map<int, int> _langAttempts = {};
+
+  final Map<int, String> _langTranscript = {};
+
+  bool get _guided => widget.flowMode.isGuidedChildFlow;
+
+  static const int _attemptsToUnlock = 2;
+
+  /// Guided-only labels. The standalone drill keeps its own wording, which
+  /// must not change.
+  static const List<String> _guidedLabels = [
+    'English',
+    'Bahasa Melayu',
+    'Chinese',
+  ];
+
+  bool get _anyLanguageSucceeded => _langCorrect.values.any((ok) => ok);
+
+  int get _currentAttempts => _langAttempts[_currentIndex] ?? 0;
+
+  bool get _canContinue =>
+      _anyLanguageSucceeded ||
+      _currentAttempts >= _attemptsToUnlock ||
+      !_micSupported;
+
+  bool get _canSkip => _currentAttempts >= 1 || !_micSupported;
+
+  void _recordAttempt() {
+    if (!_guided) return;
+    _langAttempts[_currentIndex] = _currentAttempts + 1;
+  }
+
+  /// Files a finished attempt against the language it belongs to.
+  void _recordLanguageResult(bool correct, String transcript) {
+    if (!_guided) return;
+    _langCorrect[_currentIndex] = (_langCorrect[_currentIndex] ?? false) || correct;
+    _langTranscript[_currentIndex] = transcript;
+  }
+
+  /// The buddy's name, for "Teach Kitty the word Chair!".
+  String get _buddyName => avatarByIdOrDefault(widget.avatarId).displayName;
+
+  /// The word for the language currently selected.
+  String _wordFor(int index) {
+    final code = _languages[index]['code'];
+    return switch (code) {
+      'en' => (widget.vocab['english_word'] as String?) ?? '',
+      'ms' => (widget.vocab['malay_word'] as String?) ?? '',
+      'zh' => (widget.vocab['chinese_word'] as String?) ?? '',
+      _ => '',
+    };
+  }
+
+  /// Switches which language the child is practising.
+  ///
+  /// Each language keeps its own result, so moving between them shows what
+  /// was already achieved rather than resetting the screen.
+  void _selectLanguage(int index) {
+    if (index == _currentIndex || _isListening || _isProcessing) return;
+    _listenTimer?.cancel();
+    _stopActive();
+    _releaseStream();
+    setState(() {
+      _currentIndex = index;
+      _hasResult = _langCorrect.containsKey(index);
+      _isCorrect = _langCorrect[index] ?? false;
+      _transcript = _langTranscript[index] ?? '';
+      _errorMessage = null;
+      _isListening = false;
+      _isProcessing = false;
+    });
+    WidgetsBinding.instance
+        .addPostFrameCallback((_) => _playLanguageAt(index));
+  }
+
+  /// Hands the per-language outcomes to the cycle and moves on to the quiz.
+  void _finishGuidedSpeech({bool skipped = false}) {
+    final cycle = widget.cycle;
+    cycle?.speech = SpeechOutcome(
+      attempts: _currentAttempts,
+      skipped: skipped,
+      // One entry per language actually tried; the backend derives the
+      // attempted/succeeded counts from exactly this list.
+      languages: [
+        for (final index in _langAttempts.keys)
+          {
+            'language': _languages[index]['code']!,
+            'correct': _langCorrect[index] ?? false,
+          },
+      ],
+    );
+
+    _listenTimer?.cancel();
+    _stopActive();
+    _releaseStream();
+
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => QuizPracticeScreen(
+          vocab: widget.vocab,
+          childId: widget.childId,
+          flowMode: widget.flowMode,
+          cycle: cycle,
+        ),
+      ),
+    );
+  }
+
+  /// Plays one specific language, rather than whichever is current — the
+  /// guided step keeps all three listenable while only practising English.
+  Future<void> _playLanguageAt(int index) async {
+    final lang = _languages[index];
+    final audioMap = widget.vocab['audio'] as Map<String, dynamic>?;
+    final path = audioMap?[lang['code']] as String?;
+    final word = switch (lang['code']) {
+      'en' => widget.vocab['english_word'] ?? '',
+      'ms' => widget.vocab['malay_word'] ?? '',
+      'zh' => widget.vocab['chinese_word'] ?? '',
+      _ => '',
+    };
+    try {
+      if (path != null) {
+        await _player.play(UrlSource('${AppConfig.baseUrl}$path'));
+      } else {
+        _speakFallback(word as String, lang['speechLang']!);
+      }
+    } catch (_) {
+      _speakFallback(word as String, lang['speechLang']!);
+    }
+  }
 
   /// Languages Chrome's Web Speech API can't recognise reliably are routed
   /// through the backend (MediaRecorder → Whisper) instead. Malay is the one
@@ -244,6 +409,9 @@ class _SpeechPracticeScreenState extends State<SpeechPracticeScreen> {
           _errorMessage =
               'No speech detected. Check your microphone and try again.';
         } else {
+          // Something was actually said — a genuine attempt, right or wrong.
+          _recordAttempt();
+          _recordLanguageResult(correct, transcript);
           _hasResult = true;
           _isCorrect = correct;
           _transcript = transcript;
@@ -404,6 +572,9 @@ class _SpeechPracticeScreenState extends State<SpeechPracticeScreen> {
 
         if (mounted) {
           setState(() {
+            // Something was actually said — a genuine attempt, right or wrong.
+            _recordAttempt();
+            _recordLanguageResult(correct, transcript);
             _isListening = false;
             _hasResult = true;
             _isCorrect = correct;
@@ -426,6 +597,9 @@ class _SpeechPracticeScreenState extends State<SpeechPracticeScreen> {
         final errorType = errorJS != null ? (errorJS as JSString).toDart : null;
         if (mounted) {
           setState(() {
+            // A failing recogniser still counts as a try — otherwise a child
+            // whose mic never works could never reach Continue.
+            _recordAttempt();
             _isListening = false;
             _errorMessage = 'Speech error: ${errorType ?? 'unknown'}';
           });
@@ -470,6 +644,10 @@ class _SpeechPracticeScreenState extends State<SpeechPracticeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // The guided flow is a separate, single-step screen. The three-language
+    // drill below is left exactly as it was for parent/standalone practice.
+    if (_guided) return _buildGuided();
+
     if (_currentIndex >= 3) {
       final score = _results.where((r) => r).length;
       return _buildSummary(score);
@@ -723,6 +901,287 @@ class _SpeechPracticeScreenState extends State<SpeechPracticeScreen> {
     );
   }
 
+  /// The guided speaking step.
+  ///
+  /// All three languages are offered — trilingual practice is the point of
+  /// the app — but only ONE is required, and English is selected by default.
+  /// Once any language succeeds the other two become optional bonus practice
+  /// worth extra XP, and neither can block the child from continuing.
+  Widget _buildGuided() {
+    final word = _wordFor(_currentIndex);
+    final english = (widget.vocab['english_word'] as String?) ?? '';
+    final isEnglish = _currentIndex == 0;
+    final done = _anyLanguageSucceeded;
+
+    return Scaffold(
+      backgroundColor: AppTheme.background,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 560),
+              child: Column(
+                children: [
+                  const SizedBox(height: AppTheme.xl),
+                  Text(
+                    'Teach $_buddyName the word "$word"!',
+                    textAlign: TextAlign.center,
+                    style: AppTheme.heading.copyWith(
+                      fontSize: 26,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: AppTheme.xs),
+                  Text(
+                    done
+                        ? 'Nice! Try another language for bonus stars ⭐'
+                        : 'Say it in any language you like',
+                    textAlign: TextAlign.center,
+                    style: AppTheme.body.copyWith(
+                      color: done ? AppTheme.success : AppTheme.textLight,
+                      fontWeight: done ? FontWeight.w700 : FontWeight.w400,
+                    ),
+                  ),
+                  const SizedBox(height: AppTheme.lg),
+
+                  // ── Language progress + chooser ──
+                  // Doubles as the required status display: each language
+                  // reads Completed or Not tried at a glance.
+                  Row(
+                    children: [
+                      for (var i = 0; i < _languages.length; i++)
+                        Expanded(
+                          child: Padding(
+                            padding: EdgeInsets.only(
+                                right: i < _languages.length - 1
+                                    ? AppTheme.sm
+                                    : 0),
+                            child: _LanguageChip(
+                              label: _guidedLabels[i],
+                              selected: i == _currentIndex,
+                              completed: _langCorrect[i] == true,
+                              attempted: (_langAttempts[i] ?? 0) > 0,
+                              optional: done && _langCorrect[i] != true,
+                              onTap: () => _selectLanguage(i),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: AppTheme.lg),
+
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(AppTheme.xl),
+                    decoration: AppTheme.cardDecoration,
+                    child: Column(
+                      children: [
+                        Text(
+                          word,
+                          textAlign: TextAlign.center,
+                          style: AppTheme.heading.copyWith(
+                            fontSize: 44,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        // English stays visible as the anchor when practising
+                        // another language, so the child always knows which
+                        // word this is.
+                        if (!isEnglish && english.isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Text('English: $english', style: AppTheme.caption),
+                        ],
+                        const SizedBox(height: AppTheme.lg),
+                        Text('Listen', style: AppTheme.caption),
+                        const SizedBox(height: AppTheme.sm),
+                        // All three languages remain playable, whichever one
+                        // is being practised.
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            for (var i = 0; i < _languages.length; i++)
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: AppTheme.sm),
+                                child: Column(
+                                  children: [
+                                    IconButton(
+                                      onPressed: () => _playLanguageAt(i),
+                                      iconSize: 26,
+                                      icon: const Icon(Icons.volume_up_rounded),
+                                      color: AppTheme.primary,
+                                      tooltip: 'Play ${_guidedLabels[i]}',
+                                    ),
+                                    Text(_guidedLabels[i],
+                                        style: AppTheme.caption
+                                            .copyWith(fontSize: 11)),
+                                  ],
+                                ),
+                              ),
+                          ],
+                        ),
+                        if (_hasResult) ...[
+                          const SizedBox(height: AppTheme.md),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 20, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: _isCorrect
+                                  ? AppTheme.successLight
+                                  : AppTheme.warningLight,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Column(
+                              children: [
+                                Text(
+                                  _isCorrect
+                                      ? 'Perfect! $_buddyName heard you!'
+                                      : 'Good try! $_buddyName is still learning',
+                                  textAlign: TextAlign.center,
+                                  style: AppTheme.body.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                    color: _isCorrect
+                                        ? AppTheme.success
+                                        : AppTheme.adventure,
+                                  ),
+                                ),
+                                if (_transcript.isNotEmpty)
+                                  Text('You said: "$_transcript"',
+                                      style: AppTheme.caption),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: AppTheme.xl),
+
+                  if (_micSupported && !_isProcessing)
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 300),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: _isListening
+                            ? AppTheme.error.withValues(alpha: 0.15)
+                            : AppTheme.primary.withValues(alpha: 0.1),
+                      ),
+                      child: IconButton(
+                        iconSize: 68,
+                        onPressed: _isListening ? _stopActive : _startActive,
+                        icon: Icon(
+                          _isListening ? Icons.mic : Icons.mic_none,
+                          size: 68,
+                          color: _isListening
+                              ? AppTheme.error
+                              : AppTheme.primary,
+                        ),
+                        tooltip:
+                            _isListening ? 'Tap to stop' : 'Tap to speak',
+                      ),
+                    ),
+                  if (_isProcessing)
+                    Column(
+                      children: [
+                        const SizedBox(
+                          width: 32,
+                          height: 32,
+                          child: CircularProgressIndicator(strokeWidth: 3),
+                        ),
+                        const SizedBox(height: AppTheme.sm),
+                        Text('Listening to you...',
+                            style: AppTheme.caption
+                                .copyWith(color: AppTheme.primary)),
+                      ],
+                    ),
+                  if (_isListening)
+                    Padding(
+                      padding: const EdgeInsets.only(top: AppTheme.sm),
+                      child: Text('Listening... say it now!',
+                          style:
+                              AppTheme.caption.copyWith(color: AppTheme.error)),
+                    ),
+                  if (!_micSupported)
+                    Padding(
+                      padding: const EdgeInsets.only(top: AppTheme.sm),
+                      child: Text(
+                        "This browser can't hear you — say it out loud "
+                        'anyway, then carry on!',
+                        textAlign: TextAlign.center,
+                        style: AppTheme.caption,
+                      ),
+                    ),
+                  if (_errorMessage != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: AppTheme.sm),
+                      child: Text(
+                        _errorMessage!,
+                        textAlign: TextAlign.center,
+                        style: AppTheme.caption.copyWith(color: AppTheme.error),
+                      ),
+                    ),
+
+                  const SizedBox(height: AppTheme.xl),
+
+                  // Never a dead end: Continue appears once any language has
+                  // succeeded, after two tries in the current language, or
+                  // straight away if the browser can't listen at all.
+                  if (_canContinue) ...[
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        onPressed: () => _finishGuidedSpeech(),
+                        icon: const Icon(Icons.arrow_forward_rounded, size: 20),
+                        label: const Text('Continue to Quiz'),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: AppTheme.success,
+                          foregroundColor: AppTheme.textDark,
+                          minimumSize: const Size(double.infinity, 58),
+                          shape: RoundedRectangleBorder(
+                            borderRadius:
+                                BorderRadius.circular(AppTheme.radiusMd),
+                          ),
+                          textStyle: AppTheme.buttonText.copyWith(
+                            fontSize: 17,
+                            color: AppTheme.textDark,
+                          ),
+                        ),
+                      ),
+                    ),
+                    // Says plainly that the remaining languages are a bonus,
+                    // so a child never feels they're leaving something unfinished.
+                    if (done && _langCorrect.length < _languages.length) ...[
+                      const SizedBox(height: AppTheme.sm),
+                      Text(
+                        'Tap another language above for bonus practice — '
+                        "it's up to you!",
+                        textAlign: TextAlign.center,
+                        style: AppTheme.caption,
+                      ),
+                    ],
+                  ] else if (_canSkip)
+                    TextButton(
+                      onPressed: () => _finishGuidedSpeech(skipped: true),
+                      child: Text(
+                        'Skip for now →',
+                        style: AppTheme.caption
+                            .copyWith(color: AppTheme.textLight),
+                      ),
+                    )
+                  else
+                    Text('Tap the microphone and say the word',
+                        style: AppTheme.caption),
+                  const SizedBox(height: AppTheme.xxl),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildSummary(int score) {
     final total = _results.length;
     return Scaffold(
@@ -822,6 +1281,99 @@ class _SpeechPracticeScreenState extends State<SpeechPracticeScreen> {
           icon: const Icon(Icons.arrow_back, size: 18),
           label: const Text('Back'),
           style: AppTheme.backButtonStyle,
+        ),
+      ),
+    );
+  }
+}
+
+/// One language in the guided step: both the picker and the progress display.
+///
+/// Status is spelled out in words rather than colour alone, so "Completed" vs
+/// "Not tried" is readable to a child (and to anyone who can't distinguish
+/// the tick's colour).
+class _LanguageChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final bool completed;
+  final bool attempted;
+
+  /// True once another language has already unlocked progression — this one
+  /// is now bonus practice.
+  final bool optional;
+
+  final VoidCallback onTap;
+
+  const _LanguageChip({
+    required this.label,
+    required this.selected,
+    required this.completed,
+    required this.attempted,
+    required this.optional,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = completed
+        ? AppTheme.success
+        : (selected ? AppTheme.primary : AppTheme.textLight);
+    final status = completed
+        ? 'Completed'
+        : attempted
+            ? 'Tried'
+            : (optional ? 'Bonus' : 'Not tried');
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          padding: const EdgeInsets.symmetric(
+              vertical: AppTheme.sm, horizontal: 6),
+          decoration: BoxDecoration(
+            color: completed
+                ? AppTheme.successLight
+                : (selected ? AppTheme.primaryLight : AppTheme.surface),
+            borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+            border: Border.all(
+              color: selected
+                  ? accent
+                  : accent.withValues(alpha: 0.3),
+              width: selected ? 2.5 : 1.5,
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                completed
+                    ? Icons.check_circle_rounded
+                    : Icons.radio_button_unchecked_rounded,
+                size: 18,
+                color: accent,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: AppTheme.caption.copyWith(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: AppTheme.textDark,
+                ),
+              ),
+              Text(
+                status,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTheme.caption.copyWith(fontSize: 10, color: accent),
+              ),
+            ],
+          ),
         ),
       ),
     );

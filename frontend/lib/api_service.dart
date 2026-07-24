@@ -308,6 +308,56 @@ class ApiService {
     throw Exception('getChildHome failed (${response.statusCode}): $body');
   }
 
+  /// The Treasure Album: every learnable word with a `discovered` flag.
+  ///
+  /// The word list and total come from the backend's vocabulary, so the album
+  /// grows on its own as vocabulary is added — never hardcode a count here.
+  /// GET /child/treasures/`childId`
+  static Future<Map<String, dynamic>> getChildTreasures(String childId) async {
+    final response = await http
+        .get(Uri.parse('${AppConfig.baseUrl}/child/treasures/$childId'))
+        .timeout(const Duration(seconds: 10));
+    final body = utf8.decode(response.bodyBytes);
+    if (response.statusCode == 200) {
+      return jsonDecode(body) as Map<String, dynamic>;
+    }
+    throw Exception('getChildTreasures failed (${response.statusCode}): $body');
+  }
+
+  /// Applies the rewards for one finished Child Adventure cycle.
+  ///
+  /// Idempotent on [completionId]: the backend replays the original result if
+  /// the same id arrives twice, so retrying after a network blip can never
+  /// award XP or a treasure twice. The scan/quiz/speech logs are written by
+  /// the existing `/log/*` calls during the flow — this adds no log entries.
+  /// POST /learning/complete
+  static Future<Map<String, dynamic>> completeLearning({
+    required String childId,
+    required String completionId,
+    required String englishKey,
+    required Map<String, dynamic> speech,
+    required Map<String, dynamic> quiz,
+  }) async {
+    final response = await http
+        .post(
+          Uri.parse('${AppConfig.baseUrl}/learning/complete'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'child_id': childId,
+            'completion_id': completionId,
+            'english_key': englishKey,
+            'speech': speech,
+            'quiz': quiz,
+          }),
+        )
+        .timeout(const Duration(seconds: 15));
+    final body = utf8.decode(response.bodyBytes);
+    if (response.statusCode == 200) {
+      return jsonDecode(body) as Map<String, dynamic>;
+    }
+    throw Exception('completeLearning failed (${response.statusCode}): $body');
+  }
+
   /// The full adventure route for the map screen — every area with its
   /// progress, decoration stage, keys and locked/current/completed status.
   /// GET /child/adventure/`childId`

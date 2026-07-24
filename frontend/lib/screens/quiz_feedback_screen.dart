@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'child_reward_screen.dart';
 import 'quiz_summary_screen.dart';
+import '../learning_flow.dart';
 import '../socket_service.dart';
 import '../theme/app_theme.dart';
 
@@ -19,6 +21,11 @@ class QuizFeedbackScreen extends StatelessWidget {
   /// Non-null only in Class Code mode; threaded through to QuizSummaryScreen.
   final ClassSessionContext? classSession;
 
+  /// Defaults to the existing summary ending; the guided child flow finishes
+  /// at the reward screen instead.
+  final LearningFlowMode flowMode;
+  final LearningCycle? cycle;
+
   const QuizFeedbackScreen({
     super.key,
     required this.isCorrect,
@@ -31,7 +38,56 @@ class QuizFeedbackScreen extends StatelessWidget {
     required this.onNext,
     this.childId,
     this.classSession,
+    this.flowMode = LearningFlowMode.parentRevision,
+    this.cycle,
   });
+
+  /// Where the last question leads.
+  ///
+  /// Guided flow: straight to the reward, carrying the quiz outcome on the
+  /// cycle. Every other mode keeps the original score summary untouched.
+  void _finish(BuildContext context) {
+    final cycle = this.cycle;
+    // A guided flow always carries a cycle; falling through to the summary if
+    // it somehow doesn't is better than crashing mid-reward.
+    if (flowMode.isGuidedChildFlow && cycle != null) {
+      final correct = results.where((r) => r['is_correct'] == true).length;
+      cycle.quiz = QuizOutcome(
+        score: correct,
+        total: results.length,
+        answers: [
+          for (final r in results)
+            {
+              'english_key': vocab['english_key'] as String? ?? '',
+              'correct': r['is_correct'] == true,
+            },
+        ],
+      );
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ChildRewardScreen(
+            cycle: cycle,
+            vocab: vocab,
+            avatarId: cycle.avatarId,
+          ),
+        ),
+      );
+      return;
+    }
+
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => QuizSummaryScreen(
+          results: results,
+          vocab: vocab,
+          childId: childId,
+          classSession: classSession,
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -123,21 +179,7 @@ class QuizFeedbackScreen extends StatelessWidget {
                       ),
                     const SizedBox(height: AppTheme.xl),
                     FilledButton.icon(
-                      onPressed: isLast
-                          ? () {
-                              Navigator.pushReplacement(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => QuizSummaryScreen(
-                                    results: results,
-                                    vocab: vocab,
-                                    childId: childId,
-                                    classSession: classSession,
-                                  ),
-                                ),
-                              );
-                            }
-                          : onNext,
+                      onPressed: isLast ? () => _finish(context) : onNext,
                       icon: Icon(
                         isLast ? Icons.flag_rounded : Icons.arrow_forward,
                         size: 18,

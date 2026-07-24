@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 
 import '../api_service.dart';
 import '../avatar_config.dart';
+import '../learning_flow.dart';
 import '../theme/app_theme.dart';
 import '../widgets/child_avatar.dart';
 import '../widgets/child_nav_sidebar.dart';
 import 'child_adventure_map_screen.dart';
+import 'child_treasure_album_screen.dart';
 import 'scan_object_screen.dart';
 
 /// Home base for a child in Home Adventure mode.
@@ -46,11 +48,12 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
   /// Below this the stat tiles stack instead of sitting side by side.
   static const double _compactBreakpoint = 640;
 
-  /// Destinations whose screens exist. Phase 6 adds the treasure album; the
-  /// rest of the sidebar renders as locked until then.
+  /// Destinations whose screens exist. My Buddy and Achievements render as
+  /// locked until they have screens of their own.
   static const Set<ChildNavItem> _enabledNav = {
     ChildNavItem.home,
     ChildNavItem.adventureMap,
+    ChildNavItem.treasureAlbum,
   };
 
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
@@ -112,13 +115,27 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
   // ── Actions ────────────────────────────────────────────────────────────────
 
   void _startExploring() {
-    // Phase 5 threads a LearningFlowMode and this route as the completion
-    // anchor, so the guided sequence returns here. Until then it opens the
-    // existing scan flow unchanged.
+    // One cycle per tap, so each pass through scan → speak → quiz → reward
+    // carries its own completion id and is rewarded exactly once.
+    //
+    // The anchor is this screen's own route *instance*, not a name: naming it
+    // would put it in the browser's address bar, and a reload there has
+    // nowhere to restore to in an app with no route table.
+    final cycle = LearningCycle(
+      childId: widget.childId,
+      mode: LearningFlowMode.childAdventure,
+      completionAnchor: ModalRoute.of(context),
+      avatarId: _avatarId,
+    );
+
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => ScanObjectScreen(childId: widget.childId),
+        builder: (_) => ScanObjectScreen(
+          childId: widget.childId,
+          flowMode: LearningFlowMode.childAdventure,
+          cycle: cycle,
+        ),
       ),
       // Refresh on return so a word just learned shows up in the mission,
       // streak and treasure counts straight away.
@@ -139,6 +156,17 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
     });
   }
 
+  void _openTreasureAlbum() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ChildTreasureAlbumScreen(childId: widget.childId),
+      ),
+    ).then((_) {
+      if (mounted) _load();
+    });
+  }
+
   void _onNavSelect(ChildNavItem item) {
     if (!_enabledNav.contains(item)) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -151,7 +179,16 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
     if (_scaffoldKey.currentState?.isDrawerOpen ?? false) {
       Navigator.pop(context);
     }
-    if (item == ChildNavItem.adventureMap) _openAdventureMap();
+    switch (item) {
+      case ChildNavItem.adventureMap:
+        _openAdventureMap();
+      case ChildNavItem.treasureAlbum:
+        _openTreasureAlbum();
+      case ChildNavItem.home:
+      case ChildNavItem.buddy:
+      case ChildNavItem.achievements:
+        break;
+    }
   }
 
   void _exit() {
@@ -396,6 +433,8 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
         label: 'Treasure Album',
         value: '${(_data?['treasure_count'] as num?)?.toInt() ?? 0}',
         caption: 'words collected',
+        // Second way in, alongside the sidebar item.
+        onTap: _openTreasureAlbum,
       ),
       _StatTile(
         icon: Icons.pets_rounded,

@@ -6,12 +6,16 @@ the achievement count all at once, and a young child on a slow connection
 should not watch six spinners resolve one at a time.
 """
 
+from datetime import datetime
+
 from flask import Blueprint, jsonify
 from pymongo.errors import PyMongoError
 
 import adventure
 import child_progress as cp
 import state
+import treasures
+import vocab
 from child_profile import apply_child_defaults
 from time_utils import _clean
 
@@ -84,6 +88,73 @@ def child_home(child_id):
             "treasure_count": cp.treasure_count(state.db, child_id),
             "achievement_count": cp.achievement_count(state.db, raw, child_id),
             "achievement_total": len(cp.ACHIEVEMENTS),
+        })
+    except PyMongoError:
+        return jsonify({"status": "error", "message": "Database error"}), 500
+
+
+@bp.get("/child/treasures/<child_id>")
+def child_treasures(child_id):
+    """The Treasure Album: every learnable word, flagged as found or not.
+
+    The word list comes from the vocabulary cache, so the album grows by
+    itself whenever vocabulary is added — nothing here knows or cares how many
+    words there are. Found-ness comes from the child's Adventure Treasure
+    records, so a word a teacher once projected never appears as this child's
+    discovery.
+
+    Undiscovered entries carry their translations too. Nothing is being kept
+    secret — the scannable-object list is already visible on the scan screen —
+    and the client decides whether to reveal or silhouette them.
+    """
+    err = state._db_required()
+    if err:
+        return err
+
+    try:
+        raw, child, missing = _load_active_child(child_id)
+        if missing:
+            return missing
+
+        found = {r["english_key"]: r
+                 for r in treasures.discovered_records(state.db, child_id)}
+
+        def entry(english_key):
+            item = vocab._resolve_vocab(english_key)
+            record = found.get(english_key)
+            area_id = (record or {}).get("area_id")
+            discovered_at = (record or {}).get("discovered_at")
+            return {
+                "english_key": english_key,
+                "english_word": item.get("english_word", english_key),
+                "malay_word": item.get("malay_word", ""),
+                "chinese_word": item.get("chinese_word", ""),
+                "audio": vocab._audio_urls(english_key),
+                "discovered": record is not None,
+                "discovered_at": (discovered_at.isoformat()
+                                  if isinstance(discovered_at, datetime)
+                                  else discovered_at),
+                "area_id": area_id,
+                "area_name": (adventure.area_by_id(area_id) or {}).get("name")
+                if area_id else None,
+            }
+
+        all_keys = sorted(vocab._VOCAB_CACHE.keys())
+        # Found words first, newest discovery leading, so the album opens on
+        # what the child just earned rather than on a wall of question marks.
+        discovered = [entry(k) for k in found.keys()]
+        undiscovered = [entry(k) for k in all_keys if k not in found]
+
+        return jsonify({
+            "status": "ok",
+            "child": {
+                "child_id": child_id,
+                "nickname": child.get("nickname", ""),
+            },
+            "discovered_count": len(discovered),
+            # Derived from the vocabulary, never a hardcoded number.
+            "total_count": len(all_keys),
+            "treasures": discovered + undiscovered,
         })
     except PyMongoError:
         return jsonify({"status": "error", "message": "Database error"}), 500

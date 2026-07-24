@@ -2,6 +2,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'quiz_feedback_screen.dart';
 import '../api_service.dart';
+import '../learning_flow.dart';
 import '../socket_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/vocab_icon.dart';
@@ -17,11 +18,18 @@ class QuizPracticeScreen extends StatefulWidget {
   /// the recognition screen instead of skipping past it.
   final ClassSessionContext? classSession;
 
+  /// Defaults to the full three-question set; the guided child flow shortens
+  /// it (see [_guidedQuestionCount]).
+  final LearningFlowMode flowMode;
+  final LearningCycle? cycle;
+
   const QuizPracticeScreen({
     super.key,
     required this.vocab,
     this.childId,
     this.classSession,
+    this.flowMode = LearningFlowMode.parentRevision,
+    this.cycle,
   });
 
   @override
@@ -35,6 +43,13 @@ class _QuizPracticeScreenState extends State<QuizPracticeScreen> {
   List<_Question>? _questions;
   bool _loading = true;
   String? _error;
+
+  /// The guided flow is one short step in a longer sequence, so it asks two
+  /// questions rather than the full three — enough to earn the perfect-quiz
+  /// bonus without turning the reward into a test.
+  static const int _guidedQuestionCount = 2;
+
+  bool get _guided => widget.flowMode.isGuidedChildFlow;
 
   @override
   void initState() {
@@ -87,7 +102,12 @@ class _QuizPracticeScreenState extends State<QuizPracticeScreen> {
 
       if (mounted) {
         setState(() {
-          _questions = questions;
+          // Guided flow keeps the first two patterns (EN→MS, EN→ZH), which
+          // both show the object icon and read most naturally to a young
+          // child; the ZH→EN pattern is the hardest and is dropped first.
+          _questions = _guided
+              ? questions.take(_guidedQuestionCount).toList()
+              : questions;
           _loading = false;
         });
       }
@@ -141,6 +161,8 @@ class _QuizPracticeScreenState extends State<QuizPracticeScreen> {
           vocab: widget.vocab,
           childId: widget.childId,
           classSession: widget.classSession,
+          flowMode: widget.flowMode,
+          cycle: widget.cycle,
           onNext: () {
             Navigator.pop(context);
             setState(() {

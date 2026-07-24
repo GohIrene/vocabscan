@@ -103,7 +103,30 @@ def all_area_progress(child):
 
 
 def current_area_id(child):
-    """The area a child is growing now, healed if the stored value is junk."""
+    """The area a child is growing now: the first one not yet finished.
+
+    Derived from progress rather than read from the stored `current_area_id`,
+    which makes "finish an area and the next unlocks" fall out automatically
+    and leaves no way for the stored pointer to disagree with the numbers.
+    Phase 5 keeps the stored field in step for cheap reads elsewhere, but this
+    is the authority.
+
+    Once every area is complete there is nothing left to grow, so the last
+    area stays current and simply reads as finished.
+    """
+    progress = all_area_progress(child)
+    for area_id in AREA_IDS:
+        if progress.get(area_id, 0) < MAX_PROGRESS:
+            return area_id
+    return AREA_IDS[-1]
+
+
+def stored_current_area_id(child):
+    """The `current_area_id` written on the document, healed if it's junk.
+
+    Kept for the write side (Phase 5) to compare against; readers should use
+    [current_area_id].
+    """
     stored = (child or {}).get("current_area_id")
     return stored if is_valid_area(stored) else FIRST_AREA_ID
 
@@ -138,5 +161,28 @@ def area_summary(child, area_id):
         "progress_percentage": points,
         "visual_stage": visual_stage(points),
         "keys": keys_for_progress(points),
+        "max_keys": MAX_STAGE,
         "status": area_status(child, area_id),
+        # A locked area can be looked at but not grown — the map lets a child
+        # see where they're heading without being able to jump ahead.
+        "can_preview": True,
+        "can_grow": area_status(child, area_id) == "current",
+    }
+
+
+def adventure_summary(child):
+    """The whole route: every area, plus where the child stands on it."""
+    areas = [area_summary(child, area_id) for area_id in AREA_IDS]
+    current = current_area_id(child)
+    completed = [a for a in areas if a["status"] == "completed"]
+    return {
+        "current_area_id": current,
+        "areas": areas,
+        "completed_count": len(completed),
+        "area_count": len(areas),
+        # Keys held across the whole route, so the home screen and the map
+        # agree on one number.
+        "total_keys": sum(a["keys"] for a in areas),
+        "max_total_keys": MAX_STAGE * len(areas),
+        "all_completed": len(completed) == len(areas),
     }

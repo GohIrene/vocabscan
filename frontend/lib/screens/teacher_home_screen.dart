@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../api_service.dart';
 import '../auth_service.dart';
+import '../learning_flow.dart';
 import 'classroom_manage_screen.dart';
 import 'scan_object_screen.dart';
 import 'teacher_class_session_screen.dart';
@@ -179,7 +180,12 @@ class TeacherHomeScreen extends StatelessWidget {
                           onTap: () => Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => const ScanObjectScreen(),
+                              // Labelled for clarity only — Project Mode
+                              // behaves exactly as before; no guided-flow
+                              // branch applies to it.
+                              builder: (_) => const ScanObjectScreen(
+                                flowMode: LearningFlowMode.teacherProjection,
+                              ),
                             ),
                           ),
                         ),
