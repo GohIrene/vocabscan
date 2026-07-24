@@ -57,6 +57,17 @@ def _get_model():
     return _model
 
 
+def warm_model():
+    """Preload the Whisper model so the first real transcription request doesn't
+    pay the ~3s load cost mid-request. Called once at server startup. Safe to
+    fail (e.g. faster-whisper not installed) — the route still loads lazily."""
+    try:
+        _get_model()
+        print(f"Whisper model '{_MODEL_SIZE}' warmed and ready.")
+    except Exception as e:  # noqa: BLE001
+        print(f"Whisper warm-up skipped: {e}")
+
+
 def _normalize(s):
     """Mirror the frontend's normalisation: lowercase, strip punctuation
     (incl. CJK full-width marks Whisper sometimes appends), collapse spaces."""

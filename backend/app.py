@@ -24,4 +24,8 @@ for _bp in (health.bp, vocabulary.bp, auth.bp, children.bp, logs.bp, quiz.bp,
 
 
 if __name__ == "__main__":
+    # Preload the Whisper speech model in the background so the first Malay
+    # speech-practice request is fast instead of waiting ~3s for the model to
+    # load mid-request.
+    socketio.start_background_task(speech.warm_model)
     socketio.run(app, host='0.0.0.0', port=5000)
