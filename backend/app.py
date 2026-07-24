@@ -13,15 +13,15 @@ import vocab
 vocab.load_vocab_cache()
 
 import sockets  # noqa: F401 — registers Socket.IO event handlers on state.socketio
-from routes import (auth, children, class_code, classroom, family, health,
-                    logs, quiz, report, revision, speech, vocabulary)
+from routes import (auth, child, children, class_code, classroom, family,
+                    health, logs, quiz, report, revision, speech, vocabulary)
 
 app = state.app
 socketio = state.socketio
 
-for _bp in (health.bp, vocabulary.bp, auth.bp, children.bp, family.bp, logs.bp,
-            quiz.bp, class_code.bp, classroom.bp, revision.bp, report.bp,
-            speech.bp):
+for _bp in (health.bp, vocabulary.bp, auth.bp, children.bp, family.bp,
+            child.bp, logs.bp, quiz.bp, class_code.bp, classroom.bp,
+            revision.bp, report.bp, speech.bp):
     app.register_blueprint(_bp)
 
 

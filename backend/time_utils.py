@@ -30,6 +30,25 @@ def _local_time(dt):
     return local.strftime("%H:%M") if local else ""
 
 
+def local_today():
+    """Today's local (GMT+8) calendar date as 'YYYY-MM-DD'."""
+    return (datetime.utcnow() + LOCAL_UTC_OFFSET).strftime("%Y-%m-%d")
+
+
+def local_day_start_utc(days_ago=0):
+    """The UTC instant local midnight fell on, [days_ago] days back.
+
+    Lets "what happened today" be a plain indexed range query on created_at
+    instead of pulling every log and bucketing it in Python — logs are stored
+    in UTC but a child's day starts at local midnight.
+    """
+    local_now = datetime.utcnow() + LOCAL_UTC_OFFSET
+    local_midnight = (local_now - timedelta(days=days_ago)).replace(
+        hour=0, minute=0, second=0, microsecond=0
+    )
+    return local_midnight - LOCAL_UTC_OFFSET
+
+
 def _clean(doc):
     """Strip _id and convert datetime values to ISO strings."""
     if doc is None:

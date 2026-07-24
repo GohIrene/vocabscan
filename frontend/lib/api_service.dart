@@ -292,6 +292,22 @@ class ApiService {
     }
   }
 
+  // ── Child Home Adventure ───────────────────────────────────────────────────
+
+  /// Everything ChildHomeScreen draws, in one round trip: buddy, adventure,
+  /// today's mission, streak, treasure count and achievement count.
+  /// GET /child/home/`childId`
+  static Future<Map<String, dynamic>> getChildHome(String childId) async {
+    final response = await http
+        .get(Uri.parse('${AppConfig.baseUrl}/child/home/$childId'))
+        .timeout(const Duration(seconds: 10));
+    final body = utf8.decode(response.bodyBytes);
+    if (response.statusCode == 200) {
+      return jsonDecode(body) as Map<String, dynamic>;
+    }
+    throw Exception('getChildHome failed (${response.statusCode}): $body');
+  }
+
   // ── Family Code (Home Mode child entry) ────────────────────────────────────
 
   /// The parent's standing family code, assigned on first view.
