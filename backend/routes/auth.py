@@ -23,8 +23,10 @@ def register():
 
     if not username:
         return jsonify({"status": "error", "message": "Username is required"}), 400
-    if not pin.isdigit() or not (4 <= len(pin) <= 6):
-        return jsonify({"status": "error", "message": "PIN must be 4-6 digits"}), 400
+    # New accounts use a 3-digit PIN. Login deliberately does NOT check the
+    # length, so accounts created under the older 4-6 digit rule keep working.
+    if not pin.isdigit() or len(pin) != 3:
+        return jsonify({"status": "error", "message": "PIN must be 3 digits"}), 400
     if role not in ("parent", "teacher"):
         return jsonify({"status": "error", "message": "Role must be 'parent' or 'teacher'"}), 400
 

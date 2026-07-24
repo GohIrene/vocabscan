@@ -28,6 +28,13 @@ class _TeacherProjectionScreenState extends State<TeacherProjectionScreen> {
   bool _loading = true;
   String? _error;
 
+  /// Day being viewed, as "yyyy-MM-dd" in local (GMT+8) terms. Null until
+  /// data loads, then defaults to the most recent day that has sessions.
+  String? _selectedDate;
+
+  /// Escape hatch from the one-day view back to the full history.
+  bool _showAllDays = false;
+
   @override
   void initState() {
     super.initState();
@@ -141,6 +148,16 @@ class _TeacherProjectionScreenState extends State<TeacherProjectionScreen> {
 
     if (sessions.isEmpty) return _buildEmpty();
 
+    // One-day view: default to the newest day that has sessions (the list
+    // arrives newest-first), or whatever day the calendar picked.
+    final viewDate =
+        _selectedDate ?? (sessions.first['local_date'] as String? ?? '');
+    final visibleSessions = _showAllDays
+        ? sessions
+        : sessions
+            .where((s) => (s['local_date'] as String? ?? '') == viewDate)
+            .toList();
+
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Center(
@@ -203,7 +220,63 @@ class _TeacherProjectionScreenState extends State<TeacherProjectionScreen> {
               ),
               const SizedBox(height: 28),
 
-              ..._buildSessionsByDate(sessions),
+              // ── Day picker row ──
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      _showAllDays ? 'All days' : 'Viewing one day',
+                      style: AppTheme.caption
+                          .copyWith(fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: () => _pickDay(sessions),
+                    icon: const Icon(Icons.calendar_month, size: 18),
+                    label: Text(_showAllDays
+                        ? 'Pick a day'
+                        : _prettyDate(viewDate)),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppTheme.primary,
+                      side: const BorderSide(
+                          color: AppTheme.primary, width: 2),
+                      shape: RoundedRectangleBorder(
+                        borderRadius:
+                            BorderRadius.circular(AppTheme.radiusSm),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: AppTheme.sm),
+                  TextButton(
+                    onPressed: () =>
+                        setState(() => _showAllDays = !_showAllDays),
+                    child: Text(_showAllDays ? 'One day' : 'Show all'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppTheme.md),
+
+              if (visibleSessions.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 40),
+                  child: Column(
+                    children: [
+                      const Text('🗓️', style: TextStyle(fontSize: 40)),
+                      const SizedBox(height: AppTheme.md),
+                      Text(
+                        'No sessions on ${_prettyDate(viewDate)}',
+                        style: AppTheme.subheading,
+                      ),
+                      const SizedBox(height: AppTheme.xs),
+                      Text(
+                        'Pick another day, or "Show all" for the full history.',
+                        style: AppTheme.caption,
+                      ),
+                    ],
+                  ),
+                )
+              else
+                ..._buildSessionsByDate(visibleSessions),
               const SizedBox(height: AppTheme.xxl),
             ],
           ),
@@ -303,6 +376,34 @@ class _TeacherProjectionScreenState extends State<TeacherProjectionScreen> {
         ],
       ),
     );
+  }
+
+  /// Calendar picker for the one-day view. Bounded by the oldest session so
+  /// the teacher can't scroll into years with nothing in them.
+  Future<void> _pickDay(List<Map<String, dynamic>> sessions) async {
+    DateTime? oldest;
+    for (final s in sessions) {
+      final d = DateTime.tryParse(s['local_date'] as String? ?? '');
+      if (d != null && (oldest == null || d.isBefore(oldest))) oldest = d;
+    }
+    final now = DateTime.now();
+    final initial =
+        DateTime.tryParse(_selectedDate ?? '') ?? now;
+
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial.isAfter(now) ? now : initial,
+      firstDate: oldest ?? DateTime(now.year - 1),
+      lastDate: now,
+    );
+    if (picked == null || !mounted) return;
+    setState(() {
+      _selectedDate =
+          '${picked.year.toString().padLeft(4, '0')}-'
+          '${picked.month.toString().padLeft(2, '0')}-'
+          '${picked.day.toString().padLeft(2, '0')}';
+      _showAllDays = false;
+    });
   }
 
   /// "2026-07-21" → "21 Jul 2026".

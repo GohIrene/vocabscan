@@ -110,6 +110,7 @@ class _AddChildScreenState extends State<AddChildScreen> {
       nickname,
       _age,
       gender: _selectedGender,
+      icon: _selectedIcon,
     );
     if (!mounted) return;
     if (result['status'] == 'error') {
@@ -224,8 +225,11 @@ class _AddChildScreenState extends State<AddChildScreen> {
                                 child: DropdownButtonHideUnderline(
                                   child: DropdownButton<int>(
                                     value: _age,
+                                    // 3-10 only: the app is designed for
+                                    // early learners (backend enforces the
+                                    // same range).
                                     items: List.generate(
-                                      13,
+                                      8,
                                       (i) => DropdownMenuItem(
                                         value: i + 3,
                                         child: Text('${i + 3} years old'),

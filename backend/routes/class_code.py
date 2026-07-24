@@ -6,6 +6,7 @@ from pymongo.errors import PyMongoError
 
 import class_sessions as cs
 import state
+import vocab
 from time_utils import _local_day, _local_time
 
 bp = Blueprint("class_code", __name__)
@@ -19,23 +20,38 @@ def class_create():
 
     data = request.get_json() or {}
     teacher_id = (data.get("teacher_id") or "").strip()
+    # Optional: run the session against a saved class, so students tap their
+    # name and earn XP toward a roster entry. Omitted → the original
+    # type-your-nickname, progress-free session, unchanged.
+    classroom_id = (data.get("classroom_id") or "").strip() or None
     if not teacher_id:
         return jsonify({"status": "error", "message": "teacher_id is required"}), 400
 
     try:
+        # Words the teacher prepped on the classroom (photo uploads before
+        # class) start in the session's pool, so the summary quiz can cover
+        # them without re-scanning anything in the lesson.
+        prepared = []
+        if classroom_id:
+            room = state.db.classrooms.find_one({"classroom_id": classroom_id})
+            if room:
+                prepared = [k for k in (room.get("prepared_words") or [])
+                            if vocab._is_known(k)]
+
         code = cs._generate_code()
         session_id = str(uuid.uuid4())
         state.db.class_sessions.insert_one({
             "session_id": session_id,
             "code": code,
             "teacher_id": teacher_id,
+            "classroom_id": classroom_id,
             "status": "waiting",
             "students": [],
             "current_quiz": None,
             "quiz_history": [],
             # Every distinct word pushed this session, so a summary quiz can be
             # built from exactly what the class actually covered.
-            "word_keys": [],
+            "word_keys": prepared,
             "summary_quiz": None,
             "summary_history": [],
             "created_at": datetime.utcnow(),

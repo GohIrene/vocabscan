@@ -184,7 +184,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                     icon: 'assets/icons/calendar.png',
                     label: 'Active Days',
                     value: '$activeDays',
-                    color: const Color(0xFF8B5CF6), // violet
+                    color: AppTheme.primary,
                   ),
                 ],
               ),

@@ -17,7 +17,16 @@ import 'scan_object_screen.dart';
 class TeacherClassSessionScreen extends StatefulWidget {
   final String teacherId;
 
-  const TeacherClassSessionScreen({super.key, required this.teacherId});
+  /// Non-null to run the session against a saved class: students tap their
+  /// name to join and earn XP toward their roster entry. Null keeps the
+  /// original type-your-nickname session with no saved progress.
+  final String? classroomId;
+
+  const TeacherClassSessionScreen({
+    super.key,
+    required this.teacherId,
+    this.classroomId,
+  });
 
   @override
   State<TeacherClassSessionScreen> createState() =>
@@ -60,7 +69,10 @@ class _TeacherClassSessionScreenState extends State<TeacherClassSessionScreen> {
   }
 
   Future<void> _createSession() async {
-    final res = await ApiService.createClassSession(widget.teacherId);
+    final res = await ApiService.createClassSession(
+      widget.teacherId,
+      classroomId: widget.classroomId,
+    );
     if (!mounted) return;
 
     final sessionId = res['session_id'] as String?;

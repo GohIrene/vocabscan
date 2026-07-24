@@ -108,13 +108,19 @@ class ApiService {
 
   /// Creates a live Class Code session. POST /class/create
   /// Returns the parsed response map ({session_id, code} on success).
+  /// Pass [classroomId] to run the session against a saved class, so students
+  /// tap their name and earn XP. Omit it for the original nickname-only
+  /// session with no saved progress.
   static Future<Map<String, dynamic>> createClassSession(
-      String teacherId) async {
+      String teacherId, {String? classroomId}) async {
     try {
       final response = await http.post(
         Uri.parse('${AppConfig.baseUrl}/class/create'),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'teacher_id': teacherId}),
+        body: jsonEncode({
+          'teacher_id': teacherId,
+          'classroom_id': ?classroomId,
+        }),
       );
       return jsonDecode(utf8.decode(response.bodyBytes))
           as Map<String, dynamic>;
@@ -138,6 +144,186 @@ class ApiService {
           as Map<String, dynamic>;
     } catch (e) {
       return {'status': 'error', 'message': 'Network error: $e'};
+    }
+  }
+
+  // ── Classrooms (saved rosters + student progress) ──────────────────────────
+
+  /// Every saved class belonging to a teacher. GET /classroom/list/`teacherId`
+  static Future<List<Map<String, dynamic>>> getClassrooms(
+      String teacherId) async {
+    final response = await http
+        .get(Uri.parse('${AppConfig.baseUrl}/classroom/list/$teacherId'))
+        .timeout(const Duration(seconds: 10));
+    final body = utf8.decode(response.bodyBytes);
+    if (response.statusCode != 200) {
+      throw Exception('getClassrooms failed (${response.statusCode}): $body');
+    }
+    final data = jsonDecode(body) as Map<String, dynamic>;
+    return (data['classrooms'] as List? ?? const [])
+        .whereType<Map>()
+        .map((c) => Map<String, dynamic>.from(c))
+        .toList();
+  }
+
+  /// Creates a saved class. POST /classroom/create
+  static Future<Map<String, dynamic>> createClassroom(
+      String teacherId, String name) async {
+    try {
+      final response = await http.post(
+        Uri.parse('${AppConfig.baseUrl}/classroom/create'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'teacher_id': teacherId, 'name': name}),
+      );
+      return jsonDecode(utf8.decode(response.bodyBytes))
+          as Map<String, dynamic>;
+    } catch (e) {
+      return {'status': 'error', 'message': 'Network error: $e'};
+    }
+  }
+
+  /// Adds a student to a class roster. POST /classroom/`id`/students
+  static Future<Map<String, dynamic>> addClassroomStudent(
+      String classroomId, String name, int avatar) async {
+    try {
+      final response = await http.post(
+        Uri.parse('${AppConfig.baseUrl}/classroom/$classroomId/students'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'name': name, 'avatar': avatar}),
+      );
+      return jsonDecode(utf8.decode(response.bodyBytes))
+          as Map<String, dynamic>;
+    } catch (e) {
+      return {'status': 'error', 'message': 'Network error: $e'};
+    }
+  }
+
+  /// Removes a student from a class roster.
+  /// DELETE /classroom/`id`/students/`studentId`
+  static Future<bool> removeClassroomStudent(
+      String classroomId, String studentId) async {
+    try {
+      final response = await http.delete(Uri.parse(
+          '${AppConfig.baseUrl}/classroom/$classroomId/students/$studentId'));
+      return response.statusCode == 200;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /// Deletes a whole class. DELETE /classroom/`id`
+  static Future<bool> deleteClassroom(String classroomId) async {
+    try {
+      final response = await http
+          .delete(Uri.parse('${AppConfig.baseUrl}/classroom/$classroomId'));
+      return response.statusCode == 200;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /// Bulk-adds students parsed from a spreadsheet (CSV) export.
+  /// POST /classroom/`id`/students/import
+  static Future<Map<String, dynamic>> importClassroomStudents(
+      String classroomId, List<String> names) async {
+    try {
+      final response = await http.post(
+        Uri.parse('${AppConfig.baseUrl}/classroom/$classroomId/students/import'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'names': names}),
+      );
+      return jsonDecode(utf8.decode(response.bodyBytes))
+          as Map<String, dynamic>;
+    } catch (e) {
+      return {'status': 'error', 'message': 'Network error: $e'};
+    }
+  }
+
+  /// Teacher awards (positive) or deducts (negative) XP by hand.
+  /// POST /classroom/`id`/students/`studentId`/points
+  static Future<Map<String, dynamic>> adjustStudentPoints(
+      String classroomId, String studentId, int delta) async {
+    try {
+      final response = await http.post(
+        Uri.parse(
+            '${AppConfig.baseUrl}/classroom/$classroomId/students/$studentId/points'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'delta': delta}),
+      );
+      return jsonDecode(utf8.decode(response.bodyBytes))
+          as Map<String, dynamic>;
+    } catch (e) {
+      return {'status': 'error', 'message': 'Network error: $e'};
+    }
+  }
+
+  /// Stages pre-class words (from photo uploads) onto a classroom, so every
+  /// session run against it starts with them. POST /classroom/`id`/prepare-words
+  static Future<Map<String, dynamic>> prepareClassroomWords(
+      String classroomId, List<String> englishKeys) async {
+    try {
+      final response = await http.post(
+        Uri.parse('${AppConfig.baseUrl}/classroom/$classroomId/prepare-words'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'english_keys': englishKeys}),
+      );
+      return jsonDecode(utf8.decode(response.bodyBytes))
+          as Map<String, dynamic>;
+    } catch (e) {
+      return {'status': 'error', 'message': 'Network error: $e'};
+    }
+  }
+
+  /// Removes one staged word from a classroom's prep list.
+  /// POST /classroom/`id`/prepare-words/remove
+  static Future<Map<String, dynamic>> removePreparedWord(
+      String classroomId, String englishKey) async {
+    try {
+      final response = await http.post(
+        Uri.parse(
+            '${AppConfig.baseUrl}/classroom/$classroomId/prepare-words/remove'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'english_key': englishKey}),
+      );
+      return jsonDecode(utf8.decode(response.bodyBytes))
+          as Map<String, dynamic>;
+    } catch (e) {
+      return {'status': 'error', 'message': 'Network error: $e'};
+    }
+  }
+
+  /// Children behind a parent's username, for the welcome-page Child entry.
+  /// GET /children/by-username/`username`
+  static Future<Map<String, dynamic>> getChildrenByUsername(
+      String username) async {
+    try {
+      final response = await http
+          .get(Uri.parse(
+              '${AppConfig.baseUrl}/children/by-username/${Uri.encodeComponent(username)}'))
+          .timeout(const Duration(seconds: 10));
+      return jsonDecode(utf8.decode(response.bodyBytes))
+          as Map<String, dynamic>;
+    } catch (e) {
+      return {'status': 'error', 'message': 'Network error: $e'};
+    }
+  }
+
+  /// The roster behind a live class code, for the student join screen.
+  /// GET /classroom/roster/`code`
+  ///
+  /// Answers `has_roster: false` when the teacher started the session without
+  /// a saved class — the signal to fall back to a typed name.
+  static Future<Map<String, dynamic>> getRosterByCode(String code) async {
+    try {
+      final response = await http
+          .get(Uri.parse('${AppConfig.baseUrl}/classroom/roster/$code'))
+          .timeout(const Duration(seconds: 10));
+      return jsonDecode(utf8.decode(response.bodyBytes))
+          as Map<String, dynamic>;
+    } catch (e) {
+      // A roster we can't reach shouldn't block joining — the caller falls
+      // back to the typed-name path.
+      return {'has_roster': false, 'students': []};
     }
   }
 

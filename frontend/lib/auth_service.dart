@@ -66,7 +66,7 @@ class AuthService {
 
   Future<Map<String, dynamic>> addChild(
       String parentId, String nickname, int age,
-      {String? gender}) async {
+      {String? gender, String? icon}) async {
     try {
       final body = {
         'parent_id': parentId,
@@ -74,6 +74,8 @@ class AuthService {
         'age': age,
       };
       if (gender != null) body['gender'] = gender;
+      // Asset name of the icon the parent picked, so the child's card shows it.
+      if (icon != null) body['icon'] = icon;
       final response = await http.post(
         Uri.parse('${AppConfig.baseUrl}/children'),
         headers: {'Content-Type': 'application/json'},

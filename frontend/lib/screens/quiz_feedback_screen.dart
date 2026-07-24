@@ -54,7 +54,7 @@ class QuizFeedbackScreen extends StatelessWidget {
                   borderRadius: BorderRadius.circular(28),
                   boxShadow: const [
                     BoxShadow(
-                      color: Color(0x14000000),
+                      color: AppTheme.shadowColor,
                       blurRadius: AppTheme.lg,
                       offset: Offset(0, 6),
                     ),

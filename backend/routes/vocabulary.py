@@ -12,6 +12,16 @@ from time_utils import _clean
 
 bp = Blueprint("vocabulary", __name__)
 
+# Mirrors the frontend's own allow-list (image_upload_utils.dart). HEIC/HEIF —
+# the default photo format on iPhone — can't be decoded by a browser <img>
+# element either, so the frontend already rejects it before upload; this is
+# the backstop for a direct API call or a spoofed content-type that skips
+# that check.
+_ALLOWED_IMAGE_FORMATS = {"JPEG", "PNG", "WEBP"}
+
+# Mirrors the frontend's kMaxImageBytes.
+_MAX_UPLOAD_BYTES = 8 * 1024 * 1024
+
 
 @bp.get("/vocabulary/<english_key>")
 def get_vocabulary(english_key):
@@ -63,9 +73,30 @@ def predict():
         })
 
     try:
+        raw = file.read()
+        if len(raw) > _MAX_UPLOAD_BYTES:
+            return jsonify({
+                "success": False,
+                "reason": "file_too_large",
+                "message": "That photo is too large — please choose one under 8MB.",
+            })
+
         start = time.perf_counter()
 
-        img = Image.open(io.BytesIO(file.read())).convert("RGB").resize((224, 224))
+        try:
+            opened = Image.open(io.BytesIO(raw))
+            image_format = opened.format
+        except Exception:
+            image_format = None
+
+        if image_format not in _ALLOWED_IMAGE_FORMATS:
+            return jsonify({
+                "success": False,
+                "reason": "unsupported_format",
+                "message": "Please upload a JPEG, PNG, or WEBP photo.",
+            })
+
+        img = opened.convert("RGB").resize((224, 224))
         # Raw 0-255 pixels; MobileNetV3 has include_preprocessing=True built in.
         arr = np.expand_dims(np.array(img, dtype=np.float32), axis=0)  # (1, 224, 224, 3)
 

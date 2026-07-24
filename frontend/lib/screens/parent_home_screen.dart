@@ -19,9 +19,9 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
     AppTheme.primary,
     AppTheme.secondary,
     AppTheme.success,
-    Color(0xFFEC4899), // pink
-    Color(0xFFF59E0B), // amber
-    Color(0xFF8B5CF6), // violet
+    AppTheme.blossom,
+    AppTheme.treasure,
+    AppTheme.adventure,
   ];
 
   static const List<String> _childIcons = [
@@ -184,8 +184,14 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
                                 final child = e.value;
                                 final color =
                                     _childColors[i % _childColors.length];
-                                final iconPath =
-                                    _childIcons[i % _childIcons.length];
+                                // The icon the parent picked when adding the
+                                // child; children added before icons were
+                                // stored fall back to the old rotation.
+                                final chosenIcon =
+                                    (child['icon'] as String?) ?? '';
+                                final iconPath = chosenIcon.isNotEmpty
+                                    ? 'assets/icons/$chosenIcon.png'
+                                    : _childIcons[i % _childIcons.length];
                                 final nickname =
                                     child['nickname'] as String? ?? '';
                                 final childId =

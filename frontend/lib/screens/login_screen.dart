@@ -119,8 +119,11 @@ class _LoginScreenState extends State<LoginScreen> {
                         const SizedBox(height: AppTheme.lg),
                         _buildField(
                           controller: _pinCtrl,
-                          label: 'PIN (4–6 digits)',
-                          hint: '● ● ● ●',
+                          // No digit count in the label, and the field still
+                          // accepts up to 6, so accounts created under the
+                          // older 4-6 digit rule can still sign in.
+                          label: 'PIN',
+                          hint: '● ● ●',
                           icon: Icons.lock_outline,
                           obscure: true,
                           numeric: true,

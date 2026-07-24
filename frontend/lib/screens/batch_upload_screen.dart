@@ -1,28 +1,33 @@
 // ignore_for_file: avoid_web_libraries_in_flutter, deprecated_member_use
 
-import 'dart:async';
-import 'dart:convert';
 import 'dart:html' as html;
-import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
 import '../api_service.dart';
+import '../image_upload_utils.dart';
 import '../socket_service.dart';
 import '../theme/app_theme.dart';
 
-/// Teacher batch-upload flow (Class Code mode).
+/// Teacher batch-upload flow.
 ///
-/// The teacher picks several photos at once; each is recognised via /predict,
-/// then the recognised words can be sent to the class as one multi-question
-/// quiz ("Send Now") or added to the session's word pool for later ("Add to
-/// Pool"). Reuses the existing summary-quiz delivery, so the student app is
-/// unchanged.
+/// The teacher picks several photos at once; each is recognised via /predict.
+/// In a live session ([classSession] set) the recognised words can be sent to
+/// the class as one multi-question quiz ("Send Now") or added to the session's
+/// word pool ("Add to Pool"). In prep mode ([prepClassroomId] set, no session
+/// needed) they're saved onto the classroom itself, and every future session
+/// run against that class starts with them — how a teacher preps the night
+/// before.
 class BatchUploadScreen extends StatefulWidget {
-  final ClassSessionContext classSession;
+  final ClassSessionContext? classSession;
 
-  const BatchUploadScreen({super.key, required this.classSession});
+  /// Classroom to stage words onto when there's no live session (prep mode).
+  final String? prepClassroomId;
+
+  const BatchUploadScreen({super.key, this.classSession, this.prepClassroomId})
+      : assert((classSession != null) != (prepClassroomId != null),
+            'Provide exactly one of classSession or prepClassroomId');
 
   @override
   State<BatchUploadScreen> createState() => _BatchUploadScreenState();
@@ -38,6 +43,10 @@ class _BatchItem {
   final String? englishKey;
   final String label;
   final double confidence;
+  // Set for a rejected/unreadable file, so the row can explain why instead
+  // of the generic "try a clearer photo" that fits an actual low-confidence
+  // scan.
+  final String? failReason;
   bool included;
 
   _BatchItem({
@@ -46,6 +55,7 @@ class _BatchItem {
     required this.englishKey,
     required this.label,
     required this.confidence,
+    this.failReason,
     this.included = true,
   });
 }
@@ -63,7 +73,7 @@ class _BatchUploadScreenState extends State<BatchUploadScreen> {
 
   Future<void> _pickPhotos() async {
     final input = html.FileUploadInputElement()
-      ..accept = 'image/*'
+      ..accept = kAllowedImageAccept
       ..multiple = true;
     html.document.body!.append(input);
     input.click();
@@ -81,38 +91,7 @@ class _BatchUploadScreenState extends State<BatchUploadScreen> {
     // Sequential rather than parallel: the model serves one prediction at a
     // time, and this keeps the progress count honest for the teacher.
     for (final file in files) {
-      _BatchItem item;
-      try {
-        final reader = html.FileReader();
-        reader.readAsDataUrl(file);
-        await reader.onLoadEnd.first;
-        final dataUrl = reader.result as String;
-        final bytes = await _cropCenterFromDataUrl(dataUrl);
-
-        final data = await ApiService.predictObject(bytes);
-        final ok = data['success'] == true;
-        item = _BatchItem(
-          thumb: bytes,
-          ok: ok,
-          englishKey: ok ? data['english_key'] as String? : null,
-          label: ok
-              ? (data['english_word'] as String? ??
-                  data['english_key'] as String? ??
-                  'Word')
-              : file.name,
-          confidence: (data['confidence'] as num? ?? 0).toDouble(),
-          included: ok,
-        );
-      } catch (_) {
-        item = _BatchItem(
-          thumb: Uint8List(0),
-          ok: false,
-          englishKey: null,
-          label: file.name,
-          confidence: 0,
-          included: false,
-        );
-      }
+      final item = await _processOne(file);
       if (!mounted) return;
       setState(() {
         _items.add(item);
@@ -123,39 +102,71 @@ class _BatchUploadScreenState extends State<BatchUploadScreen> {
     if (mounted) setState(() => _processing = false);
   }
 
-  // Center-crops the image at [dataUrl] to a 224×224 square (matches the
-  // single-scan flow so recognition behaves identically).
-  Future<Uint8List> _cropCenterFromDataUrl(String dataUrl) async {
-    final img = html.ImageElement(src: dataUrl);
-    await img.onLoad.first;
+  Future<_BatchItem> _processOne(html.File file) async {
+    // Checked before the file is even read, so an unsupported format or an
+    // oversized photo fails instantly instead of spending a network round
+    // trip (or, before this existed, hanging the whole batch — see
+    // cropCenterSquareFromDataUrl's doc comment).
+    final validationError = validateImageFile(file);
+    if (validationError != null) {
+      return _BatchItem(
+        thumb: Uint8List(0),
+        ok: false,
+        englishKey: null,
+        label: file.name,
+        confidence: 0,
+        failReason: validationError,
+        included: false,
+      );
+    }
 
-    const outSize = 224;
-    final iw = img.naturalWidth;
-    final ih = img.naturalHeight;
-    final side = math.min(iw, ih);
-    final sx = (iw - side) ~/ 2;
-    final sy = (ih - side) ~/ 2;
+    try {
+      final reader = html.FileReader();
+      reader.readAsDataUrl(file);
+      await reader.onLoadEnd.first;
+      final dataUrl = reader.result as String;
+      final bytes = await cropCenterSquareFromDataUrl(dataUrl);
 
-    final canvas = html.CanvasElement(width: outSize, height: outSize);
-    canvas.context2D.drawImageScaledFromSource(
-        img, sx, sy, side, side, 0, 0, outSize, outSize);
-    final url = canvas.toDataUrl('image/jpeg', 0.92);
-    return base64Decode(url.split(',')[1]);
+      final data = await ApiService.predictObject(bytes);
+      final ok = data['success'] == true;
+      return _BatchItem(
+        thumb: bytes,
+        ok: ok,
+        englishKey: ok ? data['english_key'] as String? : null,
+        label: ok
+            ? (data['english_word'] as String? ??
+                data['english_key'] as String? ??
+                'Word')
+            : file.name,
+        confidence: (data['confidence'] as num? ?? 0).toDouble(),
+        included: ok,
+      );
+    } catch (_) {
+      return _BatchItem(
+        thumb: Uint8List(0),
+        ok: false,
+        englishKey: null,
+        label: file.name,
+        confidence: 0,
+        failReason: 'Could not read that photo.',
+        included: false,
+      );
+    }
   }
 
   void _sendNow() {
+    final cs = widget.classSession;
     final keys = _includedKeys.take(_maxQuizWords).toList();
-    if (keys.isEmpty) return;
-    widget.classSession.socket
-        .pushBatchQuiz(widget.classSession.sessionId, keys);
+    if (cs == null || keys.isEmpty) return;
+    cs.socket.pushBatchQuiz(cs.sessionId, keys);
     Navigator.pop(context);
   }
 
   void _addToPool() {
+    final cs = widget.classSession;
     final keys = _includedKeys;
-    if (keys.isEmpty) return;
-    widget.classSession.socket
-        .stageBatchWords(widget.classSession.sessionId, keys);
+    if (cs == null || keys.isEmpty) return;
+    cs.socket.stageBatchWords(cs.sessionId, keys);
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -167,10 +178,42 @@ class _BatchUploadScreenState extends State<BatchUploadScreen> {
     Navigator.pop(context);
   }
 
+  /// Prep mode: stage the words onto the classroom itself, no session needed.
+  Future<void> _saveForClass() async {
+    final classroomId = widget.prepClassroomId;
+    final keys = _includedKeys;
+    if (classroomId == null || keys.isEmpty) return;
+
+    final res = await ApiService.prepareClassroomWords(classroomId, keys);
+    if (!mounted) return;
+    if (res['prepared_words'] == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+              (res['message'] as String?) ?? 'Could not save the words'),
+          backgroundColor: AppTheme.error,
+        ),
+      );
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          '${keys.length} word${keys.length == 1 ? '' : 's'} saved — '
+          'they will be in your next session',
+        ),
+      ),
+    );
+    Navigator.pop(context, true);
+  }
+
   @override
   Widget build(BuildContext context) {
     final includedCount = _includedKeys.length;
-    final overCap = includedCount > _maxQuizWords;
+    // The 10-question cap only limits "Send Now" (a live quiz); prep mode
+    // saves every word, so the warning would just confuse.
+    final overCap =
+        includedCount > _maxQuizWords && widget.prepClassroomId == null;
 
     return Scaffold(
       backgroundColor: AppTheme.background,
@@ -213,8 +256,11 @@ class _BatchUploadScreenState extends State<BatchUploadScreen> {
                         ),
                         const SizedBox(height: AppTheme.xs),
                         Text(
-                          'Pick several photos — we\'ll recognise each one, '
-                          'then you send them as a quiz.',
+                          widget.prepClassroomId != null
+                              ? 'Prep before class: pick photos now and the '
+                                  'words will be ready in your next session.'
+                              : 'Pick several photos — we\'ll recognise each '
+                                  'one, then you send them as a quiz.',
                           textAlign: TextAlign.center,
                           style: AppTheme.body
                               .copyWith(fontSize: 15, color: AppTheme.textLight),
@@ -348,7 +394,7 @@ class _BatchUploadScreenState extends State<BatchUploadScreen> {
                   item.ok
                       ? '${(item.confidence * 100).toStringAsFixed(0)}% sure'
                           '${inSendNow ? '' : item.included ? ' · beyond first $_maxQuizWords' : ''}'
-                      : 'Try a clearer photo',
+                      : (item.failReason ?? 'Try a clearer photo'),
                   style: AppTheme.caption,
                 ),
               ],
@@ -373,6 +419,7 @@ class _BatchUploadScreenState extends State<BatchUploadScreen> {
 
   Widget _buildActionBar(int includedCount) {
     final canSend = includedCount > 0 && !_processing;
+    final prepMode = widget.prepClassroomId != null;
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
       decoration: BoxDecoration(
@@ -385,27 +432,34 @@ class _BatchUploadScreenState extends State<BatchUploadScreen> {
           ),
         ],
       ),
-      child: Row(
-        children: [
-          Expanded(
-            child: OutlinedButton.icon(
-              onPressed: canSend ? _addToPool : null,
-              icon: const Icon(Icons.playlist_add, size: 18),
-              label: const Text('Add to Pool'),
-              style: AppTheme.secondaryButton,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: FilledButton.icon(
-              onPressed: canSend ? _sendNow : null,
-              icon: const Icon(Icons.send, size: 18),
-              label: const Text('Send Now'),
+      child: prepMode
+          ? FilledButton.icon(
+              onPressed: canSend ? _saveForClass : null,
+              icon: const Icon(Icons.bookmark_add_outlined, size: 18),
+              label: const Text('Save for Class'),
               style: AppTheme.primaryButton,
+            )
+          : Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: canSend ? _addToPool : null,
+                    icon: const Icon(Icons.playlist_add, size: 18),
+                    label: const Text('Add to Pool'),
+                    style: AppTheme.secondaryButton,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: canSend ? _sendNow : null,
+                    icon: const Icon(Icons.send, size: 18),
+                    label: const Text('Send Now'),
+                    style: AppTheme.primaryButton,
+                  ),
+                ),
+              ],
             ),
-          ),
-        ],
-      ),
     );
   }
 }

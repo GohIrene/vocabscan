@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import '../api_service.dart';
 import '../auth_service.dart';
+import 'classroom_manage_screen.dart';
 import 'scan_object_screen.dart';
 import 'teacher_class_session_screen.dart';
 import 'teacher_projection_screen.dart';
@@ -15,6 +17,90 @@ class TeacherHomeScreen extends StatelessWidget {
       context,
       MaterialPageRoute(builder: (_) => const WelcomeScreen()),
       (route) => false,
+    );
+  }
+
+  /// Running a session against a saved class is what lets students tap their
+  /// name and earn XP. Teachers with no saved classes — or who just want a
+  /// quick session — go straight through to the original nickname flow.
+  Future<void> _startClassSession(
+      BuildContext context, String teacherId) async {
+    List<Map<String, dynamic>> rooms = const [];
+    try {
+      rooms = await ApiService.getClassrooms(teacherId);
+    } catch (_) {
+      // A class list we can't load must never block starting a session.
+    }
+    if (!context.mounted) return;
+
+    String? classroomId;
+    if (rooms.isNotEmpty) {
+      // Empty string is the sentinel for "no class", so dismissing the dialog
+      // (null) can be told apart from deliberately choosing a quick session.
+      final choice = await showDialog<String>(
+        context: context,
+        builder: (ctx) => SimpleDialog(
+          title: Text('Which class?', style: AppTheme.subheading),
+          children: [
+            ...rooms.map(
+              (r) => SimpleDialogOption(
+                onPressed: () =>
+                    Navigator.pop(ctx, r['classroom_id'] as String? ?? ''),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: AppTheme.sm),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.school_outlined,
+                          size: 20, color: AppTheme.primary),
+                      const SizedBox(width: AppTheme.md),
+                      Expanded(
+                        child: Text(
+                          '${r['name']}  ·  ${r['student_count']} student'
+                          '${r['student_count'] == 1 ? '' : 's'}',
+                          style: AppTheme.body,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            const Divider(),
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(ctx, ''),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: AppTheme.sm),
+                child: Row(
+                  children: [
+                    const Icon(Icons.flash_on_outlined,
+                        size: 20, color: AppTheme.textLight),
+                    const SizedBox(width: AppTheme.md),
+                    Expanded(
+                      child: Text(
+                        'Quick session — students type their name',
+                        style: AppTheme.body.copyWith(color: AppTheme.textLight),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+      if (choice == null) return;
+      classroomId = choice.isEmpty ? null : choice;
+    }
+
+    if (!context.mounted) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => TeacherClassSessionScreen(
+          teacherId: teacherId,
+          classroomId: classroomId,
+        ),
+      ),
     );
   }
 
@@ -104,10 +190,19 @@ class TeacherHomeScreen extends StatelessWidget {
                           title: 'Create Class Session',
                           subtitle: 'Generate a code for students to join',
                           color: AppTheme.secondary,
+                          onTap: () => _startClassSession(context, teacherId),
+                        ),
+                        const SizedBox(height: AppTheme.lg),
+
+                        _ActionCard(
+                          iconPath: 'assets/icons/school.png',
+                          title: 'My Classes',
+                          subtitle: 'Saved rosters, XP, levels and badges',
+                          color: AppTheme.adventure,
                           onTap: () => Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => TeacherClassSessionScreen(
+                              builder: (_) => ClassroomManageScreen(
                                 teacherId: teacherId,
                               ),
                             ),

@@ -41,6 +41,9 @@ class SocketService {
   // Teacher-only: fresh word_count after a batch of photos is staged into the
   // session pool (no live quiz), so the summary-quiz button gate updates.
   void Function(Map<String, dynamic> data)? onWordsStaged;
+  // Student-only, sent to that child's socket alone when a session ends:
+  // the XP they earned and whether it levelled them up.
+  void Function(Map<String, dynamic> data)? onProgressUpdate;
 
   bool get isConnected => _socket?.connected ?? false;
 
@@ -92,6 +95,7 @@ class SocketService {
         'summary_answer_result', (d) => onSummaryAnswerResult?.call(_asMap(d)));
     socket.on('summary_progress', (d) => onSummaryProgress?.call(_asMap(d)));
     socket.on('words_staged', (d) => onWordsStaged?.call(_asMap(d)));
+    socket.on('progress_update', (d) => onProgressUpdate?.call(_asMap(d)));
 
     socket.connect();
   }
@@ -192,6 +196,7 @@ class SocketService {
     onSummaryAnswerResult = null;
     onSummaryProgress = null;
     onWordsStaged = null;
+    onProgressUpdate = null;
   }
 
   static Map<String, dynamic> _asMap(dynamic data) {

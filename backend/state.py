@@ -16,8 +16,24 @@ from model_loader import load_trained_model
 
 app = Flask(__name__)
 app.json.ensure_ascii = False
+# Blunt backstop above the app-level 8MB check in routes/vocabulary.py: this
+# rejects an oversized request before it's even read into memory. Padded
+# above 8MB for multipart overhead, so a legitimately-sized photo is never
+# caught by this before reaching the more specific check.
+app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024
 CORS(app)
 socketio = SocketIO(app, cors_allowed_origins='*', async_mode='eventlet')
+
+
+@app.errorhandler(413)
+def _request_too_large(e):
+    # Flask's default 413 is an HTML error page, which every route here
+    # would otherwise hand to a client that only ever expects JSON.
+    return jsonify({
+        "success": False,
+        "reason": "file_too_large",
+        "message": "That photo is too large — please choose one under 8MB.",
+    }), 413
 
 # ---------------------------------------------------------------------------
 # Model loading (once at startup)

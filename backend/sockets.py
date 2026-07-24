@@ -6,6 +6,7 @@ from flask_socketio import emit, join_room
 from pymongo.errors import PyMongoError
 
 import class_sessions as cs
+import progress
 import quiz_logic
 import state
 import vocab
@@ -509,6 +510,71 @@ def on_stage_batch_words(data):
         emit("session_error", {"message": "Could not add the words. Please try again."})
 
 
+def _award_classroom_progress(session, leaderboard):
+    """Fold a finished session into the classroom roster and tell each child
+    what they earned.
+
+    A no-op for sessions run without a saved class, which is what keeps the
+    original type-your-nickname flow working exactly as before.
+    """
+    classroom_id = session.get("classroom_id")
+    if not classroom_id:
+        return
+
+    doc = state.db.classrooms.find_one({"classroom_id": classroom_id})
+    if doc is None:
+        return
+
+    # Only a non-zero top score counts as a win, so a session where nobody
+    # scored doesn't crown whoever happened to be listed first.
+    top = leaderboard[0]["score"] if leaderboard else 0
+    winners = {e["nickname"] for e in leaderboard if e["score"] == top and top > 0}
+
+    roster_by_name = {
+        (s.get("name") or "").lower(): s for s in (doc.get("students") or [])
+    }
+
+    for student in (session.get("students") or []):
+        nickname = student.get("nickname") or ""
+        roster = roster_by_name.get(nickname.lower())
+        # A guest who typed a name that isn't on the roster still played, but
+        # there's no roster entry to credit the XP to.
+        if roster is None:
+            continue
+
+        result = progress.apply_session_result(
+            roster, student.get("score", 0), nickname in winners
+        )
+        updated = result["student"]
+        state.db.classrooms.update_one(
+            {"classroom_id": classroom_id,
+             "students.student_id": updated["student_id"]},
+            {"$set": {
+                "students.$.xp": updated["xp"],
+                "students.$.level": updated["level"],
+                "students.$.sessions_played": updated["sessions_played"],
+                "students.$.wins": updated["wins"],
+                "students.$.badges": updated["badges"],
+            }},
+        )
+
+        # Per-child, so each student sees their own reward rather than the
+        # room's. session_ended still broadcasts the shared leaderboard.
+        sid = student.get("sid")
+        if sid:
+            emit("progress_update", {
+                "xp_gained": result["xp_gained"],
+                "xp": updated["xp"],
+                "level": updated["level"],
+                "xp_into_level": progress.xp_into_level(updated["xp"]),
+                "xp_per_level": progress.XP_PER_LEVEL,
+                "levelled_up": result["levelled_up"],
+                "new_badges": [b for b in progress.BADGES
+                               if b["id"] in result["new_badges"]],
+                "badges": updated["badges"],
+            }, to=sid)
+
+
 @socketio.on("end_session")
 def on_end_session(data):
     if state.db is None:
@@ -542,6 +608,14 @@ def on_end_session(data):
         if push_ops:
             update["$push"] = push_ops
         state.db.class_sessions.update_one({"session_id": session_id}, update)
+
+        # Before the broadcast, so a child's level-up is already stored by the
+        # time their end-of-session screen renders. Isolated because losing XP
+        # for one session must never stop the session from ending.
+        try:
+            _award_classroom_progress(session, leaderboard)
+        except Exception as e:
+            print(f"end_session: could not award classroom progress: {e}")
 
         emit("session_ended", {"leaderboard": leaderboard}, to=session["code"])
     except PyMongoError:

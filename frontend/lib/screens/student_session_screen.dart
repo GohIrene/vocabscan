@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../socket_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/class_leaderboard.dart';
+import '../widgets/student_progress.dart';
 import '../widgets/vocab_icon.dart';
 
 /// Live Class Code session (student side).
@@ -61,6 +62,10 @@ class _StudentSessionScreenState extends State<StudentSessionScreen> {
 
   bool _ended = false;
   List<Map<String, dynamic>> _leaderboard = [];
+
+  /// XP/level/badges earned this session. Null when the teacher ran the
+  /// session without a saved class, since there's no roster to credit.
+  Map<String, dynamic>? _progress;
 
   /// Index of the first question this student hasn't answered yet, or the
   /// list length when they've finished them all.
@@ -195,6 +200,11 @@ class _StudentSessionScreenState extends State<StudentSessionScreen> {
           });
         }
       }
+      ..onProgressUpdate = (d) {
+        // Only arrives for a session run against a saved class; stays null
+        // otherwise, and the end screen simply omits the XP card.
+        if (mounted) setState(() => _progress = d);
+      }
       ..onSessionError = (d) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -311,6 +321,85 @@ class _StudentSessionScreenState extends State<StudentSessionScreen> {
     );
   }
 
+  /// What this child earned: XP gained, their level bar, and any badge they
+  /// just unlocked. Shown only for sessions run against a saved class.
+  Widget _buildRewardCard(Map<String, dynamic> p) {
+    final gained = (p['xp_gained'] as num? ?? 0).toInt();
+    final level = (p['level'] as num? ?? 1).toInt();
+    final levelledUp = p['levelled_up'] == true;
+    final newBadges = (p['new_badges'] as List? ?? const [])
+        .whereType<Map>()
+        .map((b) => Map<String, dynamic>.from(b))
+        .toList();
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppTheme.xl),
+      decoration: AppTheme.cardDecoration,
+      child: Column(
+        children: [
+          if (levelledUp) ...[
+            const Text('🎉', style: TextStyle(fontSize: 36)),
+            const SizedBox(height: AppTheme.xs),
+            Text(
+              'Level Up! You reached Level $level',
+              textAlign: TextAlign.center,
+              style: AppTheme.subheading.copyWith(
+                fontWeight: FontWeight.w800,
+                color: AppTheme.adventure,
+              ),
+            ),
+            const SizedBox(height: AppTheme.md),
+          ],
+          Text(
+            '+$gained XP',
+            style: AppTheme.heading.copyWith(
+              fontSize: 32,
+              fontWeight: FontWeight.w900,
+              color: AppTheme.primary,
+            ),
+          ),
+          const SizedBox(height: AppTheme.md),
+          LevelBar(
+            level: level,
+            xpIntoLevel: (p['xp_into_level'] as num? ?? 0).toInt(),
+            xpPerLevel: (p['xp_per_level'] as num? ?? 100).toInt(),
+          ),
+          if (newBadges.isNotEmpty) ...[
+            const SizedBox(height: AppTheme.lg),
+            Text(
+              newBadges.length == 1 ? 'New badge!' : 'New badges!',
+              style: AppTheme.body.copyWith(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: AppTheme.sm),
+            Wrap(
+              spacing: AppTheme.sm,
+              runSpacing: AppTheme.sm,
+              alignment: WrapAlignment.center,
+              children: newBadges.map((b) {
+                return Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: AppTheme.md, vertical: AppTheme.sm),
+                  decoration: BoxDecoration(
+                    color: AppTheme.warningLight,
+                    borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+                  ),
+                  child: Text(
+                    '${b['emoji'] ?? '🏅'}  ${b['label'] ?? ''}',
+                    style: AppTheme.body.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: AppTheme.textDark,
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   Widget _buildBody() {
     if (_ended) {
       return Column(
@@ -331,6 +420,10 @@ class _StudentSessionScreenState extends State<StudentSessionScreen> {
                 .copyWith(fontSize: 26, fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 20),
+          if (_progress != null) ...[
+            _buildRewardCard(_progress!),
+            const SizedBox(height: 20),
+          ],
           ClassLeaderboard(
             leaderboard: _leaderboard,
             highlightNickname: widget.nickname,

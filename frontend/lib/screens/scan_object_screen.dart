@@ -10,6 +10,7 @@ import 'dart:ui_web' as ui_web;
 import 'package:flutter/material.dart';
 
 import '../api_service.dart';
+import '../image_upload_utils.dart';
 import '../socket_service.dart';
 import 'recognition_result_screen.dart';
 import '../theme/app_theme.dart';
@@ -180,7 +181,7 @@ class _ScanObjectScreenState extends State<ScanObjectScreen> {
   }
 
   Future<void> _uploadPhoto() async {
-    final input = html.FileUploadInputElement()..accept = 'image/*';
+    final input = html.FileUploadInputElement()..accept = kAllowedImageAccept;
     html.document.body!.append(input);
     input.click();
     await input.onChange.first;
@@ -188,31 +189,36 @@ class _ScanObjectScreenState extends State<ScanObjectScreen> {
     final file = input.files?.first;
     if (file == null) return;
 
-    final reader = html.FileReader();
-    reader.readAsDataUrl(file);
-    await reader.onLoadEnd.first;
-    final dataUrl = reader.result as String;
+    final validationError = validateImageFile(file);
+    if (validationError != null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(validationError), backgroundColor: AppTheme.error),
+      );
+      return;
+    }
 
-    final bytes = await _cropCenterFromDataUrl(dataUrl);
-    await _previewAndNavigate(bytes);
-  }
+    setState(() => _isScanning = true);
+    try {
+      final reader = html.FileReader();
+      reader.readAsDataUrl(file);
+      await reader.onLoadEnd.first;
+      final dataUrl = reader.result as String;
 
-  // Center-crops the image at `dataUrl` to a 224×224 square.
-  Future<Uint8List> _cropCenterFromDataUrl(String dataUrl) async {
-    final img = html.ImageElement(src: dataUrl);
-    await img.onLoad.first;
-
-    const outSize = 224;
-    final iw = img.naturalWidth;
-    final ih = img.naturalHeight;
-    final side = math.min(iw, ih);
-    final sx = (iw - side) ~/ 2;
-    final sy = (ih - side) ~/ 2;
-
-    final canvas = html.CanvasElement(width: outSize, height: outSize);
-    canvas.context2D.drawImageScaledFromSource(
-        img, sx, sy, side, side, 0, 0, outSize, outSize);
-    return _canvasToBytes(canvas);
+      final bytes = await cropCenterSquareFromDataUrl(dataUrl);
+      if (!mounted) return;
+      setState(() => _isScanning = false);
+      await _previewAndNavigate(bytes);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isScanning = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not read that photo — please try another.'),
+          backgroundColor: AppTheme.error,
+        ),
+      );
+    }
   }
 
   // Shows a preview dialog; navigates to results if user confirms.
