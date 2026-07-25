@@ -139,7 +139,10 @@ class LearningCycle {
   /// the random suffix separates two cycles begun in the same millisecond.
   static String _newCompletionId() {
     final stamp = DateTime.now().microsecondsSinceEpoch.toRadixString(36);
-    final salt = _random.nextInt(1 << 32).toRadixString(36);
+    // Do not spell this as `1 << 32`: Dart Web compiles bitwise operations to
+    // JavaScript's 32-bit integers, where that expression wraps to zero and
+    // makes nextInt throw as soon as a child taps Start Exploring.
+    final salt = _random.nextInt(0x100000000).toRadixString(36);
     return 'lc_${stamp}_$salt';
   }
 
