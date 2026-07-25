@@ -11,8 +11,9 @@ enum ChildNavItem {
   home('Home', Icons.home_rounded),
   adventureMap('Adventure Map', Icons.map_rounded),
   treasureAlbum('Treasure Album', Icons.photo_album_rounded),
-  buddy('My Buddy', Icons.pets_rounded),
-  achievements('Achievements', Icons.emoji_events_rounded);
+  avatar('Avatar', Icons.pets_rounded),
+  achievements('Achievements', Icons.emoji_events_rounded),
+  settings('Settings', Icons.settings_rounded);
 
   final String label;
   final IconData icon;
@@ -63,13 +64,39 @@ class ChildNavSidebar extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.fromLTRB(
                   AppTheme.lg, AppTheme.xl, AppTheme.lg, AppTheme.lg),
-              child: Text(
-                'VocabScan',
-                style: AppTheme.heading.copyWith(
-                  fontSize: 24,
-                  fontWeight: FontWeight.w800,
-                  color: AppTheme.primary,
-                ),
+              child: Row(
+                children: [
+                  // A small brand mark before the wordmark, matching the
+                  // dashboard design. Drawn from theme colours rather than a
+                  // logo asset so it stays crisp at any DPI.
+                  Container(
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [AppTheme.primary, Color(0xFF6B4EFF)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.center_focus_strong_rounded,
+                        size: 20, color: Colors.white),
+                  ),
+                  const SizedBox(width: AppTheme.sm),
+                  Flexible(
+                    child: Text(
+                      'VocabScan',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTheme.heading.copyWith(
+                        fontSize: 23,
+                        fontWeight: FontWeight.w800,
+                        color: AppTheme.primary,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
             Divider(
@@ -98,7 +125,7 @@ class ChildNavSidebar extends StatelessWidget {
               child: TextButton.icon(
                 onPressed: onExit,
                 icon: const Icon(Icons.logout_rounded, size: 18),
-                label: const Text('Finish'),
+                label: const Text('Logout'),
                 style: TextButton.styleFrom(
                   foregroundColor: AppTheme.error,
                   backgroundColor: AppTheme.errorLight,

@@ -6,7 +6,10 @@ import '../learning_flow.dart';
 import '../theme/app_theme.dart';
 import '../widgets/child_avatar.dart';
 import '../widgets/child_nav_sidebar.dart';
+import '../widgets/child_adventure_panel.dart';
+import '../widgets/learning_journey_strip.dart';
 import 'child_adventure_map_screen.dart';
+import 'child_settings_screen.dart';
 import 'child_treasure_album_screen.dart';
 import 'scan_object_screen.dart';
 
@@ -45,15 +48,20 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
   /// Below this the navigation rail becomes a drawer.
   static const double _wideBreakpoint = 980;
 
+  /// At or above this the Adventure preview sits beside the dashboard; below
+  /// it, the preview drops full-width under the summary tiles.
+  static const double _panelBreakpoint = 1180;
+
   /// Below this the stat tiles stack instead of sitting side by side.
   static const double _compactBreakpoint = 640;
 
-  /// Destinations whose screens exist. My Buddy and Achievements render as
+  /// Destinations whose screens exist. Avatar and Achievements render as
   /// locked until they have screens of their own.
   static const Set<ChildNavItem> _enabledNav = {
     ChildNavItem.home,
     ChildNavItem.adventureMap,
     ChildNavItem.treasureAlbum,
+    ChildNavItem.settings,
   };
 
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
@@ -167,6 +175,22 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
     });
   }
 
+  void _openSettings() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ChildSettingsScreen(
+          childId: widget.childId,
+          nickname: _nickname,
+          avatarId: _avatarId,
+          avatarStage: _avatarStage,
+        ),
+      ),
+    ).then((_) {
+      if (mounted) _load();
+    });
+  }
+
   void _onNavSelect(ChildNavItem item) {
     if (!_enabledNav.contains(item)) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -184,8 +208,10 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
         _openAdventureMap();
       case ChildNavItem.treasureAlbum:
         _openTreasureAlbum();
+      case ChildNavItem.settings:
+        _openSettings();
       case ChildNavItem.home:
-      case ChildNavItem.buddy:
+      case ChildNavItem.avatar:
       case ChildNavItem.achievements:
         break;
     }
@@ -267,6 +293,19 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
 
   Widget _buildContent(bool isWide, double width) {
     final compact = width < _compactBreakpoint;
+    // Wide enough to sit the Adventure preview beside the dashboard, as in the
+    // design; below this it drops full-width under the stats instead.
+    final sidePanel = width >= _panelBreakpoint;
+
+    final dashboard = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _buildHero(compact),
+        const SizedBox(height: AppTheme.lg),
+        _buildStatTiles(width),
+      ],
+    );
+    final panel = _buildAdventurePanel();
 
     return RefreshIndicator(
       onRefresh: _load,
@@ -278,21 +317,52 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
         ),
         child: Center(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 1180),
+            constraints: const BoxConstraints(maxWidth: 1320),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 _buildTopBar(isWide),
                 const SizedBox(height: AppTheme.lg),
-                _buildHero(compact),
+                if (sidePanel)
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(child: dashboard),
+                      const SizedBox(width: AppTheme.lg),
+                      SizedBox(width: 348, child: panel),
+                    ],
+                  )
+                else ...[
+                  dashboard,
+                  const SizedBox(height: AppTheme.lg),
+                  panel,
+                ],
                 const SizedBox(height: AppTheme.lg),
-                _buildStatTiles(width),
+                LearningJourneyStrip(
+                  onStartFlow: _startExploring,
+                  onOpenTreasure: _openTreasureAlbum,
+                  onOpenMap: _openAdventureMap,
+                ),
                 const SizedBox(height: AppTheme.xxl),
               ],
             ),
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildAdventurePanel() {
+    final adventure = _section('adventure');
+    return ChildAdventurePanel(
+      currentAreaId: adventure['current_area_id'] as String?,
+      currentAreaName:
+          adventure['current_area_name'] as String? ?? 'Home Village',
+      progressPercentage:
+          (adventure['progress_percentage'] as num?)?.toInt() ?? 0,
+      keys: (adventure['keys'] as num?)?.toInt() ?? 0,
+      maxKeys: (adventure['max_keys'] as num?)?.toInt() ?? 5,
+      onOpenMap: _openAdventureMap,
     );
   }
 
@@ -307,17 +377,74 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
             color: AppTheme.textDark,
           ),
         const Spacer(),
-        ChildAvatar(avatarId: _avatarId, stage: _avatarStage, size: 40),
-        const SizedBox(width: AppTheme.sm),
-        Flexible(
-          child: Text(
-            _nickname,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: AppTheme.body.copyWith(fontWeight: FontWeight.w700),
+        _buildProfileMenu(),
+      ],
+    );
+  }
+
+  /// Avatar + name + a dropdown chevron, as in the design. The menu holds the
+  /// child-safe actions that don't need their own nav item.
+  Widget _buildProfileMenu() {
+    return PopupMenuButton<String>(
+      tooltip: 'Profile menu',
+      position: PopupMenuPosition.under,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+      ),
+      onSelected: (value) {
+        switch (value) {
+          case 'settings':
+            _openSettings();
+          case 'refresh':
+            _load();
+          case 'logout':
+            _exit();
+        }
+      },
+      itemBuilder: (context) => const [
+        PopupMenuItem(
+          value: 'settings',
+          child: ListTile(
+            leading: Icon(Icons.settings_rounded),
+            title: Text('Settings'),
+            contentPadding: EdgeInsets.zero,
+          ),
+        ),
+        PopupMenuItem(
+          value: 'refresh',
+          child: ListTile(
+            leading: Icon(Icons.refresh_rounded),
+            title: Text('Refresh'),
+            contentPadding: EdgeInsets.zero,
+          ),
+        ),
+        PopupMenuItem(
+          value: 'logout',
+          child: ListTile(
+            leading: Icon(Icons.logout_rounded, color: AppTheme.error),
+            title: Text('Logout', style: TextStyle(color: AppTheme.error)),
+            contentPadding: EdgeInsets.zero,
           ),
         ),
       ],
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ChildAvatar(avatarId: _avatarId, stage: _avatarStage, size: 40),
+          const SizedBox(width: AppTheme.sm),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 140),
+            child: Text(
+              _nickname,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTheme.body.copyWith(fontWeight: FontWeight.w700),
+            ),
+          ),
+          const Icon(Icons.keyboard_arrow_down_rounded,
+              color: AppTheme.textLight),
+        ],
+      ),
     );
   }
 
