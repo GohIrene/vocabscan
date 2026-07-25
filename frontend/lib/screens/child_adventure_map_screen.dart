@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
+import '../adventure_assets.dart';
 import '../adventure_config.dart';
 import '../api_service.dart';
 import '../theme/app_theme.dart';
@@ -336,8 +338,13 @@ class _AreaRowState extends State<_AreaRow> {
                         color: theme.accent.withValues(alpha: 0.4), width: 2),
                   ),
                   alignment: Alignment.center,
-                  child: Text(theme.emoji,
-                      style: const TextStyle(fontSize: 26)),
+                  // The area's flat-vector badge. Every area has one (unlike the
+                  // scene art), so all six rows use it, locked or not.
+                  child: SvgPicture.asset(
+                    adventureAssetById(area['area_id'] as String?).iconAsset,
+                    width: 46,
+                    height: 46,
+                  ),
                 ),
               ),
               const SizedBox(width: AppTheme.md),

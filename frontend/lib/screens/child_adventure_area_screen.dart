@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 import '../adventure_config.dart';
+import '../adventure_assets.dart';
 import '../api_service.dart';
 import '../learning_flow.dart';
 import '../theme/app_theme.dart';
@@ -208,7 +210,12 @@ class _ChildAdventureAreaScreenState extends State<ChildAdventureAreaScreen> {
               ),
               const SizedBox(height: AppTheme.xl),
 
-              _AreaScene(theme: theme, stage: stage, locked: isLocked),
+              _AreaScene(
+                theme: theme,
+                areaId: area['area_id'] as String?,
+                stage: stage,
+                locked: isLocked,
+              ),
               const SizedBox(height: AppTheme.xl),
 
               if (!isLocked) ...[
@@ -292,22 +299,26 @@ class _ChildAdventureAreaScreenState extends State<ChildAdventureAreaScreen> {
 }
 
 /// The area itself, filling in one decoration per growth stage.
+///
+/// Two renderings behind one shell: an area with real SVG scene art (currently
+/// only Home Village, per [hasSceneArt]) shows the pre-composited stage scene;
+/// every other area keeps the emoji fallback, so no area ever renders blank
+/// while its art is still pending.
 class _AreaScene extends StatelessWidget {
   final AreaTheme theme;
+  final String? areaId;
   final int stage;
   final bool locked;
 
   const _AreaScene({
     required this.theme,
+    required this.areaId,
     required this.stage,
     required this.locked,
   });
 
   @override
   Widget build(BuildContext context) {
-    final earned = theme.decorationsForStage(stage);
-    final total = theme.decorations.length;
-
     return Container(
       height: 220,
       decoration: BoxDecoration(
@@ -319,51 +330,55 @@ class _AreaScene extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppTheme.radiusLg),
         border: Border.all(color: theme.accent.withValues(alpha: 0.3), width: 2),
       ),
+      child: hasSceneArt(areaId) ? _buildArtScene() : _buildEmojiScene(),
+    );
+  }
+
+  /// The SVG scene for an arted area. A locked area shows the bare base scene
+  /// dimmed to a silhouette; otherwise the composited stage scene grows in.
+  Widget _buildArtScene() {
+    final art = adventureAssetById(areaId);
+    // Guarded by hasSceneArt, so backgroundAsset is non-null; the stage scene
+    // falls back to it defensively.
+    final scene = locked
+        ? art.backgroundAsset!
+        : (art.stageAsset(stage) ?? art.backgroundAsset!);
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(AppTheme.radiusLg),
       child: Stack(
         children: [
-          Center(
+          Positioned.fill(
             child: Opacity(
-              // A locked area is shown as a silhouette: recognisable enough
-              // to be worth wanting, not so clear it feels already visited.
-              opacity: locked ? 0.25 : 1,
-              child: Text(theme.emoji, style: const TextStyle(fontSize: 78)),
+              opacity: locked ? 0.35 : 1,
+              child: SvgPicture.asset(
+                scene,
+                fit: BoxFit.cover,
+                alignment: Alignment.bottomCenter,
+              ),
             ),
           ),
           if (!locked)
             Positioned(
               left: 0,
               right: 0,
-              bottom: AppTheme.lg,
-              child: Column(
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      for (var i = 0; i < total; i++)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 5),
-                          child: Opacity(
-                            // Not-yet-earned decorations stay faintly visible
-                            // so a child can see exactly what's still coming.
-                            opacity: i < earned.length ? 1 : 0.2,
-                            child: Text(
-                              theme.decorations[i],
-                              style: TextStyle(
-                                  fontSize: i < earned.length ? 30 : 24),
-                            ),
-                          ),
-                        ),
-                    ],
+              bottom: AppTheme.sm,
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppTheme.surface.withValues(alpha: 0.85),
+                    borderRadius: BorderRadius.circular(20),
                   ),
-                  const SizedBox(height: AppTheme.sm),
-                  Text(
-                    'Stage $stage of $total',
+                  child: Text(
+                    'Stage $stage of ${theme.decorations.length}',
                     style: AppTheme.caption.copyWith(
                       fontWeight: FontWeight.w700,
                       color: theme.accent,
                     ),
                   ),
-                ],
+                ),
               ),
             ),
           if (locked)
@@ -375,6 +390,69 @@ class _AreaScene extends StatelessWidget {
             ),
         ],
       ),
+    );
+  }
+
+  /// Emoji fallback for areas whose art hasn't been produced yet.
+  Widget _buildEmojiScene() {
+    final earned = theme.decorationsForStage(stage);
+    final total = theme.decorations.length;
+
+    return Stack(
+      children: [
+        Center(
+          child: Opacity(
+            // A locked area is shown as a silhouette: recognisable enough
+            // to be worth wanting, not so clear it feels already visited.
+            opacity: locked ? 0.25 : 1,
+            child: Text(theme.emoji, style: const TextStyle(fontSize: 78)),
+          ),
+        ),
+        if (!locked)
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: AppTheme.lg,
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    for (var i = 0; i < total; i++)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 5),
+                        child: Opacity(
+                          // Not-yet-earned decorations stay faintly visible
+                          // so a child can see exactly what's still coming.
+                          opacity: i < earned.length ? 1 : 0.2,
+                          child: Text(
+                            theme.decorations[i],
+                            style: TextStyle(
+                                fontSize: i < earned.length ? 30 : 24),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: AppTheme.sm),
+                Text(
+                  'Stage $stage of $total',
+                  style: AppTheme.caption.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: theme.accent,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        if (locked)
+          const Positioned(
+            right: AppTheme.lg,
+            top: AppTheme.lg,
+            child: Icon(Icons.lock_rounded,
+                size: 26, color: AppTheme.textLight),
+          ),
+      ],
     );
   }
 }

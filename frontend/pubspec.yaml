@@ -38,6 +38,7 @@ dependencies:
   google_fonts: ^6.2.1
   audioplayers: ^6.1.0
   socket_io_client: ^3.0.0
+  flutter_svg: ^2.3.0
 
 dev_dependencies:
   flutter_test:
@@ -68,6 +69,15 @@ flutter:
     # Listed separately because a directory entry is not recursive — without
     # this line the avatar stage artwork is not bundled.
     - assets/images/avatars/
+    - assets/learning/
+    # Adventure art. Directory entries are not recursive, so each area folder
+    # is listed on its own.
+    - assets/adventure/home_village/
+    - assets/adventure/fruit_garden/
+    - assets/adventure/animal_forest/
+    - assets/adventure/cozy_home_corner/
+    - assets/adventure/vehicle_valley/
+    - assets/adventure/treasure_castle/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
