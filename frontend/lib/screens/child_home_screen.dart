@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
+import '../adventure_assets.dart';
 import '../api_service.dart';
 import '../avatar_config.dart';
 import '../learning_flow.dart';
@@ -549,6 +551,7 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
       ),
       _StatTile(
         icon: Icons.vpn_key_rounded,
+        iconAsset: AdventureIcons.key,
         tint: AppTheme.treasure,
         label: 'My Keys',
         value: '$keys',
@@ -556,6 +559,7 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
       ),
       _StatTile(
         icon: Icons.photo_album_rounded,
+        iconAsset: AdventureIcons.treasure,
         tint: AppTheme.secondary,
         label: 'Treasure Album',
         value: '${(_data?['treasure_count'] as num?)?.toInt() ?? 0}',
@@ -837,6 +841,10 @@ class _StreakCard extends StatelessWidget {
 /// One number from the summary, optionally with a progress bar under it.
 class _StatTile extends StatelessWidget {
   final IconData icon;
+
+  /// Optional flat-vector icon shown in place of [icon] (e.g. the cute key or
+  /// treasure chest). Self-coloured, so [tint] only styles the rest of the tile.
+  final String? iconAsset;
   final Color tint;
   final String label;
   final String value;
@@ -850,6 +858,7 @@ class _StatTile extends StatelessWidget {
 
   const _StatTile({
     required this.icon,
+    this.iconAsset,
     required this.tint,
     required this.label,
     required this.value,
@@ -885,7 +894,10 @@ class _StatTile extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(icon, size: 16, color: tint),
+              if (iconAsset != null)
+                SvgPicture.asset(iconAsset!, width: 18, height: 18)
+              else
+                Icon(icon, size: 16, color: tint),
               const SizedBox(width: 6),
               Expanded(
                 child: Text(

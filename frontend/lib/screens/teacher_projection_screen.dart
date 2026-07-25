@@ -2,13 +2,18 @@ import 'package:flutter/material.dart';
 import '../api_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/class_leaderboard.dart';
+import '../widgets/teacher_shell.dart';
+import '../widgets/teacher_ui.dart';
 
-/// Screen 8 – Teacher Class Reports
+/// Teacher Class Reports.
 ///
 /// Shows the real Class Code sessions this teacher has run (from MongoDB
 /// `class_sessions`), each with its live/ended status, student count, quiz
 /// count, and final leaderboard. No mock data.
-class TeacherProjectionScreen extends StatefulWidget {
+///
+/// [TeacherReportsView] is the embeddable body used inside `TeacherShell`;
+/// [TeacherProjectionScreen] is a thin standalone wrapper around it.
+class TeacherProjectionScreen extends StatelessWidget {
   final String teacherId;
   final String? teacherName;
 
@@ -19,11 +24,43 @@ class TeacherProjectionScreen extends StatefulWidget {
   });
 
   @override
-  State<TeacherProjectionScreen> createState() =>
-      _TeacherProjectionScreenState();
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppTheme.background,
+      body: SafeArea(
+        child: Column(
+          children: [
+            Align(
+              alignment: Alignment.topLeft,
+              child: Padding(
+                padding: const EdgeInsets.all(AppTheme.md),
+                child: TextButton.icon(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.arrow_back, size: 18),
+                  label: const Text('Back'),
+                  style: AppTheme.backButtonStyle,
+                ),
+              ),
+            ),
+            Expanded(child: TeacherReportsView(teacherId: teacherId)),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
-class _TeacherProjectionScreenState extends State<TeacherProjectionScreen> {
+/// Embeddable "Reports" body — no Scaffold, scrolls inside its host.
+class TeacherReportsView extends StatefulWidget {
+  final String teacherId;
+
+  const TeacherReportsView({super.key, required this.teacherId});
+
+  @override
+  State<TeacherReportsView> createState() => _TeacherReportsViewState();
+}
+
+class _TeacherReportsViewState extends State<TeacherReportsView> {
   Map<String, dynamic>? _data;
   bool _loading = true;
   String? _error;
@@ -66,46 +103,11 @@ class _TeacherProjectionScreenState extends State<TeacherProjectionScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppTheme.background,
-      body: SafeArea(
-        child: Column(
-          children: [
-            _topBar(context),
-            Expanded(
-              child: _loading
-                  ? const Center(child: CircularProgressIndicator())
-                  : _error != null
-                      ? _buildError()
-                      : _buildContent(),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _topBar(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(AppTheme.md),
-      child: Row(
-        children: [
-          TextButton.icon(
-            onPressed: () => Navigator.pop(context),
-            icon: const Icon(Icons.arrow_back, size: 18),
-            label: const Text('Exit'),
-            style: AppTheme.backButtonStyle,
-          ),
-          const Spacer(),
-          TextButton.icon(
-            onPressed: _loading ? null : _loadSessions,
-            icon: const Icon(Icons.refresh, size: 18),
-            label: const Text('Refresh'),
-            style: AppTheme.backButtonStyle,
-          ),
-        ],
-      ),
-    );
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_error != null) return _buildError();
+    return _buildContent();
   }
 
   Widget _buildError() {
@@ -125,11 +127,10 @@ class _TeacherProjectionScreenState extends State<TeacherProjectionScreen> {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 24),
-            FilledButton.icon(
+            TeacherPrimaryButton(
+              label: 'Retry',
+              icon: Icons.refresh,
               onPressed: _loadSessions,
-              icon: const Icon(Icons.refresh, size: 18),
-              label: const Text('Retry'),
-              style: AppTheme.primaryButton,
             ),
           ],
         ),
@@ -158,167 +159,124 @@ class _TeacherProjectionScreenState extends State<TeacherProjectionScreen> {
             .where((s) => (s['local_date'] as String? ?? '') == viewDate)
             .toList();
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 820),
-          child: Column(
-            children: [
-              Image.asset(
-                'assets/icons/school.png',
-                width: 44,
-                height: 44,
-                errorBuilder: (context, error, stackTrace) {
-                  return const Icon(Icons.school, size: 44);
-                },
-              ),
-              const SizedBox(height: AppTheme.xs),
-              Text(
-                'Class Reports',
-                style: AppTheme.heading.copyWith(
-                  fontSize: 28,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              if (widget.teacherName != null) ...[
-                const SizedBox(height: AppTheme.xs),
-                Text(
-                  widget.teacherName!,
-                  style: AppTheme.body.copyWith(
-                    fontSize: 15,
-                    color: AppTheme.textLight,
-                  ),
-                ),
-              ],
-              const SizedBox(height: 22),
-
-              // ── Summary stat cards ──
-              Wrap(
-                spacing: 14,
-                runSpacing: 14,
-                children: [
-                  _SummaryCard(
-                    iconPath: 'assets/icons/clipboard.png',
+    return RefreshIndicator(
+      onRefresh: _loadSessions,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding:
+            const EdgeInsets.fromLTRB(AppTheme.xl, 0, AppTheme.xl, AppTheme.xxl),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // ── Summary stat cards ──
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final cards = [
+                  TeacherStatCard(
+                    icon: Icons.assignment_rounded,
+                    tint: TeacherShell.accent,
                     value: '$sessionCount',
                     label: 'Sessions Run',
-                    color: AppTheme.primary,
                   ),
-                  _SummaryCard(
-                    iconPath: 'assets/icons/Group_Tutoring.png',
+                  TeacherStatCard(
+                    icon: Icons.groups_rounded,
+                    tint: AppTheme.primary,
                     value: '$totalStudents',
                     label: 'Total Students',
-                    color: AppTheme.secondary,
                   ),
-                  _SummaryCard(
-                    iconPath: 'assets/icons/green-circle.png',
+                  TeacherStatCard(
+                    icon: Icons.podcasts_rounded,
+                    tint: AppTheme.success,
                     value: '$liveCount',
                     label: 'Live Now',
-                    color: AppTheme.success,
                   ),
-                ],
-              ),
-              const SizedBox(height: 28),
-
-              // ── Day picker row ──
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      _showAllDays ? 'All days' : 'Viewing one day',
-                      style: AppTheme.caption
-                          .copyWith(fontWeight: FontWeight.w700),
-                    ),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: () => _pickDay(sessions),
-                    icon: const Icon(Icons.calendar_month, size: 18),
-                    label: Text(_showAllDays
-                        ? 'Pick a day'
-                        : _prettyDate(viewDate)),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppTheme.primary,
-                      side: const BorderSide(
-                          color: AppTheme.primary, width: 2),
-                      shape: RoundedRectangleBorder(
-                        borderRadius:
-                            BorderRadius.circular(AppTheme.radiusSm),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: AppTheme.sm),
-                  TextButton(
-                    onPressed: () =>
-                        setState(() => _showAllDays = !_showAllDays),
-                    child: Text(_showAllDays ? 'One day' : 'Show all'),
-                  ),
-                ],
-              ),
-              const SizedBox(height: AppTheme.md),
-
-              if (visibleSessions.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 40),
-                  child: Column(
+                ];
+                final wide = constraints.maxWidth >= 560;
+                if (wide) {
+                  return Row(
                     children: [
-                      const Text('🗓️', style: TextStyle(fontSize: 40)),
-                      const SizedBox(height: AppTheme.md),
-                      Text(
-                        'No sessions on ${_prettyDate(viewDate)}',
-                        style: AppTheme.subheading,
-                      ),
-                      const SizedBox(height: AppTheme.xs),
-                      Text(
-                        'Pick another day, or "Show all" for the full history.',
-                        style: AppTheme.caption,
-                      ),
+                      for (var i = 0; i < cards.length; i++) ...[
+                        if (i > 0) const SizedBox(width: AppTheme.md),
+                        Expanded(child: cards[i]),
+                      ],
                     ],
-                  ),
-                )
-              else
-                ..._buildSessionsByDate(visibleSessions),
-              const SizedBox(height: AppTheme.xxl),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildEmpty() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Image.asset(
-              'assets/icons/teacher.png',
-              width: 64,
-              height: 64,
-              errorBuilder: (context, error, stackTrace) {
-                return const Icon(Icons.person_2_outlined, size: 64);
+                  );
+                }
+                return Column(
+                  children: [
+                    for (final c in cards) ...[
+                      c,
+                      const SizedBox(height: AppTheme.sm),
+                    ],
+                  ],
+                );
               },
             ),
-            const SizedBox(height: 16),
-            Text('No class sessions yet!', style: AppTheme.subheading),
-            const SizedBox(height: 8),
-            Text(
-              'Create a Class Session and run a quiz — '
-              'the results will show up here.',
-              textAlign: TextAlign.center,
-              style: AppTheme.body.copyWith(color: AppTheme.textLight),
+            const SizedBox(height: AppTheme.xl),
+
+            // ── Day picker row ──
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    _showAllDays ? 'All days' : 'Viewing one day',
+                    style: AppTheme.caption.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                ),
+                TeacherSecondaryButton(
+                  label: _showAllDays ? 'Pick a day' : _prettyDate(viewDate),
+                  icon: Icons.calendar_month,
+                  onPressed: () => _pickDay(sessions),
+                ),
+                const SizedBox(width: AppTheme.sm),
+                TextButton(
+                  onPressed: () => setState(() => _showAllDays = !_showAllDays),
+                  child: Text(_showAllDays ? 'One day' : 'Show all'),
+                ),
+              ],
             ),
+            const SizedBox(height: AppTheme.md),
+
+            if (visibleSessions.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 40),
+                child: Column(
+                  children: [
+                    const Text('🗓️', style: TextStyle(fontSize: 40)),
+                    const SizedBox(height: AppTheme.md),
+                    Text(
+                      'No sessions on ${_prettyDate(viewDate)}',
+                      style: AppTheme.subheading,
+                    ),
+                    const SizedBox(height: AppTheme.xs),
+                    Text(
+                      'Pick another day, or "Show all" for the full history.',
+                      style: AppTheme.caption,
+                    ),
+                  ],
+                ),
+              )
+            else
+              ..._buildSessionsByDate(visibleSessions),
           ],
         ),
       ),
     );
   }
 
+  Widget _buildEmpty() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(AppTheme.xl, 0, AppTheme.xl, AppTheme.xxl),
+      child: TeacherEmptyState(
+        icon: Icons.assignment_outlined,
+        title: 'No class sessions yet!',
+        message: 'Create a Class Session and run a quiz — '
+            'the results will show up here.',
+      ),
+    );
+  }
+
   /// Groups sessions under a heading per teaching day, newest day first.
-  /// `sessions` already arrives newest-first from the backend, and each carries
-  /// a `local_date`/`local_weekday` pre-converted to Malaysia time (GMT+8), so
-  /// a late-evening class can't be filed under the previous day.
   List<Widget> _buildSessionsByDate(List<Map<String, dynamic>> sessions) {
     final order = <String>[];
     final grouped = <String, List<Map<String, dynamic>>>{};
@@ -342,9 +300,7 @@ class _TeacherProjectionScreenState extends State<TeacherProjectionScreen> {
   }
 
   Widget _dateHeading(String date, String weekday, int count) {
-    final label = date.isEmpty
-        ? 'Undated'
-        : '$weekday, ${_prettyDate(date)}';
+    final label = date.isEmpty ? 'Undated' : '$weekday, ${_prettyDate(date)}';
     return Padding(
       padding: const EdgeInsets.only(bottom: AppTheme.md, top: AppTheme.xs),
       child: Row(
@@ -357,10 +313,9 @@ class _TeacherProjectionScreenState extends State<TeacherProjectionScreen> {
           ),
           const SizedBox(width: AppTheme.sm),
           Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
             decoration: BoxDecoration(
-              color: AppTheme.primaryLight,
+              color: TeacherShell.accentLight,
               borderRadius: BorderRadius.circular(10),
             ),
             child: Text(
@@ -368,7 +323,7 @@ class _TeacherProjectionScreenState extends State<TeacherProjectionScreen> {
               style: AppTheme.caption.copyWith(
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
-                color: AppTheme.primary,
+                color: TeacherShell.accent,
               ),
             ),
           ),
@@ -387,8 +342,7 @@ class _TeacherProjectionScreenState extends State<TeacherProjectionScreen> {
       if (d != null && (oldest == null || d.isBefore(oldest))) oldest = d;
     }
     final now = DateTime.now();
-    final initial =
-        DateTime.tryParse(_selectedDate ?? '') ?? now;
+    final initial = DateTime.tryParse(_selectedDate ?? '') ?? now;
 
     final picked = await showDatePicker(
       context: context,
@@ -433,100 +387,72 @@ class _TeacherProjectionScreenState extends State<TeacherProjectionScreen> {
 
     final isLive = status != 'ended';
 
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(bottom: AppTheme.lg),
-      padding: const EdgeInsets.all(18),
-      decoration: AppTheme.cardDecoration,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // ── Header row: code + status ──
-          Row(
-            children: [
-              Image.asset(
-                'assets/icons/link.png',
-                width: 20,
-                height: 20,
-                errorBuilder: (context, error, stackTrace) {
-                  return const Icon(Icons.link, size: 20);
-                },
-              ),
-              const SizedBox(width: AppTheme.sm),
-              Expanded(
-                child: Text(
-                  'Code: $code',
-                  style: AppTheme.subheading.copyWith(
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 2,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppTheme.lg),
+      child: TeacherSectionCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ── Header row: code + status ──
+            Row(
+              children: [
+                const Icon(Icons.link_rounded,
+                    size: 20, color: TeacherShell.accent),
+                const SizedBox(width: AppTheme.sm),
+                Expanded(
+                  child: Text(
+                    'Code: $code',
+                    style: AppTheme.subheading.copyWith(
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 2,
+                    ),
                   ),
                 ),
-              ),
-              _statusBadge(status, isLive),
+                TeacherStatusChip(
+                  label: switch (status) {
+                    'quiz' => 'Live · Quiz',
+                    'waiting' => 'Live · Waiting',
+                    _ => 'Ended',
+                  },
+                  tone: isLive
+                      ? TeacherStatusTone.live
+                      : TeacherStatusTone.neutral,
+                  solid: isLive,
+                ),
+              ],
+            ),
+            if (localTime.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text('Started $localTime',
+                  style: AppTheme.caption.copyWith(fontSize: 12)),
             ],
-          ),
-          if (localTime.isNotEmpty) ...[
-            const SizedBox(height: 4),
-            Text('Started $localTime',
-                style: AppTheme.caption.copyWith(fontSize: 12)),
+            const SizedBox(height: AppTheme.md),
+
+            // ── Mini stats ──
+            Row(
+              children: [
+                _miniStat(Icons.groups_rounded, '$studentCount',
+                    studentCount == 1 ? 'student' : 'students'),
+                const SizedBox(width: AppTheme.lg),
+                _miniStat(Icons.quiz_rounded, '$quizCount',
+                    quizCount == 1 ? 'quiz' : 'quizzes'),
+              ],
+            ),
+            const SizedBox(height: AppTheme.md),
+
+            // ── Leaderboard ──
+            ClassLeaderboard(leaderboard: leaderboard),
           ],
-          const SizedBox(height: AppTheme.md),
-
-          // ── Mini stats ──
-          Row(
-            children: [
-              _miniStat('assets/icons/Group_Tutoring.png', '$studentCount',
-                  studentCount == 1 ? 'student' : 'students'),
-              const SizedBox(width: AppTheme.lg),
-              _miniStat('assets/icons/target.png', '$quizCount',
-                  quizCount == 1 ? 'quiz' : 'quizzes'),
-            ],
-          ),
-          const SizedBox(height: AppTheme.md),
-
-          // ── Leaderboard ──
-          ClassLeaderboard(leaderboard: leaderboard),
-        ],
-      ),
-    );
-  }
-
-  Widget _statusBadge(String status, bool isLive) {
-    final label = switch (status) {
-      'quiz' => 'Live · Quiz',
-      'waiting' => 'Live · Waiting',
-      _ => 'Ended',
-    };
-    final color = isLive ? AppTheme.success : AppTheme.textLight;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(
-        label,
-        style: AppTheme.caption.copyWith(
-          color: AppTheme.surface,
-          fontWeight: FontWeight.w700,
-          fontSize: 12,
         ),
       ),
     );
   }
 
-  Widget _miniStat(String iconPath, String value, String label) {
+  Widget _miniStat(IconData icon, String value, String label) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Image.asset(
-          iconPath,
-          width: 20,
-          height: 20,
-          errorBuilder: (context, error, stackTrace) {
-            return const SizedBox(width: 20, height: 20);
-          },
-        ),
+        Icon(icon, size: 18, color: AppTheme.textLight),
         const SizedBox(width: 6),
         Text(
           value,
@@ -535,64 +461,6 @@ class _TeacherProjectionScreenState extends State<TeacherProjectionScreen> {
         const SizedBox(width: 4),
         Text(label, style: AppTheme.caption),
       ],
-    );
-  }
-
-}
-
-/// Summary stat card for the top row.
-class _SummaryCard extends StatelessWidget {
-  final String iconPath;
-  final String value;
-  final String label;
-  final Color color;
-
-  const _SummaryCard({
-    required this.iconPath,
-    required this.value,
-    required this.label,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 200,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Column(
-        children: [
-          Image.asset(
-            iconPath,
-            width: 32,
-            height: 32,
-            errorBuilder: (context, error, stackTrace) {
-              return const Icon(Icons.image_not_supported, size: 32);
-            },
-          ),
-          const SizedBox(height: AppTheme.sm),
-          Text(
-            value,
-            style: AppTheme.heading.copyWith(
-              fontSize: 32,
-              fontWeight: FontWeight.w800,
-              color: AppTheme.surface,
-            ),
-          ),
-          const SizedBox(height: AppTheme.xs),
-          Text(
-            label,
-            style: AppTheme.body.copyWith(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: AppTheme.surface.withValues(alpha: 0.9),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

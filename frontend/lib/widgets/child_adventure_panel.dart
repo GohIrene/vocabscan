@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
+import '../adventure_assets.dart';
 import '../adventure_config.dart';
 import '../theme/app_theme.dart';
 
@@ -141,8 +143,7 @@ class ChildAdventurePanel extends StatelessWidget {
           // Keys toward the next area.
           Row(
             children: [
-              const Icon(Icons.vpn_key_rounded,
-                  size: 16, color: AppTheme.treasure),
+              SvgPicture.asset(AdventureIcons.key, width: 17, height: 17),
               const SizedBox(width: 6),
               Text(
                 '$keys / $maxKeys keys',

@@ -181,6 +181,7 @@ class _ChildAdventureMapScreenState extends State<ChildAdventureMapScreen> {
                   const SizedBox(width: AppTheme.md),
                   _MapStat(
                       icon: Icons.vpn_key_rounded,
+                      iconAsset: AdventureIcons.key,
                       label: '$keys / $maxKeys keys',
                       tint: AppTheme.treasure),
                 ],
@@ -204,10 +205,18 @@ class _ChildAdventureMapScreenState extends State<ChildAdventureMapScreen> {
 
 class _MapStat extends StatelessWidget {
   final IconData icon;
+
+  /// Optional flat-vector icon in place of [icon]; self-coloured.
+  final String? iconAsset;
   final String label;
   final Color tint;
 
-  const _MapStat({required this.icon, required this.label, required this.tint});
+  const _MapStat({
+    required this.icon,
+    this.iconAsset,
+    required this.label,
+    required this.tint,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -222,7 +231,10 @@ class _MapStat extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 15, color: tint),
+          if (iconAsset != null)
+            SvgPicture.asset(iconAsset!, width: 17, height: 17)
+          else
+            Icon(icon, size: 15, color: tint),
           const SizedBox(width: 6),
           Text(
             label,
@@ -393,11 +405,10 @@ class _AreaRowState extends State<_AreaRow> {
               ),
               const SizedBox(width: AppTheme.md),
               if (isCompleted)
-                const Icon(Icons.check_circle_rounded,
-                    color: AppTheme.success, size: 28)
+                SvgPicture.asset(AdventureIcons.completed,
+                    width: 30, height: 30)
               else if (isLocked)
-                const Icon(Icons.lock_rounded,
-                    color: AppTheme.textLight, size: 22)
+                SvgPicture.asset(AdventureIcons.locked, width: 26, height: 26)
               else
                 Container(
                   padding: const EdgeInsets.symmetric(

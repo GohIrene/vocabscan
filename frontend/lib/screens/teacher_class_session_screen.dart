@@ -6,6 +6,8 @@ import '../learning_flow.dart';
 import '../socket_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/class_leaderboard.dart';
+import '../widgets/teacher_shell.dart';
+import '../widgets/teacher_ui.dart';
 import '../widgets/vocab_icon.dart';
 import 'batch_upload_screen.dart';
 import 'scan_object_screen.dart';
@@ -15,6 +17,10 @@ import 'scan_object_screen.dart';
 /// Creates a session over REST, shows the projector-readable code, tracks the
 /// live student count over the socket, lets the teacher scan an object to push
 /// a quiz, and ends the session with a leaderboard.
+///
+/// This is a full-focus pushed route (not a shell body) so the code projects
+/// cleanly. On a wide screen the projector column (code + join count + live
+/// status) sits beside the teacher's controls; on a narrow screen they stack.
 class TeacherClassSessionScreen extends StatefulWidget {
   final String teacherId;
 
@@ -312,24 +318,14 @@ class _TeacherClassSessionScreenState extends State<TeacherClassSessionScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            Align(
-              alignment: Alignment.topLeft,
-              child: Padding(
-                padding: const EdgeInsets.all(AppTheme.md),
-                child: TextButton.icon(
-                  onPressed: () => Navigator.pop(context),
-                  icon: const Icon(Icons.arrow_back, size: 18),
-                  label: const Text('Exit'),
-                  style: AppTheme.backButtonStyle,
-                ),
-              ),
-            ),
+            _topBar(),
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: AppTheme.xl, vertical: AppTheme.sm),
                 child: Center(
                   child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 640),
+                    constraints: const BoxConstraints(maxWidth: 1040),
                     child: _buildBody(),
                   ),
                 ),
@@ -341,13 +337,38 @@ class _TeacherClassSessionScreenState extends State<TeacherClassSessionScreen> {
     );
   }
 
+  Widget _topBar() {
+    return Padding(
+      padding: const EdgeInsets.all(AppTheme.md),
+      child: Row(
+        children: [
+          TextButton.icon(
+            onPressed: () => Navigator.pop(context),
+            icon: const Icon(Icons.arrow_back, size: 18),
+            label: const Text('Exit'),
+            style: AppTheme.backButtonStyle,
+          ),
+          const Spacer(),
+          if (!_loading && _error == null && !_ended)
+            TeacherStatusChip(
+              label: _connected ? 'Live' : 'Connecting…',
+              tone: _connected
+                  ? TeacherStatusTone.live
+                  : TeacherStatusTone.warning,
+              solid: _connected,
+            ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildBody() {
     if (_loading) {
       return const Padding(
         padding: EdgeInsets.only(top: 80),
         child: Column(
           children: [
-            CircularProgressIndicator(color: AppTheme.primary),
+            CircularProgressIndicator(color: TeacherShell.accent),
             SizedBox(height: 16),
             Text('Creating class session…'),
           ],
@@ -368,7 +389,9 @@ class _TeacherClassSessionScreenState extends State<TeacherClassSessionScreen> {
               style: AppTheme.body.copyWith(color: AppTheme.error),
             ),
             const SizedBox(height: 20),
-            OutlinedButton.icon(
+            TeacherSecondaryButton(
+              label: 'Try Again',
+              icon: Icons.refresh,
               onPressed: () {
                 setState(() {
                   _loading = true;
@@ -376,9 +399,6 @@ class _TeacherClassSessionScreenState extends State<TeacherClassSessionScreen> {
                 });
                 _createSession();
               },
-              icon: const Icon(Icons.refresh, size: 18),
-              label: const Text('Try Again'),
-              style: AppTheme.secondaryButton,
             ),
           ],
         ),
@@ -389,14 +409,7 @@ class _TeacherClassSessionScreenState extends State<TeacherClassSessionScreen> {
       return Column(
         children: [
           const SizedBox(height: AppTheme.md),
-          Image.asset(
-            'assets/icons/confetti.png',
-            width: 52,
-            height: 52,
-            errorBuilder: (context, error, stackTrace) {
-              return const Icon(Icons.celebration, size: 52);
-            },
-          ),
+          const Text('🎉', style: TextStyle(fontSize: 52)),
           const SizedBox(height: AppTheme.sm),
           Text(
             'Session Ended',
@@ -404,53 +417,59 @@ class _TeacherClassSessionScreenState extends State<TeacherClassSessionScreen> {
                 .copyWith(fontSize: 28, fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 20),
-          ClassLeaderboard(leaderboard: _leaderboard),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 640),
+            child: ClassLeaderboard(leaderboard: _leaderboard),
+          ),
           const SizedBox(height: 20),
-          OutlinedButton.icon(
+          TeacherSecondaryButton(
+            label: 'Back to Teacher Panel',
+            icon: Icons.home_outlined,
             onPressed: () => Navigator.pop(context),
-            icon: const Icon(Icons.home_outlined, size: 18),
-            label: const Text('Back to Teacher Panel'),
-            style: AppTheme.secondaryButton,
           ),
           const SizedBox(height: AppTheme.xxl),
         ],
       );
     }
 
-    return Column(
-      children: [
-        const SizedBox(height: AppTheme.sm),
-        Text(
-          'Class Session',
-          style: AppTheme.heading
-              .copyWith(fontSize: 24, fontWeight: FontWeight.w800),
-        ),
-        const SizedBox(height: 4),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 10,
-              height: 10,
-              decoration: BoxDecoration(
-                color: _connected ? AppTheme.success : AppTheme.textLight,
-                shape: BoxShape.circle,
-              ),
-            ),
-            const SizedBox(width: 6),
-            Text(
-              _connected ? 'Live' : 'Connecting…',
-              style: AppTheme.caption,
-            ),
-          ],
-        ),
-        const SizedBox(height: 20),
+    // Live session: projector column + controls column (side-by-side when wide).
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final wide = constraints.maxWidth >= 860;
+        final projector = _buildProjectorColumn();
+        final controls = _buildControlsColumn();
+        if (!wide) {
+          return Column(
+            children: [
+              projector,
+              const SizedBox(height: AppTheme.lg),
+              controls,
+              const SizedBox(height: AppTheme.xxl),
+            ],
+          );
+        }
+        return Padding(
+          padding: const EdgeInsets.only(top: AppTheme.sm, bottom: AppTheme.xxl),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(flex: 5, child: projector),
+              const SizedBox(width: AppTheme.lg),
+              Expanded(flex: 4, child: controls),
+            ],
+          ),
+        );
+      },
+    );
+  }
 
+  Widget _buildProjectorColumn() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
         // ── Big projector-readable code ──
-        Container(
-          width: double.infinity,
+        TeacherSectionCard(
           padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 20),
-          decoration: AppTheme.cardDecoration,
           child: Column(
             children: [
               Text('Share this code with students',
@@ -461,9 +480,9 @@ class _TeacherClassSessionScreenState extends State<TeacherClassSessionScreen> {
                 child: SelectableText(
                   _code ?? '',
                   style: AppTheme.heading.copyWith(
-                    fontSize: 96,
+                    fontSize: 92,
                     fontWeight: FontWeight.w900,
-                    color: AppTheme.primary,
+                    color: TeacherShell.accent,
                     letterSpacing: 10,
                   ),
                 ),
@@ -482,46 +501,39 @@ class _TeacherClassSessionScreenState extends State<TeacherClassSessionScreen> {
             ],
           ),
         ),
-        const SizedBox(height: 18),
+        const SizedBox(height: AppTheme.lg),
 
         // ── Live student count ──
         Container(
           width: double.infinity,
           padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 20),
           decoration: BoxDecoration(
-            color: AppTheme.primaryLight,
-            borderRadius: BorderRadius.circular(18),
+            color: TeacherShell.accentLight,
+            borderRadius: BorderRadius.circular(AppTheme.radiusMd),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Image.asset(
-                'assets/icons/Group_Tutoring.png',
-                width: 26,
-                height: 26,
-                errorBuilder: (context, error, stackTrace) {
-                  return const Icon(Icons.people, size: 26);
-                },
-              ),
+              const Icon(Icons.groups_rounded,
+                  size: 26, color: TeacherShell.accent),
               const SizedBox(width: 10),
               Text(
                 '$_studentCount student${_studentCount == 1 ? '' : 's'} joined',
-                style: AppTheme.subheading.copyWith(fontWeight: FontWeight.w700),
+                style: AppTheme.subheading.copyWith(fontWeight: FontWeight.w800),
               ),
             ],
           ),
         ),
-        const SizedBox(height: 18),
 
         // ── Live quiz status ──
-        if (_quizLive)
+        if (_quizLive) ...[
+          const SizedBox(height: AppTheme.lg),
           Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
-            margin: const EdgeInsets.only(bottom: 18),
             decoration: BoxDecoration(
               color: AppTheme.successLight,
-              borderRadius: BorderRadius.circular(18),
+              borderRadius: BorderRadius.circular(AppTheme.radiusMd),
             ),
             child: Column(
               children: [
@@ -529,24 +541,9 @@ class _TeacherClassSessionScreenState extends State<TeacherClassSessionScreen> {
                 // quiz, so the icon shows regardless of question pattern.
                 VocabIcon(englishKey: _quizEnglishKey, size: 40),
                 const SizedBox(height: 6),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text('Quiz sent!',
-                        style: AppTheme.body.copyWith(
-                            fontWeight: FontWeight.w700)),
-                    const SizedBox(width: 6),
-                    Image.asset(
-                      'assets/icons/target.png',
-                      width: 16,
-                      height: 16,
-                      errorBuilder: (context, error, stackTrace) {
-                        return const SizedBox(width: 16, height: 16);
-                      },
-                    ),
-                  ],
-                ),
+                Text('Quiz sent! 🎯',
+                    style:
+                        AppTheme.body.copyWith(fontWeight: FontWeight.w700)),
                 const SizedBox(height: 4),
                 Text(
                   '$_answeredCount of $_quizStudentCount answered',
@@ -555,16 +552,17 @@ class _TeacherClassSessionScreenState extends State<TeacherClassSessionScreen> {
               ],
             ),
           ),
+        ],
 
         // ── Live summary-quiz status ──
-        if (_summaryLive)
+        if (_summaryLive) ...[
+          const SizedBox(height: AppTheme.lg),
           Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
-            margin: const EdgeInsets.only(bottom: 18),
             decoration: BoxDecoration(
               color: AppTheme.primaryLight,
-              borderRadius: BorderRadius.circular(18),
+              borderRadius: BorderRadius.circular(AppTheme.radiusMd),
             ),
             child: Column(
               children: [
@@ -580,66 +578,60 @@ class _TeacherClassSessionScreenState extends State<TeacherClassSessionScreen> {
               ],
             ),
           ),
+        ],
+      ],
+    );
+  }
 
-        // ── Scan to push a quiz ──
-        FilledButton.icon(
-          onPressed: _scanForQuiz,
-          icon: const Icon(Icons.center_focus_strong, size: 20),
-          label: const Text('Scan Object → Send Quiz'),
-          style: AppTheme.primaryButton,
-        ),
-        const SizedBox(height: 14),
-
-        // ── Upload several photos at once → quiz set ──
-        OutlinedButton.icon(
-          onPressed: _batchUpload,
-          icon: const Icon(Icons.photo_library_outlined, size: 18),
-          label: const Text('Upload Photos → Quiz Set'),
-          style: AppTheme.secondaryButton,
-        ),
-        const SizedBox(height: 14),
-
-        // ── Revise a word from an earlier session (no object needed) ──
-        OutlinedButton.icon(
-          onPressed: _revisePastWord,
-          icon: const Icon(Icons.history, size: 18),
-          label: const Text('Revise a Past Word'),
-          style: AppTheme.secondaryButton,
-        ),
-        const SizedBox(height: 14),
-
-        // ── Summary quiz: available any time once words have been sent ──
-        OutlinedButton.icon(
-          onPressed: _wordCount == 0 ? null : _sendSummaryQuiz,
-          icon: const Icon(Icons.checklist_rtl, size: 18),
-          label: Text(
-            _wordCount == 0
+  Widget _buildControlsColumn() {
+    return TeacherSectionCard(
+      title: 'Session Controls',
+      icon: Icons.tune_rounded,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          TeacherPrimaryButton(
+            label: 'Scan Object → Send Quiz',
+            icon: Icons.center_focus_strong,
+            onPressed: _scanForQuiz,
+            expand: true,
+          ),
+          const SizedBox(height: AppTheme.md),
+          TeacherSecondaryButton(
+            label: 'Upload Photos → Quiz Set',
+            icon: Icons.photo_library_outlined,
+            onPressed: _batchUpload,
+            expand: true,
+          ),
+          const SizedBox(height: AppTheme.md),
+          TeacherSecondaryButton(
+            label: 'Revise a Past Word',
+            icon: Icons.history,
+            onPressed: _revisePastWord,
+            expand: true,
+          ),
+          const SizedBox(height: AppTheme.md),
+          TeacherSecondaryButton(
+            label: _wordCount == 0
                 ? 'Summary Quiz (send a word first)'
                 : 'Send Summary Quiz 📝 ($_wordCount word'
                     '${_wordCount == 1 ? '' : 's'})',
+            icon: Icons.checklist_rtl,
+            onPressed: _wordCount == 0 ? null : _sendSummaryQuiz,
+            expand: true,
           ),
-          style: AppTheme.secondaryButton,
-        ),
-        const SizedBox(height: 14),
-
-        // ── End session ──
-        OutlinedButton.icon(
-          onPressed: _endSession,
-          icon: const Icon(Icons.stop_circle_outlined, size: 18),
-          label: const Text('End Session'),
-          style: OutlinedButton.styleFrom(
-            foregroundColor: AppTheme.error,
-            side: const BorderSide(color: AppTheme.error, width: 2),
-            minimumSize: const Size(200, 52),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            textStyle:
-                AppTheme.buttonText.copyWith(color: AppTheme.error),
+          const SizedBox(height: AppTheme.lg),
+          const Divider(height: 1),
+          const SizedBox(height: AppTheme.lg),
+          TeacherSecondaryButton(
+            label: 'End Session',
+            icon: Icons.stop_circle_outlined,
+            onPressed: _endSession,
+            tint: AppTheme.error,
+            expand: true,
           ),
-        ),
-        const SizedBox(height: AppTheme.xxl),
-      ],
+        ],
+      ),
     );
   }
 }

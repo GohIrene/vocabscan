@@ -9,6 +9,8 @@ import '../api_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/student_avatar.dart';
 import '../widgets/student_progress.dart';
+import '../widgets/teacher_shell.dart';
+import '../widgets/teacher_ui.dart';
 import 'batch_upload_screen.dart';
 
 /// Teacher: create saved classes and manage who is in them.
@@ -16,16 +18,60 @@ import 'batch_upload_screen.dart';
 /// A saved class is what lets children tap their name instead of spelling it,
 /// and gives their XP, levels and badges somewhere permanent to live. Sessions
 /// can still be run without one — that path is unchanged.
-class ClassroomManageScreen extends StatefulWidget {
+///
+/// [ClassroomManageView] is the embeddable body used inside `TeacherShell`;
+/// [ClassroomManageScreen] is a thin standalone wrapper around it.
+class ClassroomManageScreen extends StatelessWidget {
   final String teacherId;
 
   const ClassroomManageScreen({super.key, required this.teacherId});
 
   @override
-  State<ClassroomManageScreen> createState() => _ClassroomManageScreenState();
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppTheme.background,
+      body: SafeArea(
+        child: Column(
+          children: [
+            Align(
+              alignment: Alignment.topLeft,
+              child: Padding(
+                padding: const EdgeInsets.all(AppTheme.md),
+                child: TextButton.icon(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.arrow_back, size: 18),
+                  label: const Text('Back'),
+                  style: AppTheme.backButtonStyle,
+                ),
+              ),
+            ),
+            Expanded(child: ClassroomManageView(teacherId: teacherId)),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
-class _ClassroomManageScreenState extends State<ClassroomManageScreen> {
+/// Embeddable "My Classes" body — no Scaffold, scrolls inside its host.
+class ClassroomManageView extends StatefulWidget {
+  final String teacherId;
+
+  /// Called after any change that affects roster or class counts, so a host
+  /// dashboard can refresh its stat tiles.
+  final VoidCallback? onChanged;
+
+  const ClassroomManageView({
+    super.key,
+    required this.teacherId,
+    this.onChanged,
+  });
+
+  @override
+  State<ClassroomManageView> createState() => _ClassroomManageViewState();
+}
+
+class _ClassroomManageViewState extends State<ClassroomManageView> {
   List<Map<String, dynamic>> _classrooms = [];
   bool _loading = true;
   String? _error;
@@ -49,6 +95,7 @@ class _ClassroomManageScreenState extends State<ClassroomManageScreen> {
         _classrooms = rooms;
         _loading = false;
       });
+      widget.onChanged?.call();
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -156,6 +203,88 @@ class _ClassroomManageScreenState extends State<ClassroomManageScreen> {
       ),
     );
     if (saved == true) _load();
+  }
+
+  /// Reuse an item from the words this teacher has already covered — no new
+  /// scan, no duplicated translations/audio (only the key is stored on the
+  /// class; the vocabulary item itself is shared).
+  Future<void> _addExistingVocab(
+      String classroomId, List<String> alreadyPrepared) async {
+    List<Map<String, dynamic>> catalog;
+    try {
+      catalog = await ApiService.getTeacherRevisionWords(widget.teacherId);
+    } catch (e) {
+      if (!mounted) return;
+      _toast('Could not load your vocabulary: $e');
+      return;
+    }
+    if (!mounted) return;
+
+    if (catalog.isEmpty) {
+      _toast('No past vocabulary yet — run a session or prep photos first.');
+      return;
+    }
+
+    final keys = await showDialog<List<String>>(
+      context: context,
+      builder: (_) => _AddExistingVocabDialog(
+        catalog: catalog,
+        alreadyPrepared: alreadyPrepared.toSet(),
+      ),
+    );
+    if (keys == null || keys.isEmpty || !mounted) return;
+
+    final res = await ApiService.prepareClassroomWords(classroomId, keys);
+    if (!mounted) return;
+    if (res['prepared_words'] == null) {
+      _toast((res['message'] as String?) ?? 'Could not add those words');
+      return;
+    }
+    _toast('Added ${keys.length} word${keys.length == 1 ? '' : 's'} '
+        'to this class');
+    _load();
+  }
+
+  /// Copy another saved class's prepared words into this one. Reuses the same
+  /// vocabulary items (keys only), so the two classes share definitions while
+  /// their session results and student progress stay entirely separate.
+  Future<void> _copyFromClass(
+      String classroomId, List<String> alreadyPrepared) async {
+    final others = _classrooms
+        .where((c) => (c['classroom_id'] as String?) != classroomId)
+        .where((c) =>
+            ((c['prepared_words'] as List?) ?? const []).isNotEmpty)
+        .toList();
+
+    if (others.isEmpty) {
+      _toast('No other class has prepared words to copy yet.');
+      return;
+    }
+
+    final source = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (_) => _CopyFromClassDialog(sources: others),
+    );
+    if (source == null || !mounted) return;
+
+    final sourceKeys =
+        ((source['prepared_words'] as List?) ?? const []).cast<String>();
+    final have = alreadyPrepared.toSet();
+    final newKeys = sourceKeys.where((k) => !have.contains(k)).toList();
+    if (newKeys.isEmpty) {
+      _toast('This class already has all of those words.');
+      return;
+    }
+
+    final res = await ApiService.prepareClassroomWords(classroomId, newKeys);
+    if (!mounted) return;
+    if (res['prepared_words'] == null) {
+      _toast((res['message'] as String?) ?? 'Could not copy those words');
+      return;
+    }
+    _toast('Copied ${newKeys.length} word${newKeys.length == 1 ? '' : 's'} '
+        'from ${source['name']}');
+    _load();
   }
 
   Future<void> _removePreparedWord(String classroomId, String key) async {
@@ -331,43 +460,13 @@ class _ClassroomManageScreenState extends State<ClassroomManageScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppTheme.background,
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _createClassroom,
-        backgroundColor: AppTheme.primary,
-        foregroundColor: Colors.white,
-        icon: const Icon(Icons.add),
-        label: const Text('New Class'),
-      ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            Align(
-              alignment: Alignment.topLeft,
-              child: Padding(
-                padding: const EdgeInsets.all(AppTheme.md),
-                child: TextButton.icon(
-                  onPressed: () => Navigator.pop(context),
-                  icon: const Icon(Icons.arrow_back, size: 18),
-                  label: const Text('Back'),
-                  style: AppTheme.backButtonStyle,
-                ),
-              ),
-            ),
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 640),
-                    child: _buildBody(),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding:
+            const EdgeInsets.fromLTRB(AppTheme.xl, 0, AppTheme.xl, AppTheme.xxl),
+        child: _buildBody(),
       ),
     );
   }
@@ -376,79 +475,69 @@ class _ClassroomManageScreenState extends State<ClassroomManageScreen> {
     if (_loading) {
       return const Padding(
         padding: EdgeInsets.only(top: 80),
-        child: CircularProgressIndicator(color: AppTheme.primary),
+        child: Center(child: CircularProgressIndicator()),
       );
     }
 
     if (_error != null) {
       return Padding(
         padding: const EdgeInsets.only(top: 60),
-        child: Column(
-          children: [
-            Text(_error!,
-                textAlign: TextAlign.center,
-                style: AppTheme.body.copyWith(color: AppTheme.error)),
-            const SizedBox(height: 20),
-            OutlinedButton.icon(
-              onPressed: _load,
-              icon: const Icon(Icons.refresh, size: 18),
-              label: const Text('Try Again'),
-              style: AppTheme.secondaryButton,
-            ),
-          ],
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(_error!,
+                  textAlign: TextAlign.center,
+                  style: AppTheme.body.copyWith(color: AppTheme.error)),
+              const SizedBox(height: 20),
+              TeacherSecondaryButton(
+                label: 'Try Again',
+                icon: Icons.refresh,
+                onPressed: _load,
+              ),
+            ],
+          ),
         ),
       );
     }
 
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const SizedBox(height: AppTheme.sm),
-        Image.asset(
-          'assets/icons/school.png',
-          width: 44,
-          height: 44,
-          errorBuilder: (_, _, _) => const Icon(Icons.school, size: 44),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Students in a saved class tap their name to join, and keep '
+                'their XP and badges between lessons.',
+                style: AppTheme.caption,
+              ),
+            ),
+            const SizedBox(width: AppTheme.md),
+            TeacherPrimaryButton(
+              label: 'New Class',
+              icon: Icons.add_rounded,
+              onPressed: _createClassroom,
+            ),
+          ],
         ),
-        const SizedBox(height: 6),
-        Text(
-          'My Classes',
-          style: AppTheme.heading
-              .copyWith(fontSize: 28, fontWeight: FontWeight.w800),
-        ),
-        const SizedBox(height: AppTheme.xs),
-        Text(
-          'Students in a saved class tap their name to join, and keep their '
-          'XP and badges between lessons.',
-          textAlign: TextAlign.center,
-          style: AppTheme.body.copyWith(fontSize: 14, color: AppTheme.textLight),
-        ),
-        const SizedBox(height: 20),
-        if (_classrooms.isEmpty) _buildEmpty() else ..._classrooms.map(_buildClassroomCard),
-        const SizedBox(height: 88),
+        const SizedBox(height: AppTheme.lg),
+        if (_classrooms.isEmpty)
+          TeacherEmptyState(
+            emoji: '📚',
+            title: 'No classes yet',
+            message:
+                'Create a class, add your students once, and they can tap '
+                'their name to join every lesson after that.',
+            action: TeacherPrimaryButton(
+              label: 'New Class',
+              icon: Icons.add_rounded,
+              onPressed: _createClassroom,
+            ),
+          )
+        else
+          ..._classrooms.map(_buildClassroomCard),
       ],
-    );
-  }
-
-  Widget _buildEmpty() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(AppTheme.xl),
-      decoration: AppTheme.cardDecoration,
-      child: Column(
-        children: [
-          const Text('📚', style: TextStyle(fontSize: 40)),
-          const SizedBox(height: AppTheme.md),
-          Text('No classes yet',
-              style: AppTheme.subheading.copyWith(fontWeight: FontWeight.w700)),
-          const SizedBox(height: AppTheme.xs),
-          Text(
-            'Create a class, add your students once, and they can tap their '
-            'name to join every lesson after that.',
-            textAlign: TextAlign.center,
-            style: AppTheme.caption,
-          ),
-        ],
-      ),
     );
   }
 
@@ -459,143 +548,186 @@ class _ClassroomManageScreenState extends State<ClassroomManageScreen> {
         .whereType<Map>()
         .map((s) => Map<String, dynamic>.from(s))
         .toList();
+    final prepared =
+        (room['prepared_words'] as List? ?? const []).cast<String>();
     final expanded = _expandedId == id;
 
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppTheme.md),
+      child: TeacherSectionCard(
+        child: Column(
+          children: [
+            InkWell(
+              borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+              onTap: () => setState(() => _expandedId = expanded ? null : id),
+              child: Row(
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: TeacherShell.accentLight,
+                      borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+                    ),
+                    child: const Icon(Icons.school_rounded,
+                        size: 22, color: TeacherShell.accent),
+                  ),
+                  const SizedBox(width: AppTheme.md),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(name,
+                            style: AppTheme.subheading
+                                .copyWith(fontWeight: FontWeight.w800)),
+                        const SizedBox(height: 2),
+                        Text(
+                          '${students.length} student'
+                          '${students.length == 1 ? '' : 's'}'
+                          '${prepared.isEmpty ? '' : ' · ${prepared.length} '
+                              'prepared word${prepared.length == 1 ? '' : 's'}'}',
+                          style: AppTheme.caption,
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Delete class',
+                    icon: const Icon(Icons.delete_outline, size: 20),
+                    color: AppTheme.error,
+                    onPressed: () => _deleteClassroom(id, name),
+                  ),
+                  Icon(expanded ? Icons.expand_less : Icons.expand_more,
+                      color: AppTheme.textDark),
+                ],
+              ),
+            ),
+            if (expanded) ...[
+              const Divider(height: AppTheme.xl),
+              if (students.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: AppTheme.md),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text('No students yet — add your first one below.',
+                        style: AppTheme.caption),
+                  ),
+                )
+              else
+                ...students.map((s) => _buildStudentRow(id, s)),
+              const SizedBox(height: AppTheme.sm),
+              Wrap(
+                spacing: AppTheme.sm,
+                runSpacing: AppTheme.sm,
+                children: [
+                  _chipButton(Icons.person_add_alt, 'Add Student',
+                      () => _addStudent(id)),
+                  _chipButton(Icons.upload_file, 'Import Excel (CSV)',
+                      () => _importCsv(id)),
+                  _chipButton(
+                      Icons.download, 'Template', _downloadTemplate),
+                ],
+              ),
+              const SizedBox(height: AppTheme.md),
+              _buildVocabSection(id, room, prepared),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Prepared-vocabulary block: the words seeded into every session for this
+  /// class, plus the three ways to add more — a new photo, an item already in
+  /// the teacher's vocabulary, or a copy from another class.
+  Widget _buildVocabSection(
+      String classroomId, Map<String, dynamic> room, List<String> prepared) {
     return Container(
       width: double.infinity,
-      margin: const EdgeInsets.only(bottom: AppTheme.md),
-      padding: const EdgeInsets.all(AppTheme.lg),
-      decoration: AppTheme.cardDecoration,
+      padding: const EdgeInsets.all(AppTheme.md),
+      decoration: BoxDecoration(
+        color: AppTheme.background,
+        borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+      ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          InkWell(
-            onTap: () => setState(() => _expandedId = expanded ? null : id),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(name,
-                          style: AppTheme.subheading
-                              .copyWith(fontWeight: FontWeight.w800)),
-                      const SizedBox(height: 2),
-                      Text(
-                        '${students.length} student'
-                        '${students.length == 1 ? '' : 's'}',
-                        style: AppTheme.caption,
-                      ),
-                    ],
-                  ),
-                ),
-                IconButton(
-                  tooltip: 'Delete class',
-                  icon: const Icon(Icons.delete_outline, size: 20),
-                  color: AppTheme.error,
-                  onPressed: () => _deleteClassroom(id, name),
-                ),
-                Icon(expanded ? Icons.expand_less : Icons.expand_more,
-                    color: AppTheme.textDark),
-              ],
-            ),
+          Row(
+            children: [
+              const Icon(Icons.menu_book_rounded,
+                  size: 16, color: TeacherShell.accent),
+              const SizedBox(width: 6),
+              Text(
+                'Prepared vocabulary',
+                style: AppTheme.caption.copyWith(
+                    fontWeight: FontWeight.w800, color: AppTheme.textDark),
+              ),
+            ],
           ),
-          if (expanded) ...[
-            const Divider(height: AppTheme.xl),
-            if (students.isEmpty)
-              Padding(
-                padding: const EdgeInsets.only(bottom: AppTheme.md),
-                child: Text('No students yet — add your first one below.',
-                    style: AppTheme.caption),
-              )
-            else
-              ...students.map((s) => _buildStudentRow(id, s)),
-            const SizedBox(height: AppTheme.sm),
+          const SizedBox(height: 2),
+          Text(
+            'Seeded into every session for this class. Reusing a word shares '
+            'the same definition and audio — each class keeps its own results.',
+            style: AppTheme.caption.copyWith(fontSize: 11.5),
+          ),
+          const SizedBox(height: AppTheme.md),
+          if (prepared.isEmpty)
+            Text('No prepared words yet.',
+                style: AppTheme.caption.copyWith(fontStyle: FontStyle.italic))
+          else
             Wrap(
-              spacing: AppTheme.sm,
-              runSpacing: AppTheme.sm,
-              children: [
-                OutlinedButton.icon(
-                  onPressed: () => _addStudent(id),
-                  icon: const Icon(Icons.person_add_alt, size: 18),
-                  label: const Text('Add Student'),
-                  style: _compactButton,
-                ),
-                OutlinedButton.icon(
-                  onPressed: () => _importCsv(id),
-                  icon: const Icon(Icons.upload_file, size: 18),
-                  label: const Text('Import Excel (CSV)'),
-                  style: _compactButton,
-                ),
-                OutlinedButton.icon(
-                  onPressed: _downloadTemplate,
-                  icon: const Icon(Icons.download, size: 18),
-                  label: const Text('Template'),
-                  style: _compactButton,
-                ),
-                OutlinedButton.icon(
-                  onPressed: () => _prepPhotos(id),
-                  icon: const Icon(Icons.photo_library_outlined, size: 18),
-                  label: const Text('Prep Photos'),
-                  style: _compactButton,
-                ),
-              ],
+              spacing: 6,
+              runSpacing: 6,
+              children: prepared.map((w) {
+                return Chip(
+                  label: Text(w,
+                      style: AppTheme.caption.copyWith(
+                        color: AppTheme.textDark,
+                        fontWeight: FontWeight.w600,
+                      )),
+                  backgroundColor: TeacherShell.accentLight,
+                  deleteIcon: const Icon(Icons.close, size: 16),
+                  onDeleted: () => _removePreparedWord(classroomId, w),
+                  visualDensity: VisualDensity.compact,
+                );
+              }).toList(),
             ),
-            _buildPreparedWords(id, room),
-          ],
+          const SizedBox(height: AppTheme.md),
+          Wrap(
+            spacing: AppTheme.sm,
+            runSpacing: AppTheme.sm,
+            children: [
+              _chipButton(Icons.photo_library_outlined, 'Prep Photos',
+                  () => _prepPhotos(classroomId)),
+              _chipButton(Icons.library_add_outlined, 'Add Vocabulary',
+                  () => _addExistingVocab(classroomId, prepared)),
+              _chipButton(Icons.copy_all_outlined, 'Copy From Class',
+                  () => _copyFromClass(classroomId, prepared)),
+            ],
+          ),
         ],
       ),
     );
   }
 
-  /// Roomier default buttons don't fit four-up in a card; this keeps the
-  /// same look at a size that wraps nicely.
-  static final ButtonStyle _compactButton = OutlinedButton.styleFrom(
-    foregroundColor: AppTheme.primary,
-    side: const BorderSide(color: AppTheme.primary, width: 2),
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(AppTheme.radiusSm),
-    ),
-    textStyle: AppTheme.caption.copyWith(
-      fontWeight: FontWeight.w700,
-      fontSize: 13,
-    ),
-    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-  );
-
-  /// Words prepped from photos before class, with per-word remove. These are
-  /// seeded into every session run against this class.
-  Widget _buildPreparedWords(String classroomId, Map<String, dynamic> room) {
-    final words =
-        (room['prepared_words'] as List? ?? const []).cast<String>();
-    if (words.isEmpty) return const SizedBox.shrink();
-
-    return Padding(
-      padding: const EdgeInsets.only(top: AppTheme.md),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Prepped words (in every session)',
-            style: AppTheme.caption.copyWith(fontWeight: FontWeight.w700),
-          ),
-          const SizedBox(height: AppTheme.sm),
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: words.map((w) {
-              return Chip(
-                label: Text(w, style: AppTheme.caption.copyWith(
-                  color: AppTheme.textDark,
-                  fontWeight: FontWeight.w600,
-                )),
-                backgroundColor: AppTheme.primaryLight,
-                deleteIcon: const Icon(Icons.close, size: 16),
-                onDeleted: () => _removePreparedWord(classroomId, w),
-                visualDensity: VisualDensity.compact,
-              );
-            }).toList(),
-          ),
-        ],
+  /// Compact outlined action used inside the class card.
+  Widget _chipButton(IconData icon, String label, VoidCallback onTap) {
+    return OutlinedButton.icon(
+      onPressed: onTap,
+      icon: Icon(icon, size: 17),
+      label: Text(label),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: TeacherShell.accent,
+        side: BorderSide(
+            color: TeacherShell.accent.withValues(alpha: 0.45), width: 1.5),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+        ),
+        textStyle: AppTheme.caption.copyWith(
+          fontWeight: FontWeight.w700,
+          fontSize: 13,
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
       ),
     );
   }
@@ -635,7 +767,7 @@ class _ClassroomManageScreenState extends State<ClassroomManageScreen> {
           IconButton(
             tooltip: 'Add / deduct points',
             icon: const Icon(Icons.exposure, size: 18),
-            color: AppTheme.primary,
+            color: TeacherShell.accent,
             onPressed: () => _adjustPoints(classroomId, studentId, name),
           ),
           IconButton(
@@ -712,7 +844,7 @@ class _AddStudentDialogState extends State<_AddStudentDialog> {
                       shape: BoxShape.circle,
                       border: Border.all(
                         color: selected
-                            ? AppTheme.primary
+                            ? TeacherShell.accent
                             : Colors.transparent,
                         width: 3,
                       ),
@@ -734,6 +866,180 @@ class _AddStudentDialogState extends State<_AddStudentDialog> {
           onPressed: _submit,
           style: AppTheme.smallButton,
           child: const Text('Add'),
+        ),
+      ],
+    );
+  }
+}
+
+/// Multi-select picker over the teacher's existing vocabulary (words already
+/// covered in past sessions or prep). Selecting reuses the shared item — no
+/// new translations, audio or metadata are created.
+class _AddExistingVocabDialog extends StatefulWidget {
+  final List<Map<String, dynamic>> catalog;
+  final Set<String> alreadyPrepared;
+
+  const _AddExistingVocabDialog({
+    required this.catalog,
+    required this.alreadyPrepared,
+  });
+
+  @override
+  State<_AddExistingVocabDialog> createState() =>
+      _AddExistingVocabDialogState();
+}
+
+class _AddExistingVocabDialogState extends State<_AddExistingVocabDialog> {
+  final Set<String> _selected = {};
+  String _query = '';
+
+  @override
+  Widget build(BuildContext context) {
+    final q = _query.trim().toLowerCase();
+    final items = widget.catalog.where((w) {
+      if (q.isEmpty) return true;
+      final en = (w['english_word'] as String? ?? '').toLowerCase();
+      final ms = (w['malay_word'] as String? ?? '').toLowerCase();
+      final zh = (w['chinese_word'] as String? ?? '');
+      final key = (w['english_key'] as String? ?? '').toLowerCase();
+      return en.contains(q) ||
+          ms.contains(q) ||
+          zh.contains(_query.trim()) ||
+          key.contains(q);
+    }).toList();
+
+    return AlertDialog(
+      title: Text('Add Vocabulary', style: AppTheme.subheading),
+      content: SizedBox(
+        width: 400,
+        height: 460,
+        child: Column(
+          children: [
+            TextField(
+              autofocus: true,
+              decoration: const InputDecoration(
+                hintText: 'Search your words…',
+                prefixIcon: Icon(Icons.search, size: 20),
+                isDense: true,
+              ),
+              onChanged: (v) => setState(() => _query = v),
+            ),
+            const SizedBox(height: AppTheme.sm),
+            Expanded(
+              child: items.isEmpty
+                  ? Center(
+                      child: Text('No matching words.',
+                          style: AppTheme.caption),
+                    )
+                  : ListView.builder(
+                      itemCount: items.length,
+                      itemBuilder: (_, i) {
+                        final w = items[i];
+                        final key = w['english_key'] as String? ?? '';
+                        final english = w['english_word'] as String? ?? key;
+                        final malay = w['malay_word'] as String? ?? '';
+                        final chinese = w['chinese_word'] as String? ?? '';
+                        final owned = widget.alreadyPrepared.contains(key);
+                        final checked = _selected.contains(key);
+                        return CheckboxListTile(
+                          value: owned || checked,
+                          onChanged: owned
+                              ? null
+                              : (v) => setState(() {
+                                    if (v == true) {
+                                      _selected.add(key);
+                                    } else {
+                                      _selected.remove(key);
+                                    }
+                                  }),
+                          activeColor: TeacherShell.accent,
+                          controlAffinity: ListTileControlAffinity.leading,
+                          dense: true,
+                          title: Text(
+                            english,
+                            style: AppTheme.body
+                                .copyWith(fontWeight: FontWeight.w700),
+                          ),
+                          subtitle: Text(
+                            [
+                              if (malay.isNotEmpty) malay,
+                              if (chinese.isNotEmpty) chinese,
+                              if (owned) 'already added',
+                            ].join('  ·  '),
+                            style: AppTheme.caption,
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: _selected.isEmpty
+              ? null
+              : () => Navigator.pop(context, _selected.toList()),
+          style: AppTheme.smallButton,
+          child: Text(_selected.isEmpty
+              ? 'Add'
+              : 'Add ${_selected.length}'),
+        ),
+      ],
+    );
+  }
+}
+
+/// Picks another saved class to copy prepared words from.
+class _CopyFromClassDialog extends StatelessWidget {
+  final List<Map<String, dynamic>> sources;
+
+  const _CopyFromClassDialog({required this.sources});
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text('Copy From Class', style: AppTheme.subheading),
+      content: SizedBox(
+        width: 380,
+        height: 360,
+        child: ListView.builder(
+          itemCount: sources.length,
+          itemBuilder: (_, i) {
+            final c = sources[i];
+            final count =
+                ((c['prepared_words'] as List?) ?? const []).length;
+            return ListTile(
+              leading: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: TeacherShell.accentLight,
+                  borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+                ),
+                child: const Icon(Icons.school_rounded,
+                    size: 20, color: TeacherShell.accent),
+              ),
+              title: Text(c['name'] as String? ?? 'Class',
+                  style: AppTheme.body.copyWith(fontWeight: FontWeight.w700)),
+              subtitle: Text(
+                '$count prepared word${count == 1 ? '' : 's'}',
+                style: AppTheme.caption,
+              ),
+              trailing: const Icon(Icons.chevron_right_rounded),
+              onTap: () => Navigator.pop(context, c),
+            );
+          },
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
         ),
       ],
     );

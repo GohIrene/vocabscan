@@ -190,6 +190,10 @@ def child_adventure(child_id):
                 "avatar_id": child.get("avatar_id"),
                 "stage": cp.stage_for_xp(child.get("total_xp", 0)),
             },
+            # Child-wide totals for the area screen's stat header. Keys already
+            # ride along inside `summary` (total_keys / max_total_keys).
+            "total_xp": int(child.get("total_xp") or 0),
+            "treasure_count": cp.treasure_count(state.db, child_id),
             **summary,
         })
     except PyMongoError:

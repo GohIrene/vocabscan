@@ -1,18 +1,85 @@
 import 'package:flutter/material.dart';
+
 import '../api_service.dart';
 import '../auth_service.dart';
 import '../learning_flow.dart';
+import '../theme/app_theme.dart';
+import '../widgets/teacher_shell.dart';
+import '../widgets/teacher_ui.dart';
 import 'classroom_manage_screen.dart';
 import 'scan_object_screen.dart';
 import 'teacher_class_session_screen.dart';
 import 'teacher_projection_screen.dart';
 import 'welcome_screen.dart';
-import '../theme/app_theme.dart';
 
-class TeacherHomeScreen extends StatelessWidget {
+/// Teacher Mode: a dashboard, not a launcher.
+///
+/// The sections are views of one screen rather than separate routes — the rail
+/// stays put and only the body swaps, mirroring Parent Mode. Screens that
+/// deserve full focus (a live session, projection, batch upload) are pushed on
+/// top. Every displayed number comes from the existing classroom and
+/// class-session APIs.
+class TeacherHomeScreen extends StatefulWidget {
   const TeacherHomeScreen({super.key});
 
-  void _logout(BuildContext context) {
+  @override
+  State<TeacherHomeScreen> createState() => _TeacherHomeScreenState();
+}
+
+class _TeacherHomeScreenState extends State<TeacherHomeScreen> {
+  TeacherNavItem _section = TeacherNavItem.dashboard;
+
+  List<Map<String, dynamic>> _classrooms = const [];
+  Map<String, dynamic>? _sessionsSummary;
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  String get _username =>
+      AuthService.instance.currentUser?['username'] as String? ?? '';
+
+  String get _teacherId {
+    final user = AuthService.instance.currentUser ?? const {};
+    return (user['user_id'] ?? user['username'] ?? '').toString();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      // A failure in either call shouldn't blank the whole dashboard, so each
+      // is tolerated independently.
+      final rooms = await ApiService.getClassrooms(_teacherId)
+          .catchError((_) => <Map<String, dynamic>>[]);
+      Map<String, dynamic>? summary;
+      try {
+        summary = await ApiService.getClassSessions(_teacherId);
+      } catch (_) {
+        summary = null;
+      }
+      if (!mounted) return;
+      setState(() {
+        _classrooms = rooms;
+        _sessionsSummary = summary;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString();
+        _loading = false;
+      });
+    }
+  }
+
+  void _logout() {
     AuthService.instance.logout();
     Navigator.pushAndRemoveUntil(
       context,
@@ -21,18 +88,34 @@ class TeacherHomeScreen extends StatelessWidget {
     );
   }
 
+  // ── Derived stats (all from real data) ──────────────────────────────────────
+
+  int get _savedClasses => _classrooms.length;
+
+  int get _totalStudents => _classrooms.fold(
+      0, (sum, r) => sum + (r['student_count'] as num? ?? 0).toInt());
+
+  int get _sessionCount =>
+      (_sessionsSummary?['session_count'] as num? ?? 0).toInt();
+
+  int get _liveCount => (_sessionsSummary?['live_count'] as num? ?? 0).toInt();
+
+  // ── Actions ────────────────────────────────────────────────────────────────
+
   /// Running a session against a saved class is what lets students tap their
   /// name and earn XP. Teachers with no saved classes — or who just want a
   /// quick session — go straight through to the original nickname flow.
-  Future<void> _startClassSession(
-      BuildContext context, String teacherId) async {
-    List<Map<String, dynamic>> rooms = const [];
-    try {
-      rooms = await ApiService.getClassrooms(teacherId);
-    } catch (_) {
-      // A class list we can't load must never block starting a session.
+  Future<void> _startClassSession() async {
+    final teacherId = _teacherId;
+    List<Map<String, dynamic>> rooms = _classrooms;
+    if (rooms.isEmpty) {
+      try {
+        rooms = await ApiService.getClassrooms(teacherId);
+      } catch (_) {
+        // A class list we can't load must never block starting a session.
+      }
     }
-    if (!context.mounted) return;
+    if (!mounted) return;
 
     String? classroomId;
     if (rooms.isNotEmpty) {
@@ -51,8 +134,8 @@ class TeacherHomeScreen extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(vertical: AppTheme.sm),
                   child: Row(
                     children: [
-                      const Icon(Icons.school_outlined,
-                          size: 20, color: AppTheme.primary),
+                      const Icon(Icons.school_rounded,
+                          size: 20, color: TeacherShell.accent),
                       const SizedBox(width: AppTheme.md),
                       Expanded(
                         child: Text(
@@ -79,7 +162,8 @@ class TeacherHomeScreen extends StatelessWidget {
                     Expanded(
                       child: Text(
                         'Quick session — students type their name',
-                        style: AppTheme.body.copyWith(color: AppTheme.textLight),
+                        style:
+                            AppTheme.body.copyWith(color: AppTheme.textLight),
                       ),
                     ),
                   ],
@@ -93,8 +177,8 @@ class TeacherHomeScreen extends StatelessWidget {
       classroomId = choice.isEmpty ? null : choice;
     }
 
-    if (!context.mounted) return;
-    Navigator.push(
+    if (!mounted) return;
+    await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => TeacherClassSessionScreen(
@@ -103,139 +187,377 @@ class TeacherHomeScreen extends StatelessWidget {
         ),
       ),
     );
+    if (mounted) _load();
   }
+
+  void _openProjectMode() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const ScanObjectScreen(
+          flowMode: LearningFlowMode.teacherProjection,
+        ),
+      ),
+    );
+  }
+
+  // ── Build ──────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
-    final user = AuthService.instance.currentUser!;
-    final teacherId =
-        (user['user_id'] ?? user['username'] ?? '').toString();
+    final (title, subtitle) = switch (_section) {
+      TeacherNavItem.dashboard => (
+          '${TeacherShell.greeting()}, $_username! 👋',
+          'Manage your classroom and live learning sessions.'
+        ),
+      TeacherNavItem.classes => (
+          'My Classes',
+          'Saved rosters, XP, levels, badges and prepared vocabulary.'
+        ),
+      TeacherNavItem.liveSession => (
+          'Live Session',
+          'Start a class session and push quizzes in real time.'
+        ),
+      TeacherNavItem.reports => (
+          'Reports',
+          'Session summaries and leaderboards from real class data.'
+        ),
+      TeacherNavItem.settings => ('Settings', 'Your account and this device.'),
+    };
 
-    return Scaffold(
-      backgroundColor: AppTheme.background,
-      body: SafeArea(
+    return TeacherShell(
+      selected: _section,
+      onSelect: (item) => setState(() => _section = item),
+      onLogout: _logout,
+      username: _username,
+      title: title,
+      subtitle: subtitle,
+      headerAction: (_section == TeacherNavItem.dashboard ||
+              _section == TeacherNavItem.liveSession)
+          ? TeacherPrimaryButton(
+              label: 'Create Session',
+              icon: Icons.add_rounded,
+              onPressed: _startClassSession,
+            )
+          : null,
+      child: _buildSection(),
+    );
+  }
+
+  Widget _buildSection() {
+    if (_loading && _section == TeacherNavItem.dashboard) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    return switch (_section) {
+      TeacherNavItem.dashboard => _buildDashboard(),
+      TeacherNavItem.classes =>
+        ClassroomManageView(teacherId: _teacherId, onChanged: _load),
+      TeacherNavItem.liveSession => _buildLiveSession(),
+      TeacherNavItem.reports => TeacherReportsView(teacherId: _teacherId),
+      TeacherNavItem.settings => _buildSettings(),
+    };
+  }
+
+  // ── Dashboard ────────────────────────────────────────────────────────────
+
+  Widget _buildDashboard() {
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding:
+            const EdgeInsets.fromLTRB(AppTheme.xl, 0, AppTheme.xl, AppTheme.xxl),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Header bar
-            Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppTheme.lg,
-                vertical: AppTheme.md,
+            if (_error != null) ...[
+              _buildErrorBanner(),
+              const SizedBox(height: AppTheme.lg),
+            ],
+            // ── Stat tiles (real data only) ──
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final tiles = [
+                  TeacherStatCard(
+                    icon: Icons.class_rounded,
+                    tint: TeacherShell.accent,
+                    value: '$_savedClasses',
+                    label: 'Saved Classes',
+                  ),
+                  TeacherStatCard(
+                    icon: Icons.groups_rounded,
+                    tint: AppTheme.primary,
+                    value: '$_totalStudents',
+                    label: 'Total Students',
+                  ),
+                  TeacherStatCard(
+                    icon: Icons.assignment_rounded,
+                    tint: AppTheme.adventure,
+                    value: '$_sessionCount',
+                    label: 'Sessions Run',
+                  ),
+                  TeacherStatCard(
+                    icon: Icons.podcasts_rounded,
+                    tint: AppTheme.success,
+                    value: '$_liveCount',
+                    label: 'Live Now',
+                  ),
+                ];
+                final cols = constraints.maxWidth >= 720
+                    ? 4
+                    : constraints.maxWidth >= 420
+                        ? 2
+                        : 1;
+                return _grid(tiles, cols);
+              },
+            ),
+            const SizedBox(height: AppTheme.xl),
+
+            Text('Quick Actions',
+                style: AppTheme.subheading
+                    .copyWith(fontSize: 18, fontWeight: FontWeight.w800)),
+            const SizedBox(height: AppTheme.md),
+            Wrap(
+              spacing: AppTheme.md,
+              runSpacing: AppTheme.md,
+              children: [
+                _QuickAction(
+                  icon: Icons.podcasts_rounded,
+                  tint: TeacherShell.accent,
+                  title: 'Start Live Session',
+                  subtitle: 'Create a code for students to join',
+                  onTap: _startClassSession,
+                ),
+                _QuickAction(
+                  icon: Icons.center_focus_strong_rounded,
+                  tint: AppTheme.primary,
+                  title: 'Project Mode',
+                  subtitle: 'Scan objects to display for your class',
+                  onTap: _openProjectMode,
+                ),
+                _QuickAction(
+                  icon: Icons.groups_rounded,
+                  tint: AppTheme.adventure,
+                  title: 'Manage Classes',
+                  subtitle: 'Rosters and prepared vocabulary',
+                  onTap: () =>
+                      setState(() => _section = TeacherNavItem.classes),
+                ),
+                _QuickAction(
+                  icon: Icons.insights_rounded,
+                  tint: AppTheme.success,
+                  title: 'View Reports',
+                  subtitle: 'Session summaries and progress',
+                  onTap: () =>
+                      setState(() => _section = TeacherNavItem.reports),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppTheme.xl),
+
+            Row(
+              children: [
+                Expanded(
+                  child: Text('Recent Classes',
+                      style: AppTheme.subheading.copyWith(
+                          fontSize: 18, fontWeight: FontWeight.w800)),
+                ),
+                TextButton(
+                  onPressed: () =>
+                      setState(() => _section = TeacherNavItem.classes),
+                  child: const Text('View All'),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppTheme.md),
+            if (_classrooms.isEmpty)
+              TeacherEmptyState(
+                emoji: '📚',
+                title: 'No classes yet',
+                message:
+                    'Create a class to save your roster and prepare vocabulary.',
+                action: TeacherSecondaryButton(
+                  label: 'Manage Classes',
+                  icon: Icons.groups_rounded,
+                  onPressed: () =>
+                      setState(() => _section = TeacherNavItem.classes),
+                ),
+              )
+            else
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final cols = constraints.maxWidth >= 720 ? 2 : 1;
+                  final cards = _classrooms.take(6).map((r) {
+                    final count = (r['student_count'] as num? ?? 0).toInt();
+                    final prepared =
+                        ((r['prepared_words'] as List?) ?? const []).length;
+                    return TeacherClassCard(
+                      name: r['name'] as String? ?? 'Class',
+                      meta: '$count student${count == 1 ? '' : 's'}'
+                          '${prepared == 0 ? '' : ' · $prepared prepared'}',
+                      onTap: () =>
+                          setState(() => _section = TeacherNavItem.classes),
+                    );
+                  }).toList();
+                  return _grid(cards, cols);
+                },
               ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Hi, ${user['username']}!',
-                      style: AppTheme.body.copyWith(
-                        fontWeight: FontWeight.w700,
-                        color: AppTheme.textDark,
-                      ),
-                      overflow: TextOverflow.ellipsis,
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildErrorBanner() {
+    return Container(
+      padding: const EdgeInsets.all(AppTheme.md),
+      decoration: BoxDecoration(
+        color: AppTheme.errorLight,
+        borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.cloud_off_rounded, color: AppTheme.error, size: 20),
+          const SizedBox(width: AppTheme.sm),
+          Expanded(
+            child: Text('Some data could not load. Pull to refresh.',
+                style: AppTheme.caption.copyWith(color: AppTheme.textDark)),
+          ),
+          TextButton(onPressed: _load, child: const Text('Retry')),
+        ],
+      ),
+    );
+  }
+
+  /// Simple responsive grid: lays [items] into [cols] equal columns.
+  Widget _grid(List<Widget> items, int cols) {
+    final rows = <Widget>[];
+    for (var i = 0; i < items.length; i += cols) {
+      final rowItems = items.skip(i).take(cols).toList();
+      rows.add(Padding(
+        padding: EdgeInsets.only(
+            bottom: i + cols < items.length ? AppTheme.md : 0.0),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (var j = 0; j < cols; j++) ...[
+              if (j > 0) const SizedBox(width: AppTheme.md),
+              Expanded(
+                child: j < rowItems.length
+                    ? rowItems[j]
+                    : const SizedBox.shrink(),
+              ),
+            ],
+          ],
+        ),
+      ));
+    }
+    return Column(children: rows);
+  }
+
+  // ── Live Session section ───────────────────────────────────────────────────
+
+  Widget _buildLiveSession() {
+    return SingleChildScrollView(
+      padding:
+          const EdgeInsets.fromLTRB(AppTheme.xl, 0, AppTheme.xl, AppTheme.xxl),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 640),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              TeacherSectionCard(
+                title: 'Create Live Session',
+                icon: Icons.podcasts_rounded,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Generate a class code students enter to join. Pick a '
+                      'saved class so they tap their name and keep their XP, '
+                      'or run a quick session where they type a nickname.',
+                      style: AppTheme.caption,
                     ),
-                  ),
-                  TextButton.icon(
-                    onPressed: () => _logout(context),
-                    icon: const Icon(Icons.logout, size: 16),
-                    label: const Text('Log Out'),
-                    style: AppTheme.backButtonStyle,
-                  ),
+                    const SizedBox(height: AppTheme.lg),
+                    TeacherPrimaryButton(
+                      label: 'Create Session',
+                      icon: Icons.add_rounded,
+                      onPressed: _startClassSession,
+                      expand: true,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: AppTheme.lg),
+              TeacherSectionCard(
+                title: 'Project Mode',
+                icon: Icons.center_focus_strong_rounded,
+                iconTint: AppTheme.primary,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Scan real objects and display the trilingual word '
+                      '(English, Bahasa Melayu, 中文) for the whole class — no '
+                      'code needed.',
+                      style: AppTheme.caption,
+                    ),
+                    const SizedBox(height: AppTheme.lg),
+                    TeacherSecondaryButton(
+                      label: 'Open Project Mode',
+                      icon: Icons.center_focus_strong_rounded,
+                      onPressed: _openProjectMode,
+                      tint: AppTheme.primary,
+                      expand: true,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── Settings ───────────────────────────────────────────────────────────────
+
+  Widget _buildSettings() {
+    return SingleChildScrollView(
+      padding:
+          const EdgeInsets.fromLTRB(AppTheme.xl, 0, AppTheme.xl, AppTheme.xxl),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 560),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            TeacherSectionCard(
+              title: 'Account',
+              icon: Icons.person_rounded,
+              child: Column(
+                children: [
+                  _settingRow('Username', _username),
+                  const SizedBox(height: AppTheme.sm),
+                  _settingRow('Role', 'Teacher'),
+                  const SizedBox(height: AppTheme.sm),
+                  _settingRow('Saved classes', '$_savedClasses'),
+                  const SizedBox(height: AppTheme.sm),
+                  _settingRow('Total students', '$_totalStudents'),
                 ],
               ),
             ),
-
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: AppTheme.xl),
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 520),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const SizedBox(height: AppTheme.md),
-                        Image.asset(
-                          'assets/icons/teacher.png',
-                          width: 44,
-                          height: 44,
-                          errorBuilder: (context, error, stackTrace) {
-                            return const Icon(Icons.person_2_outlined, size: 44);
-                          },
-                        ),
-                        const SizedBox(height: AppTheme.xs),
-                        Text(
-                          'Teacher Panel',
-                          style: AppTheme.heading.copyWith(
-                            fontSize: 28,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        const SizedBox(height: AppTheme.xxl),
-
-                        _ActionCard(
-                          iconPath: 'assets/icons/camera.png',
-                          title: 'Project Mode',
-                          subtitle: 'Scan objects to display for your class',
-                          color: AppTheme.primary,
-                          onTap: () => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              // Labelled for clarity only — Project Mode
-                              // behaves exactly as before; no guided-flow
-                              // branch applies to it.
-                              builder: (_) => const ScanObjectScreen(
-                                flowMode: LearningFlowMode.teacherProjection,
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: AppTheme.lg),
-
-                        _ActionCard(
-                          iconPath: 'assets/icons/link.png',
-                          title: 'Create Class Session',
-                          subtitle: 'Generate a code for students to join',
-                          color: AppTheme.secondary,
-                          onTap: () => _startClassSession(context, teacherId),
-                        ),
-                        const SizedBox(height: AppTheme.lg),
-
-                        _ActionCard(
-                          iconPath: 'assets/icons/school.png',
-                          title: 'My Classes',
-                          subtitle: 'Saved rosters, XP, levels and badges',
-                          color: AppTheme.adventure,
-                          onTap: () => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => ClassroomManageScreen(
-                                teacherId: teacherId,
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: AppTheme.lg),
-
-                        _ActionCard(
-                          iconPath: 'assets/icons/statistic.png',
-                          title: 'Class Reports',
-                          subtitle: 'View session summaries and progress',
-                          color: AppTheme.success,
-                          onTap: () => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => TeacherProjectionScreen(
-                                teacherId: teacherId,
-                                teacherName: user['username'] as String?,
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: AppTheme.xxl),
-                      ],
-                    ),
-                  ),
-                ),
+            const SizedBox(height: AppTheme.lg),
+            OutlinedButton.icon(
+              onPressed: _logout,
+              icon: const Icon(Icons.logout_rounded, size: 18),
+              label: const Text('Log Out'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppTheme.error,
+                side: BorderSide(color: AppTheme.error.withValues(alpha: 0.5)),
+                minimumSize: const Size.fromHeight(50),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AppTheme.radiusSm)),
               ),
             ),
           ],
@@ -243,28 +565,45 @@ class TeacherHomeScreen extends StatelessWidget {
       ),
     );
   }
+
+  Widget _settingRow(String label, String value) {
+    return Row(
+      children: [
+        Expanded(child: Text(label, style: AppTheme.caption)),
+        Flexible(
+          child: Text(
+            value,
+            textAlign: TextAlign.right,
+            overflow: TextOverflow.ellipsis,
+            style: AppTheme.body.copyWith(fontWeight: FontWeight.w700),
+          ),
+        ),
+      ],
+    );
+  }
 }
 
-class _ActionCard extends StatefulWidget {
-  final String iconPath;
+/// A tappable quick-action tile on the dashboard.
+class _QuickAction extends StatefulWidget {
+  final IconData icon;
+  final Color tint;
   final String title;
   final String subtitle;
-  final Color color;
   final VoidCallback onTap;
 
-  const _ActionCard({
-    required this.iconPath,
+  const _QuickAction({
+    required this.icon,
+    required this.tint,
     required this.title,
     required this.subtitle,
-    required this.color,
     required this.onTap,
   });
 
   @override
-  State<_ActionCard> createState() => _ActionCardState();
+  State<_QuickAction> createState() => _QuickActionState();
 }
 
-class _ActionCardState extends State<_ActionCard> {
+class _QuickActionState extends State<_QuickAction> {
   bool _hovering = false;
 
   @override
@@ -276,18 +615,19 @@ class _ActionCardState extends State<_ActionCard> {
       child: GestureDetector(
         onTap: widget.onTap,
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          width: double.infinity,
-          padding: const EdgeInsets.all(AppTheme.xl),
+          duration: const Duration(milliseconds: 150),
+          width: 240,
+          padding: const EdgeInsets.all(AppTheme.lg),
           decoration: BoxDecoration(
-            color: widget.color,
-            borderRadius: BorderRadius.circular(20),
+            color: AppTheme.surface,
+            borderRadius: BorderRadius.circular(AppTheme.radiusMd),
             boxShadow: [
               BoxShadow(
-                color: widget.color
-                    .withValues(alpha: _hovering ? 0.50 : 0.25),
-                blurRadius: _hovering ? 24 : 12,
-                offset: const Offset(0, 6),
+                color: _hovering
+                    ? widget.tint.withValues(alpha: 0.28)
+                    : AppTheme.shadowColor,
+                blurRadius: _hovering ? 20 : 12,
+                offset: const Offset(0, 5),
               ),
             ],
           ),
@@ -297,49 +637,32 @@ class _ActionCardState extends State<_ActionCard> {
           child: Row(
             children: [
               Container(
-                width: 52,
-                height: 52,
-                decoration: const BoxDecoration(
-                  color: AppTheme.surface,
-                  shape: BoxShape.circle,
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: widget.tint.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(AppTheme.radiusSm),
                 ),
-                alignment: Alignment.center,
-                child: Image.asset(
-                  widget.iconPath,
-                  width: 28,
-                  height: 28,
-                  errorBuilder: (context, error, stackTrace) {
-                    return const Icon(Icons.image_not_supported, size: 28);
-                  },
-                ),
+                child: Icon(widget.icon, color: widget.tint, size: 22),
               ),
-              const SizedBox(width: AppTheme.lg),
+              const SizedBox(width: AppTheme.md),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      widget.title,
-                      style: AppTheme.body.copyWith(
-                        color: AppTheme.surface,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      widget.subtitle,
-                      style: AppTheme.caption.copyWith(
-                        color: AppTheme.surface.withValues(alpha: 0.85),
-                        fontSize: 13,
-                      ),
-                    ),
+                    Text(widget.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTheme.body
+                            .copyWith(fontWeight: FontWeight.w800, fontSize: 15)),
+                    const SizedBox(height: 2),
+                    Text(widget.subtitle,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTheme.caption.copyWith(fontSize: 12)),
                   ],
                 ),
               ),
-              Icon(Icons.arrow_forward_ios,
-                  size: 16,
-                  color: AppTheme.surface.withValues(alpha: 0.7)),
             ],
           ),
         ),

@@ -40,6 +40,12 @@ class _ChildAdventureAreaScreenState extends State<ChildAdventureAreaScreen> {
   /// Carried into a learning cycle so the speaking step can name the buddy.
   String? _avatarId;
 
+  /// Child-wide totals for the stat header (XP, keys, treasures).
+  int _totalXp = 0;
+  int _totalKeys = 0;
+  int _maxTotalKeys = 0;
+  int _treasureCount = 0;
+
   bool _loading = true;
   String? _error;
 
@@ -66,6 +72,10 @@ class _ChildAdventureAreaScreenState extends State<ChildAdventureAreaScreen> {
 
       setState(() {
         _avatarId = ((data['avatar'] as Map?)?['avatar_id']) as String?;
+        _totalXp = (data['total_xp'] as num?)?.toInt() ?? 0;
+        _totalKeys = (data['total_keys'] as num?)?.toInt() ?? 0;
+        _maxTotalKeys = (data['max_total_keys'] as num?)?.toInt() ?? 0;
+        _treasureCount = (data['treasure_count'] as num?)?.toInt() ?? 0;
         _area = index >= 0 ? areas[index] : null;
         // For a locked area, name the place that has to be finished first —
         // "locked" on its own tells a child nothing actionable.
@@ -208,6 +218,31 @@ class _ChildAdventureAreaScreenState extends State<ChildAdventureAreaScreen> {
                 textAlign: TextAlign.center,
                 style: AppTheme.body.copyWith(color: AppTheme.textLight),
               ),
+              const SizedBox(height: AppTheme.lg),
+
+              // Child-wide totals, echoing the reference board's top strip.
+              Wrap(
+                alignment: WrapAlignment.center,
+                spacing: AppTheme.sm,
+                runSpacing: AppTheme.sm,
+                children: [
+                  _StatChip(
+                    asset: AdventureIcons.xp,
+                    label: '$_totalXp XP',
+                    tint: AppTheme.treasure,
+                  ),
+                  _StatChip(
+                    asset: AdventureIcons.key,
+                    label: '$_totalKeys / $_maxTotalKeys Keys',
+                    tint: AppTheme.warning,
+                  ),
+                  _StatChip(
+                    asset: AdventureIcons.treasure,
+                    label: '$_treasureCount Treasures',
+                    tint: AppTheme.secondary,
+                  ),
+                ],
+              ),
               const SizedBox(height: AppTheme.xl),
 
               _AreaScene(
@@ -255,14 +290,12 @@ class _ChildAdventureAreaScreenState extends State<ChildAdventureAreaScreen> {
                   ),
                   child: Row(
                     children: [
-                      Icon(
+                      SvgPicture.asset(
                         isCompleted
-                            ? Icons.emoji_events_rounded
-                            : Icons.lock_rounded,
-                        size: 20,
-                        color: isCompleted
-                            ? AppTheme.success
-                            : AppTheme.adventure,
+                            ? AdventureIcons.completed
+                            : AdventureIcons.locked,
+                        width: 26,
+                        height: 26,
                       ),
                       const SizedBox(width: AppTheme.md),
                       Expanded(
@@ -382,11 +415,11 @@ class _AreaScene extends StatelessWidget {
               ),
             ),
           if (locked)
-            const Positioned(
+            Positioned(
               right: AppTheme.lg,
               top: AppTheme.lg,
-              child: Icon(Icons.lock_rounded,
-                  size: 26, color: AppTheme.textLight),
+              child: SvgPicture.asset(AdventureIcons.locked,
+                  width: 28, height: 28),
             ),
         ],
       ),
@@ -446,11 +479,11 @@ class _AreaScene extends StatelessWidget {
             ),
           ),
         if (locked)
-          const Positioned(
+          Positioned(
             right: AppTheme.lg,
             top: AppTheme.lg,
-            child: Icon(Icons.lock_rounded,
-                size: 26, color: AppTheme.textLight),
+            child: SvgPicture.asset(AdventureIcons.locked,
+                width: 28, height: 28),
           ),
       ],
     );
@@ -527,7 +560,8 @@ class _ProgressPanel extends StatelessWidget {
                   padding: const EdgeInsets.only(right: 6),
                   child: Opacity(
                     opacity: i < keys ? 1 : 0.22,
-                    child: const Text('🔑', style: TextStyle(fontSize: 22)),
+                    child: SvgPicture.asset(AdventureIcons.key,
+                        width: 24, height: 24),
                   ),
                 ),
             ],
@@ -538,6 +572,47 @@ class _ProgressPanel extends StatelessWidget {
             // to be spent — otherwise a child waits for a "use keys" button.
             'You earn a key every time this place grows a little more.',
             style: AppTheme.caption,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A rounded pill with a cute flat-vector icon and a value, for the child-wide
+/// totals strip at the top of the area screen.
+class _StatChip extends StatelessWidget {
+  final String asset;
+  final String label;
+  final Color tint;
+
+  const _StatChip({
+    required this.asset,
+    required this.label,
+    required this.tint,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppTheme.md, vertical: AppTheme.sm),
+      decoration: BoxDecoration(
+        color: tint.withValues(alpha: 0.13),
+        borderRadius: BorderRadius.circular(30),
+        border: Border.all(color: tint.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SvgPicture.asset(asset, width: 18, height: 18),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: AppTheme.caption.copyWith(
+              fontWeight: FontWeight.w700,
+              color: AppTheme.textDark,
+            ),
           ),
         ],
       ),
