@@ -166,6 +166,19 @@ class ApiService {
         .toList();
   }
 
+  /// One saved class, including its prepared vocabulary.
+  /// GET /classroom/`classroomId`
+  static Future<Map<String, dynamic>> getClassroom(String classroomId) async {
+    final response = await http
+        .get(Uri.parse('${AppConfig.baseUrl}/classroom/$classroomId'))
+        .timeout(const Duration(seconds: 10));
+    final body = utf8.decode(response.bodyBytes);
+    if (response.statusCode != 200) {
+      throw Exception('getClassroom failed (${response.statusCode}): $body');
+    }
+    return jsonDecode(body) as Map<String, dynamic>;
+  }
+
   /// Creates a saved class. POST /classroom/create
   static Future<Map<String, dynamic>> createClassroom(
       String teacherId, String name) async {

@@ -8,3 +8,7 @@ Pillow
 numpy
 flask-socketio
 eventlet
+faster-whisper
+# Pin below huggingface-hub 1.x: 1.24+ hard-requires click>=8.4.2, which
+# conflicts with gtts (needs click<8.2) used by generate_audio.py.
+huggingface-hub<1.0

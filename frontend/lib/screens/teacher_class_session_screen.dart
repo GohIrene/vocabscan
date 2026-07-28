@@ -12,6 +12,11 @@ import '../widgets/vocab_icon.dart';
 import 'batch_upload_screen.dart';
 import 'scan_object_screen.dart';
 
+// Mirror of the server's _MAX_SUMMARY_QUESTIONS: a quiz of more than this many
+// words is too long for young children, so "Send as Quiz" only quizzes the
+// first N picked; "Add to Pool" keeps them all for the summary quiz.
+const int _maxBatchQuizWords = 10;
+
 /// Live Class Code session (teacher side).
 ///
 /// Creates a session over REST, shows the projector-readable code, tracks the
@@ -297,6 +302,63 @@ class _TeacherClassSessionScreenState extends State<TeacherClassSessionScreen> {
     final sessionId = _sessionId;
     if (sessionId == null) return;
     _socket.pushSummaryQuiz(sessionId);
+  }
+
+  /// Lets the teacher pick from this class's prepared vocabulary (staged
+  /// ahead of time via "Prep Photos" / "Add Vocabulary" on the class card) and
+  /// push the selection as a quiz or add it to the pool — without re-uploading
+  /// or re-scanning anything.
+  Future<void> _pickFromPrepared() async {
+    final sessionId = _sessionId;
+    final classroomId = widget.classroomId;
+    if (sessionId == null || classroomId == null) return;
+
+    List<String> prepared;
+    try {
+      final room = await ApiService.getClassroom(classroomId);
+      prepared = (room['prepared_words'] as List? ?? const [])
+          .whereType<String>()
+          .toList();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not load prepared vocabulary: $e')),
+      );
+      return;
+    }
+    if (!mounted) return;
+
+    if (prepared.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'No prepared vocabulary yet — add some from "My Classes" before class.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    final result = await showDialog<_PreparedVocabResult>(
+      context: context,
+      builder: (_) => _PreparedVocabDialog(englishKeys: prepared),
+    );
+    if (result == null || result.keys.isEmpty) return;
+
+    if (result.sendNow) {
+      _socket.pushBatchQuiz(sessionId, result.keys);
+    } else {
+      _socket.stageBatchWords(sessionId, result.keys);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '${result.keys.length} word${result.keys.length == 1 ? '' : 's'} '
+            'added to the pool',
+          ),
+        ),
+      );
+    }
   }
 
   void _endSession() {
@@ -603,6 +665,15 @@ class _TeacherClassSessionScreenState extends State<TeacherClassSessionScreen> {
             onPressed: _batchUpload,
             expand: true,
           ),
+          if (widget.classroomId != null) ...[
+            const SizedBox(height: AppTheme.md),
+            TeacherSecondaryButton(
+              label: 'Prepared Vocabulary',
+              icon: Icons.collections_bookmark_outlined,
+              onPressed: _pickFromPrepared,
+              expand: true,
+            ),
+          ],
           const SizedBox(height: AppTheme.md),
           TeacherSecondaryButton(
             label: 'Revise a Past Word',
@@ -632,6 +703,147 @@ class _TeacherClassSessionScreenState extends State<TeacherClassSessionScreen> {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Outcome of [_PreparedVocabDialog]: the chosen keys, and whether to push
+/// them as a live quiz right away (true) or just add them to the pool (false).
+class _PreparedVocabResult {
+  final List<String> keys;
+  final bool sendNow;
+  const _PreparedVocabResult(this.keys, this.sendNow);
+}
+
+/// Multi-select grid over a class's prepared vocabulary (staged ahead of time
+/// via "Prep Photos" / "Add Vocabulary" on the class card), so a teacher can
+/// push a quiz or top up the pool without re-uploading or re-scanning.
+class _PreparedVocabDialog extends StatefulWidget {
+  final List<String> englishKeys;
+
+  const _PreparedVocabDialog({required this.englishKeys});
+
+  @override
+  State<_PreparedVocabDialog> createState() => _PreparedVocabDialogState();
+}
+
+class _PreparedVocabDialogState extends State<_PreparedVocabDialog> {
+  final Set<String> _selected = {};
+
+  String _labelFor(String key) {
+    final spaced = key.replaceAll('_', ' ');
+    return spaced.isEmpty ? spaced : spaced[0].toUpperCase() + spaced.substring(1);
+  }
+
+  void _toggle(String key) {
+    setState(() {
+      if (!_selected.remove(key)) _selected.add(key);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final overCap = _selected.length > _maxBatchQuizWords;
+    return AlertDialog(
+      title: const Text('Prepared Vocabulary'),
+      content: SizedBox(
+        width: 420,
+        height: 440,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Pick words to send as a quiz or add to the pool.',
+              style: AppTheme.caption,
+            ),
+            const SizedBox(height: AppTheme.sm),
+            Expanded(
+              child: GridView.builder(
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 3,
+                  mainAxisSpacing: 10,
+                  crossAxisSpacing: 10,
+                  childAspectRatio: 0.85,
+                ),
+                itemCount: widget.englishKeys.length,
+                itemBuilder: (_, i) {
+                  final key = widget.englishKeys[i];
+                  final selected = _selected.contains(key);
+                  return GestureDetector(
+                    onTap: () => _toggle(key),
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: selected
+                            ? TeacherShell.accentLight
+                            : AppTheme.background,
+                        borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+                        border: Border.all(
+                          color: selected
+                              ? TeacherShell.accent
+                              : Colors.transparent,
+                          width: 2,
+                        ),
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          VocabIcon(englishKey: key, size: 40),
+                          const SizedBox(height: 6),
+                          Text(
+                            _labelFor(key),
+                            textAlign: TextAlign.center,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTheme.caption
+                                .copyWith(fontWeight: FontWeight.w700),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+            if (overCap) ...[
+              const SizedBox(height: AppTheme.sm),
+              Text(
+                'Only the first $_maxBatchQuizWords will be quizzed with '
+                '"Send as Quiz". Use "Add to Pool" to keep them all for later.',
+                style: AppTheme.caption.copyWith(color: AppTheme.textDark),
+              ),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        OutlinedButton(
+          onPressed: _selected.isEmpty
+              ? null
+              : () => Navigator.pop(
+                    context,
+                    _PreparedVocabResult(_selected.toList(), false),
+                  ),
+          child: const Text('Add to Pool'),
+        ),
+        FilledButton(
+          onPressed: _selected.isEmpty
+              ? null
+              : () => Navigator.pop(
+                    context,
+                    _PreparedVocabResult(
+                      _selected.take(_maxBatchQuizWords).toList(),
+                      true,
+                    ),
+                  ),
+          style: AppTheme.smallButton,
+          child: const Text('Send as Quiz'),
+        ),
+      ],
     );
   }
 }
