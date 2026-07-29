@@ -16,8 +16,10 @@ import '../socket_service.dart';
 import 'recognition_result_screen.dart';
 import '../theme/app_theme.dart';
 
-const double _focusW = 0.70;
-const double _focusH = 0.50;
+// Fraction of the preview's shorter dimension occupied by the (square)
+// focus guide. Used identically by the on-screen painter and by
+// `_captureFrame`'s crop math so the two always agree exactly.
+const double _focusFraction = 0.90;
 
 class ScanObjectScreen extends StatefulWidget {
   final String? childId;
@@ -158,23 +160,49 @@ class _ScanObjectScreenState extends State<ScanObjectScreen> {
     }
   }
 
-  // Draws the current video frame to a canvas and crops to the focus-box region.
+  // Draws the current video frame to a canvas and crops to the focus-box
+  // region. The video is displayed with CSS `object-fit: cover`, which scales
+  // the raw frame up and crops its overflow to fill the preview box, so the
+  // guide's square (a fraction of the *displayed* box, see
+  // `_FocusBoxPainter`) has to be mapped back into raw video pixel space via
+  // that same cover transform — otherwise the visible guide and the captured
+  // crop drift apart whenever the preview's aspect ratio differs from the
+  // camera's.
   Future<Uint8List?> _captureFrame() async {
     final vw = _video.videoWidth;
     final vh = _video.videoHeight;
     if (vw == 0 || vh == 0) return null;
 
+    final rect = _video.getBoundingClientRect();
+    final dispW = rect.width.toDouble();
+    final dispH = rect.height.toDouble();
+    if (dispW <= 0 || dispH <= 0) return null;
+
+    // object-fit: cover scales the video by the larger of the two ratios so
+    // it fully covers the box, then centers and crops the overflow.
+    final scale = math.max(dispW / vw, dispH / vh);
+    final visibleW = dispW / scale;
+    final visibleH = dispH / scale;
+    final originX = (vw - visibleW) / 2;
+    final originY = (vh - visibleH) / 2;
+
+    final squareSide = math.min(dispW, dispH) * _focusFraction;
+    final dispLeft = (dispW - squareSide) / 2;
+    final dispTop = (dispH - squareSide) / 2;
+
+    final rawSide =
+        (squareSide / scale).round().clamp(1, math.min(vw, vh)).toInt();
+    final rawLeft =
+        (originX + dispLeft / scale).round().clamp(0, vw - rawSide).toInt();
+    final rawTop =
+        (originY + dispTop / scale).round().clamp(0, vh - rawSide).toInt();
+
     final full = html.CanvasElement(width: vw, height: vh);
     full.context2D.drawImage(_video, 0, 0);
 
-    final cw = (vw * _focusW).round();
-    final ch = (vh * _focusH).round();
-    final cx = ((vw - cw) / 2).round();
-    final cy = ((vh - ch) / 2).round();
-
-    final crop = html.CanvasElement(width: cw, height: ch);
-    crop.context2D
-        .drawImageScaledFromSource(full, cx, cy, cw, ch, 0, 0, cw, ch);
+    final crop = html.CanvasElement(width: rawSide, height: rawSide);
+    crop.context2D.drawImageScaledFromSource(
+        full, rawLeft, rawTop, rawSide, rawSide, 0, 0, rawSide, rawSide);
     return _canvasToBytes(crop);
   }
 
@@ -432,7 +460,7 @@ class _ScanObjectScreenState extends State<ScanObjectScreen> {
       borderRadius: BorderRadius.circular(20),
       child: Container(
         width: double.infinity,
-        height: 280,
+        height: 360,
         decoration: BoxDecoration(
           color: Colors.black,
           borderRadius: BorderRadius.circular(20),
@@ -758,11 +786,10 @@ class _ScanObjectScreenState extends State<ScanObjectScreen> {
 class _FocusBoxPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
-    final boxW = size.width * _focusW;
-    final boxH = size.height * _focusH;
-    final left = (size.width - boxW) / 2;
-    final top = (size.height - boxH) / 2;
-    final rect = Rect.fromLTWH(left, top, boxW, boxH);
+    final side = math.min(size.width, size.height) * _focusFraction;
+    final left = (size.width - side) / 2;
+    final top = (size.height - side) / 2;
+    final rect = Rect.fromLTWH(left, top, side, side);
 
     // Dim area outside the focus box
     canvas.drawPath(
@@ -799,17 +826,17 @@ class _FocusBoxPainter extends CustomPainter {
     canvas.drawLine(Offset(left, top + cl), Offset(left, top), corner);
     canvas.drawLine(Offset(left, top), Offset(left + cl, top), corner);
     canvas.drawLine(
-        Offset(left + boxW - cl, top), Offset(left + boxW, top), corner);
+        Offset(left + side - cl, top), Offset(left + side, top), corner);
     canvas.drawLine(
-        Offset(left + boxW, top), Offset(left + boxW, top + cl), corner);
+        Offset(left + side, top), Offset(left + side, top + cl), corner);
     canvas.drawLine(
-        Offset(left, top + boxH - cl), Offset(left, top + boxH), corner);
+        Offset(left, top + side - cl), Offset(left, top + side), corner);
     canvas.drawLine(
-        Offset(left, top + boxH), Offset(left + cl, top + boxH), corner);
-    canvas.drawLine(Offset(left + boxW - cl, top + boxH),
-        Offset(left + boxW, top + boxH), corner);
-    canvas.drawLine(Offset(left + boxW, top + boxH),
-        Offset(left + boxW, top + boxH - cl), corner);
+        Offset(left, top + side), Offset(left + cl, top + side), corner);
+    canvas.drawLine(Offset(left + side - cl, top + side),
+        Offset(left + side, top + side), corner);
+    canvas.drawLine(Offset(left + side, top + side),
+        Offset(left + side, top + side - cl), corner);
 
     // Hint label below the box
     final tp = TextPainter(
@@ -824,7 +851,7 @@ class _FocusBoxPainter extends CustomPainter {
       ),
       textDirection: TextDirection.ltr,
     )..layout();
-    tp.paint(canvas, Offset(left + (boxW - tp.width) / 2, top + boxH + 7));
+    tp.paint(canvas, Offset(left + (side - tp.width) / 2, top + side + 7));
   }
 
   void _drawDashedRect(
