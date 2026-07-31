@@ -50,8 +50,8 @@ class _AddChildScreenState extends State<AddChildScreen> {
     if (_nickname.isEmpty) return 'Please enter a nickname';
     // Optional — but if one was typed it has to be complete, or the child
     // would be locked out by a PIN nobody meant to set.
-    if (_pin.isNotEmpty && _pin.length != 4) {
-      return 'The PIN must be 4 digits, or leave it empty';
+    if (_pin.isNotEmpty && _pin.length != 3) {
+      return 'The PIN must be 3 digits, or leave it empty';
     }
     return null;
   }
@@ -281,10 +281,10 @@ class _AddChildScreenState extends State<AddChildScreen> {
           keyboardType: TextInputType.number,
           inputFormatters: [
             FilteringTextInputFormatter.digitsOnly,
-            LengthLimitingTextInputFormatter(4),
+            LengthLimitingTextInputFormatter(3),
           ],
           decoration: _inputDecoration(
-            hint: '4 digits, e.g. 1234',
+            hint: '3 digits, e.g. 123',
             icon: Icons.lock_outline,
           ),
           onChanged: (_) {

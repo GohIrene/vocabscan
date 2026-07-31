@@ -127,8 +127,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         const SizedBox(height: AppTheme.lg),
                         _buildField(
                           controller: _pinCtrl,
-                          label: 'PIN (3 digits)',
-                          hint: '● ● ●',
+                          label: 'PIN (4 digits)',
+                          hint: '4 digits',
                           icon: Icons.lock_outline,
                           obscure: true,
                           numeric: true,
@@ -137,7 +137,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         _buildField(
                           controller: _confirmPinCtrl,
                           label: 'Confirm PIN',
-                          hint: '● ● ●',
+                          hint: '4 digits',
                           icon: Icons.lock_outline,
                           obscure: true,
                           numeric: true,
@@ -237,7 +237,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           controller: controller,
           obscureText: obscure,
           keyboardType: numeric ? TextInputType.number : TextInputType.text,
-          maxLength: numeric ? 3 : null,
+          maxLength: numeric ? 4 : null,
           decoration: InputDecoration(
             hintText: hint,
             prefixIcon: Icon(icon, color: AppTheme.textLight, size: 20),

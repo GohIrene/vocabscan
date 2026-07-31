@@ -518,7 +518,7 @@ class ApiService {
     }
   }
 
-  /// Checks a child's optional 4-digit PIN. A child with no PIN always passes,
+  /// Checks a child's optional 3-digit PIN. A child with no PIN always passes,
   /// so this can be called unconditionally. POST /child-access/verify-pin
   static Future<Map<String, dynamic>> verifyChildPin(
       String childId, String pin) async {

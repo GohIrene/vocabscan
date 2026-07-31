@@ -1,7 +1,7 @@
 """Family Codes — how a child gets into Home Mode without a parent login.
 
 A child types the family code, picks their face, and (if their parent set one)
-types a 4-digit child PIN. That is the whole entry path: no username, no
+types a 3-digit child PIN. That is the whole entry path: no username, no
 parent password.
 
 The code is a *standing* credential on the parent's user document, unlike a

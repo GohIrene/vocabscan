@@ -8,7 +8,7 @@ import 'child_home_screen.dart';
 
 /// Home Mode entry for a child, with no parent login involved.
 ///
-/// Family code → pick your face → (optional) 4-digit child PIN → ChildHome.
+/// Family code → pick your face → (optional) 3-digit child PIN → ChildHome.
 /// This replaces the older "type your parent's username" lookup: a code is
 /// something a parent hands over deliberately, and it can be regenerated if
 /// it leaks, which a username cannot.
@@ -106,8 +106,8 @@ class _ChildLoginScreenState extends State<ChildLoginScreen> {
     final child = _selected;
     if (child == null) return;
     final pin = _pinCtrl.text.trim();
-    if (pin.length != 4) {
-      setState(() => _error = 'Your PIN has 4 numbers');
+    if (pin.length != 3) {
+      setState(() => _error = 'Your PIN has 3 numbers');
       return;
     }
 
@@ -392,7 +392,7 @@ class _ChildLoginScreenState extends State<ChildLoginScreen> {
         ),
         const SizedBox(height: AppTheme.xs),
         Text(
-          'Type your 4 secret numbers',
+          'Type your 3 secret numbers',
           textAlign: TextAlign.center,
           style: AppTheme.body.copyWith(fontSize: 14, color: AppTheme.primary),
         ),
@@ -403,7 +403,7 @@ class _ChildLoginScreenState extends State<ChildLoginScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            for (var i = 0; i < 4; i++)
+            for (var i = 0; i < 3; i++)
               Container(
                 width: 16,
                 height: 16,
@@ -428,7 +428,7 @@ class _ChildLoginScreenState extends State<ChildLoginScreen> {
           obscuringCharacter: '•',
           inputFormatters: [
             FilteringTextInputFormatter.digitsOnly,
-            LengthLimitingTextInputFormatter(4),
+            LengthLimitingTextInputFormatter(3),
           ],
           style: AppTheme.heading.copyWith(
             fontSize: 32,
@@ -454,10 +454,10 @@ class _ChildLoginScreenState extends State<ChildLoginScreen> {
           ),
           onChanged: (value) {
             _clearError();
-            // Redraw the dots, and submit as soon as the 4th number lands so
+            // Redraw the dots, and submit as soon as the 3rd number lands so
             // there's no extra button press to find.
             setState(() {});
-            if (value.length == 4) _submitPin();
+            if (value.length == 3) _submitPin();
           },
           onSubmitted: (_) => _submitPin(),
         ),

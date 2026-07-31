@@ -1,5 +1,5 @@
 """Family Code routes: the parent's side (view/regenerate) and the child's
-side (redeem a code, then optionally clear a child PIN).
+side (redeem a code, then optionally enter a child PIN).
 
 The child-side routes are deliberately unauthenticated — that is the whole
 point of a family code, since a five-year-old cannot log in. They are kept
@@ -140,7 +140,7 @@ def child_access_by_family_code():
 
 @bp.post("/child-access/verify-pin")
 def verify_child_pin():
-    """Check a child's optional 4-digit PIN before entering Home Mode.
+    """Check a child's optional 3-digit PIN before entering Home Mode.
 
     A child with no PIN passes automatically, so the client can call this
     unconditionally rather than branching on has_pin.

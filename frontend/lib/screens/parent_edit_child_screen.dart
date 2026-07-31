@@ -62,8 +62,8 @@ class _ParentEditChildScreenState extends State<ParentEditChildScreen> {
       return;
     }
     final pin = _pinCtrl.text.trim();
-    if (_pinAction == true && pin.length != 4) {
-      setState(() => _error = 'The PIN must be exactly 4 digits');
+    if (_pinAction == true && pin.length != 3) {
+      setState(() => _error = 'The PIN must be exactly 3 digits');
       return;
     }
 
@@ -252,10 +252,10 @@ class _ParentEditChildScreenState extends State<ParentEditChildScreen> {
                             keyboardType: TextInputType.number,
                             inputFormatters: [
                               FilteringTextInputFormatter.digitsOnly,
-                              LengthLimitingTextInputFormatter(4),
+                              LengthLimitingTextInputFormatter(3),
                             ],
                             decoration: _decoration(
-                                hint: '4 digits, e.g. 1234',
+                                hint: '3 digits, e.g. 123',
                                 icon: Icons.lock_outline),
                             onChanged: (_) {
                               if (_error != null) setState(() => _error = null);

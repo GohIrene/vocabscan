@@ -121,9 +121,9 @@ class _LoginScreenState extends State<LoginScreen> {
                           controller: _pinCtrl,
                           // No digit count in the label, and the field still
                           // accepts up to 6, so accounts created under the
-                          // older 4-6 digit rule can still sign in.
+                          // older 3-digit and 4-6 digit rules can still sign in.
                           label: 'PIN',
-                          hint: '● ● ●',
+                          hint: '4 digits',
                           icon: Icons.lock_outline,
                           obscure: true,
                           numeric: true,

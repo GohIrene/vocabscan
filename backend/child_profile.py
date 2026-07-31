@@ -25,10 +25,10 @@ from avatars import DEFAULT_AVATAR_ID, clamp_stage, is_valid_avatar
 # route; this is the first of them.
 HOME_AREA_ID = "home_village"
 
-# A child PIN is optional. When set it is exactly 4 digits — short enough for
+# A child PIN is optional. When set it is exactly 3 digits — short enough for
 # a young child to remember, and it gates nothing sensitive (it only picks a
 # profile inside an already-unlocked family session).
-CHILD_PIN_LENGTH = 4
+CHILD_PIN_LENGTH = 3
 
 # Never sent to a client, under any route.
 _PRIVATE_FIELDS = ("child_pin_hash", "_id")
@@ -84,7 +84,7 @@ def validate_child_pin(raw_pin):
     """(pin_hash, error) for an optional child PIN.
 
     None/blank means the child has no PIN and can be picked by tapping their
-    face. Anything else must be exactly 4 digits; only a valid, non-empty PIN
+    face. Anything else must be exactly 3 digits; only a valid, non-empty PIN
     is hashed.
     """
     if raw_pin is None:
