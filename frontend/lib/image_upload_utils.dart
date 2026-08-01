@@ -44,8 +44,19 @@ String? validateImageFile(html.File file) {
   return null;
 }
 
-/// Center-crops the image at [dataUrl] to an [outSize]×[outSize] square,
-/// returning JPEG bytes ready for upload.
+/// Fits the image at [dataUrl] into an [outSize]×[outSize] canvas without
+/// cropping — scaled down to fit and letterboxed on whichever axis is
+/// shorter — returning JPEG bytes ready for upload.
+///
+/// A blind center-square crop (this function's previous behavior) throws away
+/// whatever the picked photo didn't happen to compose within its middle
+/// square, unlike the camera path, where the child aligns the object inside
+/// an on-screen focus box before capture. An uploaded photo has no such
+/// guide, so cropping it the same way silently cuts off or shrinks objects
+/// that aren't perfectly centered — pushing the model's confidence below the
+/// low-confidence threshold and returning a false "not sure what that is" for
+/// photos that plainly show a known object. Resizing to fit instead keeps
+/// the whole photo, which is safer than guessing where the object is.
 ///
 /// An `<img>` element never fires `onLoad` for image data the browser can't
 /// decode — it fires `onError` instead — so code that only awaits `onLoad`
@@ -74,13 +85,20 @@ Future<Uint8List> cropCenterSquareFromDataUrl(
 
   final iw = img.naturalWidth;
   final ih = img.naturalHeight;
-  final side = math.min(iw, ih);
-  final sx = (iw - side) ~/ 2;
-  final sy = (ih - side) ~/ 2;
+  final scale = math.min(outSize / iw, outSize / ih);
+  final drawW = (iw * scale).round();
+  final drawH = (ih * scale).round();
+  final dx = (outSize - drawW) ~/ 2;
+  final dy = (outSize - drawH) ~/ 2;
 
   final canvas = html.CanvasElement(width: outSize, height: outSize);
-  canvas.context2D.drawImageScaledFromSource(
-      img, sx, sy, side, side, 0, 0, outSize, outSize);
+  final ctx = canvas.context2D;
+  // Fills the letterbox bars so they don't end up black, which some
+  // classifiers weight more than a neutral background.
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, outSize, outSize);
+  ctx.drawImageScaledFromSource(
+      img, 0, 0, iw, ih, dx, dy, drawW, drawH);
   final url = canvas.toDataUrl('image/jpeg', 0.92);
   return base64Decode(url.split(',')[1]);
 }

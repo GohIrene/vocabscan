@@ -141,6 +141,7 @@ class _ChildLoginScreenState extends State<ChildLoginScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
+        settings: const RouteSettings(name: 'child_home'),
         builder: (_) => ChildHomeScreen(
           childId: childId,
           nickname: child['nickname'] as String? ?? '',

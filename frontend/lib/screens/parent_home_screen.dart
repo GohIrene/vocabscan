@@ -184,6 +184,7 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
+        settings: const RouteSettings(name: 'child_home'),
         builder: (_) => ChildHomeScreen(
           childId: child['child_id'] as String? ?? '',
           nickname: child['nickname'] as String? ?? '',

@@ -84,6 +84,14 @@ class _ChildRewardScreenState extends State<ChildRewardScreen> {
     widget.cycle.returnToStart(context);
   }
 
+  /// Jumps straight back to the child's dashboard, regardless of whether this
+  /// cycle began there or inside an adventure area — unlike [_scanAgain],
+  /// which only unwinds to wherever the cycle started.
+  void _goHome() {
+    Navigator.of(context)
+        .popUntil((route) => route.settings.name == 'child_home');
+  }
+
   /// Unwinds the flow, then opens the area that just grew.
   void _viewArea() {
     final areaId = _section('adventure')['area_id'] as String?;
@@ -105,11 +113,29 @@ class _ChildRewardScreenState extends State<ChildRewardScreen> {
     return Scaffold(
       backgroundColor: AppTheme.background,
       body: SafeArea(
-        child: _loading
-            ? const Center(child: CircularProgressIndicator())
-            : _error != null
-                ? _buildError()
-                : _buildReward(),
+        child: Column(
+          children: [
+            Align(
+              alignment: Alignment.topLeft,
+              child: Padding(
+                padding: const EdgeInsets.all(AppTheme.md),
+                child: TextButton.icon(
+                  onPressed: _goHome,
+                  icon: const Icon(Icons.home_rounded, size: 18),
+                  label: const Text('Home'),
+                  style: AppTheme.backButtonStyle,
+                ),
+              ),
+            ),
+            Expanded(
+              child: _loading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _error != null
+                      ? _buildError()
+                      : _buildReward(),
+            ),
+          ],
+        ),
       ),
     );
   }

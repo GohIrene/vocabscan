@@ -44,6 +44,11 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
     final role = result['role'] as String? ?? widget.role;
+    if (role != widget.role) {
+      setState(() => _error =
+          'This account is a $role account. Please use the $role login.');
+      return;
+    }
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
