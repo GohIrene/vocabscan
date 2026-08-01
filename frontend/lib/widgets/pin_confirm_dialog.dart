@@ -3,9 +3,9 @@ import '../auth_service.dart';
 import '../theme/app_theme.dart';
 
 /// Shows a PIN re-confirmation dialog and returns true only if the parent
-/// entered the correct PIN. Used to gate sensitive parent actions (e.g. Add
-/// Child) mid-session, since a child may be holding the device after the
-/// parent logged in.
+/// entered the correct PIN. Used to gate sensitive parent actions (edit,
+/// deactivate/delete a child, regenerate the family code) mid-session, since
+/// a child may be holding the device after the parent logged in.
 Future<bool> showPinConfirmDialog(
   BuildContext context, {
   String title = 'Confirm PIN',

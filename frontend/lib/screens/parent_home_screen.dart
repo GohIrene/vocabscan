@@ -15,6 +15,7 @@ import 'child_adventure_map_screen.dart';
 import 'child_treasure_album_screen.dart';
 import 'parent_dashboard_screen.dart';
 import 'parent_edit_child_screen.dart';
+import 'scan_object_screen.dart';
 import 'welcome_screen.dart';
 
 /// Parent Mode: a dashboard, not a launcher.
@@ -159,6 +160,23 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
         ),
       ),
     );
+  }
+
+  /// FR34: a parent running scan → result → quiz/speech with a child outside
+  /// the guided Home Adventure flow. `ScanObjectScreen`'s default flow mode
+  /// (`LearningFlowMode.parentRevision`) already gives free navigation and
+  /// logs against this child, so this is just wiring the entry point.
+  void _practiceWithChild(Map<String, dynamic> child) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ScanObjectScreen(
+          childId: child['child_id'] as String? ?? '',
+        ),
+      ),
+    ).then((_) {
+      if (mounted) _load();
+    });
   }
 
   /// Hands the device over to the child, in their own mode.
@@ -594,6 +612,11 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
                 icon: Icons.edit_rounded,
                 label: 'Edit',
                 onTap: () => _editChild(child),
+              ),
+              _CardAction(
+                icon: Icons.camera_alt_rounded,
+                label: 'Practice',
+                onTap: () => _practiceWithChild(child),
               ),
               _CardAction(
                 icon: Icons.play_circle_rounded,
