@@ -42,6 +42,10 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
   bool _loading = true;
   String? _error;
 
+  // Dashboard-only view state — which child the weekly chart is filtered to.
+  // Null means "All Children" (the grouped view).
+  String? _weekFilterChildId;
+
   @override
   void initState() {
     super.initState();
@@ -355,7 +359,9 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
               onPressed: _addChild,
               icon: const Icon(Icons.add_rounded, size: 18),
               label: const Text('Add New Child'),
-              style: AppTheme.smallButton,
+              style: AppTheme.smallButton.copyWith(
+                  backgroundColor:
+                      const WidgetStatePropertyAll(AppTheme.secondary)),
             )
           : null,
       child: _loading
@@ -403,7 +409,9 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
               onPressed: _load,
               icon: const Icon(Icons.refresh_rounded, size: 18),
               label: const Text('Try Again'),
-              style: AppTheme.primaryButton,
+              style: AppTheme.primaryButton.copyWith(
+                  backgroundColor:
+                      const WidgetStatePropertyAll(AppTheme.secondary)),
             ),
           ],
         ),
@@ -438,39 +446,50 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
           ),
         const SizedBox(height: AppTheme.xl),
 
-        LayoutBuilder(
-          builder: (context, constraints) {
-            final wide = constraints.maxWidth >= 900;
-            final cards = [
-              _buildTodayCard(today),
-              _buildWeekCard(week),
-              _buildFamilyCodeCard(compact: true),
-            ];
-            if (!wide) {
-              return Column(
-                children: [
-                  for (final card in cards) ...[
-                    card,
-                    const SizedBox(height: AppTheme.md),
-                  ],
-                ],
-              );
-            }
-            return IntrinsicHeight(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Expanded(flex: 3, child: cards[0]),
-                  const SizedBox(width: AppTheme.md),
-                  Expanded(flex: 4, child: cards[1]),
-                  const SizedBox(width: AppTheme.md),
-                  Expanded(flex: 4, child: cards[2]),
-                ],
-              ),
-            );
-          },
-        ),
+        _responsiveRow([
+          (3, _LearningHighlightsCard(children: _children)),
+          (2, _buildTodayCard(today)),
+          (3, _buildWeekCard(week)),
+        ]),
+        const SizedBox(height: AppTheme.md),
+        _responsiveRow([
+          (2, _buildFamilyCodeCard(compact: true)),
+          (3, _RecentActivityPreview(
+              parentId: _parentId,
+              onViewAll: () =>
+                  setState(() => _section = ParentNavItem.activity))),
+        ]),
       ],
+    );
+  }
+
+  /// Lays cards out side by side above [breakpoint], stacked below it — the
+  /// same rule the dashboard's card row has always used.
+  Widget _responsiveRow(List<(int, Widget)> items, {double breakpoint = 900}) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < breakpoint) {
+          return Column(
+            children: [
+              for (final (_, card) in items) ...[
+                card,
+                const SizedBox(height: AppTheme.md),
+              ],
+            ],
+          );
+        }
+        return IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (var i = 0; i < items.length; i++) ...[
+                if (i > 0) const SizedBox(width: AppTheme.md),
+                Expanded(flex: items[i].$1, child: items[i].$2),
+              ],
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -496,7 +515,9 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
             onPressed: _addChild,
             icon: const Icon(Icons.add_rounded, size: 18),
             label: const Text('Add New Child'),
-            style: AppTheme.primaryButton,
+            style: AppTheme.primaryButton.copyWith(
+                backgroundColor:
+                    const WidgetStatePropertyAll(AppTheme.secondary)),
           ),
         ],
       ),
@@ -538,7 +559,8 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
                           ),
                         ),
                         const SizedBox(width: 6),
-                        _Pill(label: buddy.displayName, tint: AppTheme.primary),
+                        _Pill(
+                            label: buddy.displayName, tint: AppTheme.secondary),
                       ],
                     ),
                     Text('Age ${child['age'] ?? '—'}',
@@ -588,42 +610,80 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
             ],
           ),
           const SizedBox(height: AppTheme.md),
-          // Explicit actions, none of which is "start scanning" — a stray tap
-          // on the card must never drop a parent into the child's flow.
-          Wrap(
-            spacing: AppTheme.sm,
-            runSpacing: AppTheme.sm,
+          // Two explicit primary actions, neither of which is "start
+          // scanning" — a stray tap on the card must never drop a parent
+          // into the child's flow. Editing lives in "My Children" instead,
+          // so this pair stays the two things a parent reaches for most.
+          Row(
             children: [
-              _CardAction(
-                icon: Icons.insights_rounded,
-                label: 'Progress',
-                onTap: () => _viewProgress(child),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => _viewProgress(child),
+                  icon: const Icon(Icons.insights_rounded, size: 16),
+                  label: const Text('View Progress'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppTheme.secondary,
+                    side: BorderSide(
+                        color: AppTheme.secondary.withValues(alpha: 0.4)),
+                    padding:
+                        const EdgeInsets.symmetric(vertical: 10),
+                    shape: RoundedRectangleBorder(
+                        borderRadius:
+                            BorderRadius.circular(AppTheme.radiusSm)),
+                  ),
+                ),
               ),
-              _CardAction(
-                icon: Icons.map_rounded,
-                label: 'Adventure',
-                onTap: () => _viewAdventure(child),
+              const SizedBox(width: AppTheme.sm),
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: () => _openChildMode(child),
+                  icon: const Icon(Icons.play_circle_rounded, size: 16),
+                  label: const Text('Enter Child Mode'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppTheme.secondary,
+                    foregroundColor: Colors.white,
+                    padding:
+                        const EdgeInsets.symmetric(vertical: 10),
+                    shape: RoundedRectangleBorder(
+                        borderRadius:
+                            BorderRadius.circular(AppTheme.radiusSm)),
+                  ),
+                ),
               ),
-              _CardAction(
-                icon: Icons.photo_album_rounded,
-                label: 'Album',
-                onTap: () => _viewAlbum(child),
+            ],
+          ),
+          const SizedBox(height: AppTheme.md),
+          Text('Child Quick Access',
+              style: AppTheme.caption.copyWith(
+                  fontSize: 11, fontWeight: FontWeight.w700)),
+          const SizedBox(height: AppTheme.sm),
+          Row(
+            children: [
+              Expanded(
+                child: _CardAction(
+                  icon: Icons.map_rounded,
+                  label: 'Adventure',
+                  centered: true,
+                  onTap: () => _viewAdventure(child),
+                ),
               ),
-              _CardAction(
-                icon: Icons.edit_rounded,
-                label: 'Edit',
-                onTap: () => _editChild(child),
+              const SizedBox(width: AppTheme.sm),
+              Expanded(
+                child: _CardAction(
+                  icon: Icons.photo_album_rounded,
+                  label: 'Album',
+                  centered: true,
+                  onTap: () => _viewAlbum(child),
+                ),
               ),
-              _CardAction(
-                icon: Icons.camera_alt_rounded,
-                label: 'Practice',
-                onTap: () => _practiceWithChild(child),
-              ),
-              _CardAction(
-                icon: Icons.play_circle_rounded,
-                label: 'Child Mode',
-                primary: true,
-                onTap: () => _openChildMode(child),
+              const SizedBox(width: AppTheme.sm),
+              Expanded(
+                child: _CardAction(
+                  icon: Icons.camera_alt_rounded,
+                  label: 'Practice',
+                  centered: true,
+                  onTap: () => _practiceWithChild(child),
+                ),
               ),
             ],
           ),
@@ -634,9 +694,9 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
 
   Widget _buildTodayCard(Map<String, dynamic> today) {
     return ParentCard(
-      title: "Today's Activity",
+      title: "Today's Family Activity",
       icon: Icons.today_rounded,
-      iconTint: AppTheme.success,
+      iconTint: AppTheme.secondary,
       child: Column(
         children: [
           Row(
@@ -654,17 +714,30 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
                 child: ParentStat(
                   icon: Icons.quiz_rounded,
                   tint: AppTheme.secondary,
-                  label: 'Quiz',
+                  label: 'Quiz Attempts',
                   value: '${today['quiz_attempts'] ?? 0}',
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppTheme.sm),
+          Row(
+            children: [
+              Expanded(
+                child: ParentStat(
+                  icon: Icons.mic_rounded,
+                  tint: AppTheme.blossom,
+                  label: 'Speech Attempts',
+                  value: '${today['speech_attempts'] ?? 0}',
                 ),
               ),
               const SizedBox(width: AppTheme.sm),
               Expanded(
                 child: ParentStat(
-                  icon: Icons.mic_rounded,
-                  tint: AppTheme.blossom,
-                  label: 'Speech',
-                  value: '${today['speech_attempts'] ?? 0}',
+                  icon: Icons.text_fields_rounded,
+                  tint: AppTheme.adventure,
+                  label: 'New Words',
+                  value: '${today['new_words'] ?? 0}',
                 ),
               ),
             ],
@@ -678,9 +751,9 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
               icon: const Icon(Icons.arrow_forward_rounded, size: 16),
               label: const Text('View Activity Log'),
               style: OutlinedButton.styleFrom(
-                foregroundColor: AppTheme.primary,
+                foregroundColor: AppTheme.secondary,
                 side: BorderSide(
-                    color: AppTheme.primary.withValues(alpha: 0.35)),
+                    color: AppTheme.secondary.withValues(alpha: 0.35)),
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(AppTheme.radiusSm)),
               ),
@@ -696,16 +769,51 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
         .whereType<Map>()
         .map((d) => Map<String, dynamic>.from(d))
         .toList();
-    final series = (week['series'] as List? ?? const [])
+    final allSeries = (week['series'] as List? ?? const [])
         .whereType<Map>()
         .map((s) => Map<String, dynamic>.from(s))
         .toList();
-    final max = (week['max'] as num?)?.toInt() ?? 0;
+
+    // "All Children" (null) shows every child's bars grouped by day, same
+    // data the backend already returns; picking one child just narrows the
+    // same series down to a single bar per day.
+    final filterId = _weekFilterChildId;
+    final series = filterId == null
+        ? allSeries
+        : allSeries.where((s) => s['child_id'] == filterId).toList();
+    final max = series.isEmpty
+        ? 0
+        : series
+            .map((s) => (s['scans'] as List? ?? const [])
+                .whereType<num>()
+                .fold(0, (m, v) => v.toInt() > m ? v.toInt() : m))
+            .fold(0, (m, v) => v > m ? v : m);
 
     return ParentCard(
-      title: 'Scans This Week',
+      title: 'Weekly Activity',
       icon: Icons.show_chart_rounded,
       iconTint: AppTheme.secondary,
+      action: allSeries.length > 1
+          ? DropdownButtonHideUnderline(
+              child: DropdownButton<String?>(
+                value: filterId,
+                isDense: true,
+                icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 18),
+                style: AppTheme.caption.copyWith(
+                    color: AppTheme.textDark, fontWeight: FontWeight.w700),
+                items: [
+                  const DropdownMenuItem(
+                      value: null, child: Text('All Children')),
+                  for (final s in allSeries)
+                    DropdownMenuItem(
+                      value: s['child_id'] as String?,
+                      child: Text(s['nickname'] as String? ?? ''),
+                    ),
+                ],
+                onChanged: (id) => setState(() => _weekFilterChildId = id),
+              ),
+            )
+          : null,
       child: series.isEmpty || days.isEmpty
           ? Padding(
               padding: const EdgeInsets.symmetric(vertical: AppTheme.lg),
@@ -730,17 +838,17 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 crossAxisAlignment: CrossAxisAlignment.end,
                                 children: [
-                                  for (var s = 0; s < series.length; s++)
+                                  for (final s in series)
                                     _Bar(
-                                      value: ((series[s]['scans'] as List?)
+                                      value: ((s['scans'] as List?)
                                                   ?[d] as num?)
                                               ?.toInt() ??
                                           0,
                                       max: max,
-                                      color: _seriesColor(s),
-                                      tooltip:
-                                          '${series[s]['nickname']} · '
-                                          '${((series[s]['scans'] as List?)?[d] as num?)?.toInt() ?? 0} scans',
+                                      color: _seriesColor(
+                                          allSeries.indexOf(s)),
+                                      tooltip: '${s['nickname']} · '
+                                          '${((s['scans'] as List?)?[d] as num?)?.toInt() ?? 0} scans',
                                     ),
                                 ],
                               ),
@@ -755,40 +863,43 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
                     ],
                   ),
                 ),
-                const SizedBox(height: AppTheme.sm),
-                Wrap(
-                  spacing: AppTheme.md,
-                  runSpacing: 4,
-                  children: [
-                    for (var s = 0; s < series.length; s++)
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            width: 9,
-                            height: 9,
-                            decoration: BoxDecoration(
-                              color: _seriesColor(s),
-                              shape: BoxShape.circle,
+                if (series.length > 1) ...[
+                  const SizedBox(height: AppTheme.sm),
+                  Wrap(
+                    spacing: AppTheme.md,
+                    runSpacing: 4,
+                    children: [
+                      for (final s in series)
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 9,
+                              height: 9,
+                              decoration: BoxDecoration(
+                                color: _seriesColor(allSeries.indexOf(s)),
+                                shape: BoxShape.circle,
+                              ),
                             ),
-                          ),
-                          const SizedBox(width: 5),
-                          Text(series[s]['nickname'] as String? ?? '',
-                              style: AppTheme.caption.copyWith(fontSize: 11)),
-                        ],
-                      ),
-                  ],
-                ),
+                            const SizedBox(width: 5),
+                            Text(s['nickname'] as String? ?? '',
+                                style:
+                                    AppTheme.caption.copyWith(fontSize: 11)),
+                          ],
+                        ),
+                    ],
+                  ),
+                ],
               ],
             ),
     );
   }
 
   static Color _seriesColor(int index) => const [
-        AppTheme.primary,
+        AppTheme.secondary,
         AppTheme.adventure,
         AppTheme.blossom,
-        AppTheme.secondary,
+        AppTheme.primary,
         AppTheme.success,
         AppTheme.treasure,
       ][index % 6];
@@ -798,7 +909,7 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
     return ParentCard(
       title: 'Family Access Code',
       icon: Icons.vpn_key_rounded,
-      iconTint: AppTheme.treasure,
+      iconTint: AppTheme.secondary,
       action: compact
           ? TextButton(
               onPressed: () =>
@@ -813,7 +924,7 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
             width: double.infinity,
             padding: const EdgeInsets.symmetric(vertical: AppTheme.md),
             decoration: BoxDecoration(
-              color: AppTheme.primaryLight,
+              color: AppTheme.secondaryLight,
               borderRadius: BorderRadius.circular(AppTheme.radiusSm),
             ),
             alignment: Alignment.center,
@@ -840,11 +951,11 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
                 child: OutlinedButton.icon(
                   onPressed: code == null ? null : _copyCode,
                   icon: const Icon(Icons.copy_rounded, size: 16),
-                  label: const Text('Copy'),
+                  label: const Text('Copy Code'),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: AppTheme.primary,
+                    foregroundColor: AppTheme.secondary,
                     side: BorderSide(
-                        color: AppTheme.primary.withValues(alpha: 0.35)),
+                        color: AppTheme.secondary.withValues(alpha: 0.35)),
                     shape: RoundedRectangleBorder(
                         borderRadius:
                             BorderRadius.circular(AppTheme.radiusSm)),
@@ -884,7 +995,7 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
                   if (i > 0)
                     Divider(
                         height: AppTheme.lg,
-                        color: AppTheme.primary.withValues(alpha: 0.1)),
+                        color: AppTheme.secondary.withValues(alpha: 0.1)),
                   _buildChildRow(_children[i], active: true),
                 ],
               ],
@@ -911,7 +1022,7 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
                   if (i > 0)
                     Divider(
                         height: AppTheme.lg,
-                        color: AppTheme.primary.withValues(alpha: 0.1)),
+                        color: AppTheme.secondary.withValues(alpha: 0.1)),
                   _buildChildRow(_inactive[i], active: false),
                 ],
               ],
@@ -951,7 +1062,7 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
                   const SizedBox(width: 6),
                   _Pill(
                     label: active ? buddy.displayName : 'Inactive',
-                    tint: active ? AppTheme.primary : AppTheme.textLight,
+                    tint: active ? AppTheme.secondary : AppTheme.textLight,
                   ),
                   if (active && child['has_pin'] == true) ...[
                     const SizedBox(width: 4),
@@ -1006,7 +1117,7 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
             if (i > 0)
               Divider(
                   height: AppTheme.lg,
-                  color: AppTheme.primary.withValues(alpha: 0.1)),
+                  color: AppTheme.secondary.withValues(alpha: 0.1)),
             Row(
               children: [
                 ChildAvatar(
@@ -1039,7 +1150,9 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
                   onPressed: () => _viewProgress(_children[i]),
                   icon: const Icon(Icons.insights_rounded, size: 16),
                   label: const Text('View Report'),
-                  style: AppTheme.smallButton,
+                  style: AppTheme.smallButton.copyWith(
+                      backgroundColor:
+                          const WidgetStatePropertyAll(AppTheme.secondary)),
                 ),
               ],
             ),
@@ -1191,14 +1304,6 @@ class _ParentActivityViewState extends State<ParentActivityView> {
     }
   }
 
-  static (IconData, Color) _style(String type) => switch (type) {
-        'treasure' => (Icons.card_giftcard_rounded, AppTheme.treasure),
-        'scan' => (Icons.photo_camera_rounded, AppTheme.success),
-        'quiz' => (Icons.quiz_rounded, AppTheme.secondary),
-        'speech' => (Icons.mic_rounded, AppTheme.blossom),
-        _ => (Icons.circle, AppTheme.textLight),
-      };
-
   @override
   Widget build(BuildContext context) {
     if (_error != null) {
@@ -1211,7 +1316,9 @@ class _ParentActivityViewState extends State<ParentActivityView> {
             const SizedBox(height: AppTheme.md),
             FilledButton(
               onPressed: _load,
-              style: AppTheme.smallButton,
+              style: AppTheme.smallButton.copyWith(
+                  backgroundColor:
+                      const WidgetStatePropertyAll(AppTheme.secondary)),
               child: const Text('Try Again'),
             ),
           ],
@@ -1267,12 +1374,12 @@ class _ParentActivityViewState extends State<ParentActivityView> {
                   if (i > 0)
                     Divider(
                         height: AppTheme.md,
-                        color: AppTheme.primary.withValues(alpha: 0.08)),
+                        color: AppTheme.secondary.withValues(alpha: 0.08)),
                   Builder(
                     builder: (context) {
                       final e = entry.value[i];
                       final (icon, tint) =
-                          _style(e['type'] as String? ?? '');
+                          _activityStyle(e['type'] as String? ?? '');
                       return Row(
                         children: [
                           Container(
@@ -1314,6 +1421,315 @@ class _ParentActivityViewState extends State<ParentActivityView> {
             ),
           ),
         ],
+      ],
+    );
+  }
+}
+
+/// Shared by the full Activity Log and the dashboard's recent-activity
+/// preview, so the two stay visually in sync.
+(IconData, Color) _activityStyle(String type) => switch (type) {
+      'treasure' => (Icons.card_giftcard_rounded, AppTheme.treasure),
+      'scan' => (Icons.photo_camera_rounded, AppTheme.success),
+      'quiz' => (Icons.quiz_rounded, AppTheme.secondary),
+      'speech' => (Icons.mic_rounded, AppTheme.blossom),
+      _ => (Icons.circle, AppTheme.textLight),
+    };
+
+// ── Learning Highlights (dashboard) ──────────────────────────────────────────
+
+/// Per-child breakdown, picked from a dropdown. Loads on demand from the same
+/// `/report/<child_id>` the full report screen already reads — no new data,
+/// just one extra call scoped to whichever child is selected.
+class _LearningHighlightsCard extends StatefulWidget {
+  final List<Map<String, dynamic>> children;
+
+  const _LearningHighlightsCard({required this.children});
+
+  @override
+  State<_LearningHighlightsCard> createState() =>
+      _LearningHighlightsCardState();
+}
+
+class _LearningHighlightsCardState extends State<_LearningHighlightsCard> {
+  String? _childId;
+  Map<String, dynamic>? _report;
+  bool _loading = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _childId = widget.children.isEmpty
+        ? null
+        : widget.children.first['child_id'] as String?;
+    _load();
+  }
+
+  @override
+  void didUpdateWidget(_LearningHighlightsCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // The selected child may have been deactivated/deleted elsewhere — fall
+    // back to the first remaining child rather than showing a stale report.
+    final stillPresent =
+        widget.children.any((c) => c['child_id'] == _childId);
+    if (!stillPresent) {
+      setState(() {
+        _childId = widget.children.isEmpty
+            ? null
+            : widget.children.first['child_id'] as String?;
+        _report = null;
+      });
+      _load();
+    }
+  }
+
+  Future<void> _load() async {
+    final id = _childId;
+    if (id == null) return;
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final data = await ApiService.getReport(id);
+      if (!mounted) return;
+      setState(() {
+        _report = data;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString();
+        _loading = false;
+      });
+    }
+  }
+
+  String? get _nickname => widget.children
+      .firstWhere((c) => c['child_id'] == _childId,
+          orElse: () => const <String, dynamic>{})['nickname'] as String?;
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.children.isEmpty) {
+      return ParentCard(
+        title: 'Learning Highlights',
+        icon: Icons.auto_awesome_rounded,
+        iconTint: AppTheme.secondary,
+        child: Text('Add a child to see their highlights.',
+            style: AppTheme.caption),
+      );
+    }
+
+    return ParentCard(
+      title: _nickname == null
+          ? 'Learning Highlights'
+          : 'Learning Highlights — $_nickname',
+      icon: Icons.auto_awesome_rounded,
+      iconTint: AppTheme.secondary,
+      action: widget.children.length > 1
+          ? DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: _childId,
+                isDense: true,
+                icon:
+                    const Icon(Icons.keyboard_arrow_down_rounded, size: 18),
+                items: [
+                  for (final c in widget.children)
+                    DropdownMenuItem(
+                      value: c['child_id'] as String,
+                      child: Text(c['nickname'] as String? ?? ''),
+                    ),
+                ],
+                onChanged: (id) {
+                  if (id == null || id == _childId) return;
+                  setState(() {
+                    _childId = id;
+                    _report = null;
+                  });
+                  _load();
+                },
+              ),
+            )
+          : null,
+      child: _loading
+          ? const Padding(
+              padding: EdgeInsets.symmetric(vertical: AppTheme.lg),
+              child: Center(child: CircularProgressIndicator()),
+            )
+          : _error != null
+              ? Text('Could not load highlights', style: AppTheme.caption)
+              : _buildTiles(),
+    );
+  }
+
+  Widget _buildTiles() {
+    final report = _report;
+    final profile = (report?['profile'] as Map?)?.cast<String, dynamic>();
+    final adventure =
+        (profile?['adventure'] as Map?)?.cast<String, dynamic>();
+    final streakDays = (profile?['streak_days'] as num?)?.toInt() ?? 0;
+    final progress =
+        (adventure?['progress_percentage'] as num?)?.toInt() ?? 0;
+
+    final tiles = [
+      ('New Words', '${report?['total_words'] ?? 0}',
+          Icons.text_fields_rounded, AppTheme.secondary),
+      ('Treasures', '${profile?['treasure_count'] ?? 0}',
+          Icons.card_giftcard_rounded, AppTheme.treasure),
+      ('Streak', '${streakDays}d', Icons.local_fire_department_rounded,
+          AppTheme.blossom),
+      ('Adventure Progress', '$progress%', Icons.map_rounded,
+          AppTheme.adventure),
+      ('Quiz Accuracy', '${report?['quiz_accuracy'] ?? 0}%',
+          Icons.quiz_rounded, AppTheme.success),
+      ('Speech Accuracy', '${report?['speech_accuracy'] ?? 0}%',
+          Icons.mic_rounded, AppTheme.primary),
+    ];
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const columns = 3;
+        const gap = AppTheme.sm;
+        final tileWidth = (constraints.maxWidth - gap * (columns - 1)) / columns;
+        return Wrap(
+          spacing: gap,
+          runSpacing: gap,
+          children: [
+            for (final (label, value, icon, tint) in tiles)
+              SizedBox(
+                width: tileWidth,
+                child: ParentStat(
+                    icon: icon, tint: tint, label: label, value: value),
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+// ── Recent Family Activity (dashboard preview) ───────────────────────────────
+
+/// A short, flat preview of the same feed the full Activity Log shows — the
+/// last five events, fetched directly (rather than reusing
+/// [ParentActivityView]'s day-grouped state) so the dashboard card stays a
+/// simple list.
+class _RecentActivityPreview extends StatefulWidget {
+  final String? parentId;
+  final VoidCallback onViewAll;
+
+  const _RecentActivityPreview(
+      {required this.parentId, required this.onViewAll});
+
+  @override
+  State<_RecentActivityPreview> createState() =>
+      _RecentActivityPreviewState();
+}
+
+class _RecentActivityPreviewState extends State<_RecentActivityPreview> {
+  List<Map<String, dynamic>>? _events;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final parentId = widget.parentId;
+    if (parentId == null) return;
+    try {
+      final data = await ApiService.getParentActivity(parentId, n: 5);
+      if (!mounted) return;
+      setState(() {
+        _events = (data['activity'] as List? ?? const [])
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+        _error = null;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _error = e.toString());
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ParentCard(
+      title: 'Recent Family Activity',
+      icon: Icons.history_rounded,
+      iconTint: AppTheme.secondary,
+      action: TextButton(
+        onPressed: widget.onViewAll,
+        child: const Text('View All Activity'),
+      ),
+      child: _error != null
+          ? Text('Could not load activity', style: AppTheme.caption)
+          : _events == null
+              ? const Padding(
+                  padding: EdgeInsets.symmetric(vertical: AppTheme.lg),
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              : _events!.isEmpty
+                  ? Padding(
+                      padding:
+                          const EdgeInsets.symmetric(vertical: AppTheme.md),
+                      child:
+                          Text('No activity yet.', style: AppTheme.caption),
+                    )
+                  : Column(
+                      children: [
+                        for (var i = 0; i < _events!.length; i++) ...[
+                          if (i > 0)
+                            Divider(
+                                height: AppTheme.md,
+                                color: AppTheme.secondary
+                                    .withValues(alpha: 0.08)),
+                          _buildRow(_events![i]),
+                        ],
+                      ],
+                    ),
+    );
+  }
+
+  Widget _buildRow(Map<String, dynamic> e) {
+    final (icon, tint) = _activityStyle(e['type'] as String? ?? '');
+    return Row(
+      children: [
+        Container(
+          width: 32,
+          height: 32,
+          decoration: BoxDecoration(
+            color: tint.withValues(alpha: 0.15),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(icon, size: 16, color: tint),
+        ),
+        const SizedBox(width: AppTheme.md),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                e['description'] as String? ?? '',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTheme.body.copyWith(fontSize: 14),
+              ),
+              Text(
+                e['child_nickname'] as String? ?? '',
+                style: AppTheme.caption.copyWith(fontSize: 11),
+              ),
+            ],
+          ),
+        ),
+        Text(e['local_time'] as String? ?? '',
+            style: AppTheme.caption.copyWith(fontSize: 11)),
       ],
     );
   }
@@ -1367,13 +1783,16 @@ class _CardAction extends StatelessWidget {
   final IconData icon;
   final String label;
   final VoidCallback onTap;
-  final bool primary;
+
+  /// Centers the row instead of hugging its content — used when the action
+  /// fills an [Expanded] slot in the "Child Quick Access" row.
+  final bool centered;
 
   const _CardAction({
     required this.icon,
     required this.label,
     required this.onTap,
-    this.primary = false,
+    this.centered = false,
   });
 
   @override
@@ -1383,25 +1802,25 @@ class _CardAction extends StatelessWidget {
       child: GestureDetector(
         onTap: onTap,
         child: Container(
+          width: centered ? double.infinity : null,
           padding:
               const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
           decoration: BoxDecoration(
-            color: primary ? AppTheme.primary : AppTheme.primaryLight,
+            color: AppTheme.secondaryLight,
             borderRadius: BorderRadius.circular(AppTheme.radiusSm),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon,
-                  size: 14,
-                  color: primary ? Colors.white : AppTheme.primary),
+              Icon(icon, size: 14, color: AppTheme.secondary),
               const SizedBox(width: 5),
               Text(
                 label,
                 style: AppTheme.caption.copyWith(
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
-                  color: primary ? Colors.white : AppTheme.primary,
+                  color: AppTheme.secondary,
                 ),
               ),
             ],
@@ -1430,7 +1849,7 @@ class _RowAction extends StatelessWidget {
     return IconButton(
       onPressed: onTap,
       icon: Icon(icon, size: 19),
-      color: tint ?? AppTheme.primary,
+      color: tint ?? AppTheme.secondary,
       tooltip: tooltip,
       visualDensity: VisualDensity.compact,
     );
@@ -1461,11 +1880,11 @@ class _AddChildCardState extends State<_AddChildCard> {
           constraints: const BoxConstraints(minHeight: 240),
           decoration: BoxDecoration(
             color: _hovering
-                ? AppTheme.primary.withValues(alpha: 0.06)
+                ? AppTheme.secondary.withValues(alpha: 0.06)
                 : AppTheme.surface,
             borderRadius: BorderRadius.circular(AppTheme.radiusMd),
             border: Border.all(
-              color: AppTheme.primary.withValues(alpha: 0.3),
+              color: AppTheme.secondary.withValues(alpha: 0.3),
               width: 2,
             ),
           ),
@@ -1476,14 +1895,14 @@ class _AddChildCardState extends State<_AddChildCard> {
                 width: 54,
                 height: 54,
                 decoration: const BoxDecoration(
-                    color: AppTheme.primary, shape: BoxShape.circle),
+                    color: AppTheme.secondary, shape: BoxShape.circle),
                 child: const Icon(Icons.add_rounded,
                     color: Colors.white, size: 28),
               ),
               const SizedBox(height: AppTheme.md),
               Text('Add New Child',
                   style: AppTheme.body.copyWith(
-                      fontWeight: FontWeight.w800, color: AppTheme.primary)),
+                      fontWeight: FontWeight.w800, color: AppTheme.secondary)),
               const SizedBox(height: 2),
               Text('Create a new child profile',
                   style: AppTheme.caption.copyWith(fontSize: 12)),
@@ -1534,12 +1953,12 @@ class _Step extends StatelessWidget {
             width: 22,
             height: 22,
             decoration: const BoxDecoration(
-                color: AppTheme.primaryLight, shape: BoxShape.circle),
+                color: AppTheme.secondaryLight, shape: BoxShape.circle),
             alignment: Alignment.center,
             child: Text('$n',
                 style: AppTheme.caption.copyWith(
                     fontWeight: FontWeight.w800,
-                    color: AppTheme.primary,
+                    color: AppTheme.secondary,
                     fontSize: 11)),
           ),
           const SizedBox(width: AppTheme.sm),

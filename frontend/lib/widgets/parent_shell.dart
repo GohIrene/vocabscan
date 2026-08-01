@@ -151,22 +151,30 @@ class _ParentSidebar extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'VocabScan',
-                    style: AppTheme.heading.copyWith(
-                      fontSize: 24,
-                      fontWeight: FontWeight.w800,
-                      color: AppTheme.primary,
-                    ),
+                  Row(
+                    children: [
+                      Text(
+                        'VocabScan',
+                        style: AppTheme.heading.copyWith(
+                          fontSize: 24,
+                          fontWeight: FontWeight.w800,
+                          color: AppTheme.secondary,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      const Icon(Icons.auto_awesome_rounded,
+                          size: 16, color: AppTheme.secondary),
+                    ],
                   ),
                   const SizedBox(height: AppTheme.sm),
                   // Makes it unmistakable which side of the app this is —
-                  // the same device is used by the child.
+                  // the same device is used by the child. Blue matches the
+                  // "Parent" tile on the welcome screen (AppTheme.secondary).
                   Container(
                     padding: const EdgeInsets.symmetric(
                         horizontal: AppTheme.md, vertical: 6),
                     decoration: BoxDecoration(
-                      color: AppTheme.primary,
+                      color: AppTheme.secondary,
                       borderRadius: BorderRadius.circular(30),
                     ),
                     child: Row(
@@ -191,7 +199,7 @@ class _ParentSidebar extends StatelessWidget {
             ),
             Divider(
               height: 1,
-              color: AppTheme.primary.withValues(alpha: 0.12),
+              color: AppTheme.secondary.withValues(alpha: 0.12),
               indent: AppTheme.lg,
               endIndent: AppTheme.lg,
             ),
@@ -254,7 +262,7 @@ class _NavTileState extends State<_NavTile> {
   @override
   Widget build(BuildContext context) {
     final selected = widget.selected;
-    final color = selected ? AppTheme.primary : AppTheme.textDark;
+    final color = selected ? AppTheme.secondary : AppTheme.textDark;
 
     return MouseRegion(
       onEnter: (_) => setState(() => _hovering = true),
@@ -269,9 +277,9 @@ class _NavTileState extends State<_NavTile> {
               horizontal: AppTheme.md, vertical: 13),
           decoration: BoxDecoration(
             color: selected
-                ? AppTheme.primaryLight
+                ? AppTheme.secondaryLight
                 : (_hovering
-                    ? AppTheme.primary.withValues(alpha: 0.06)
+                    ? AppTheme.secondary.withValues(alpha: 0.06)
                     : Colors.transparent),
             borderRadius: BorderRadius.circular(AppTheme.radiusSm),
           ),
@@ -378,12 +386,12 @@ class _ParentHeader extends StatelessWidget {
                 children: [
                   CircleAvatar(
                     radius: 15,
-                    backgroundColor: AppTheme.primaryLight,
+                    backgroundColor: AppTheme.secondaryLight,
                     child: Text(
                       username.isEmpty ? '?' : username[0].toUpperCase(),
                       style: AppTheme.body.copyWith(
                         fontWeight: FontWeight.w800,
-                        color: AppTheme.primary,
+                        color: AppTheme.secondary,
                       ),
                     ),
                   ),
@@ -398,6 +406,8 @@ class _ParentHeader extends StatelessWidget {
                           fontWeight: FontWeight.w700, fontSize: 14),
                     ),
                   ),
+                  const Icon(Icons.keyboard_arrow_down_rounded,
+                      size: 18, color: AppTheme.textLight),
                 ],
               ),
             ),

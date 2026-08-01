@@ -272,32 +272,41 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
           constraints: const BoxConstraints(maxWidth: 800),
           child: Column(
             children: [
-              Image.asset(
-                'assets/icons/family.png',
-                width: 48,
-                height: 48,
-                errorBuilder: (context, error, stackTrace) {
-                  return const Icon(Icons.people, size: 48);
-                },
-              ),
-              const SizedBox(height: 6),
-              Text(
-                "${widget.childNickname}'s Progress",
-                style: AppTheme.heading.copyWith(
-                  fontSize: 28,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              if (widget.parentUsername != null) ...[
-                const SizedBox(height: AppTheme.xs),
-                Text(
-                  'Logged in as ${widget.parentUsername}',
-                  style: AppTheme.body.copyWith(
-                    fontSize: 15,
-                    color: AppTheme.textLight,
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Image.asset(
+                    'assets/icons/family.png',
+                    width: 48,
+                    height: 48,
+                    errorBuilder: (context, error, stackTrace) {
+                      return const Icon(Icons.people, size: 48);
+                    },
                   ),
-                ),
-              ],
+                  const SizedBox(width: AppTheme.md),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "${widget.childNickname}'s Progress",
+                          style: AppTheme.heading.copyWith(
+                            fontSize: 28,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        Text(
+                          "Overview of ${widget.childNickname}'s learning journey",
+                          style: AppTheme.body.copyWith(
+                            fontSize: 15,
+                            color: AppTheme.textLight,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
               const SizedBox(height: AppTheme.xl),
 
               // ── Home Adventure standing ──
@@ -316,31 +325,35 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                     icon: 'assets/icons/book.png',
                     label: 'Words Learned',
                     value: '$totalWords',
+                    caption: 'Total words',
                     color: AppTheme.primary,
                   ),
                   _StatCard(
                     icon: 'assets/icons/camera.png',
                     label: 'Total Scans',
                     value: '$totalScans',
+                    caption: 'Scans completed',
                     color: AppTheme.secondary,
                   ),
                   _StatCard(
                     icon: 'assets/icons/target.png',
                     label: 'Quiz Accuracy',
                     value: '${quizAccuracy.toStringAsFixed(0)}%',
+                    caption: 'Overall accuracy',
                     color: AppTheme.success,
                   ),
                   _StatCard(
                     icon: 'assets/icons/star.png',
                     label: 'To Review',
                     value: '${mistakes.length}',
-                    color: AppTheme.warningLight,
-                    dark: true,
+                    caption: 'Words to review',
+                    color: AppTheme.warning,
                   ),
                   _StatCard(
                     icon: 'assets/icons/calendar.png',
                     label: 'Active Days',
                     value: '$activeDays',
+                    caption: 'This week',
                     color: AppTheme.primary,
                   ),
                 ],
@@ -356,13 +369,38 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
               ),
               const SizedBox(height: 28),
 
-              // ── Day-by-day progress ──
-              if (daily.isNotEmpty) ...[
-                _buildDailyPanel(daily),
+              // ── Day-by-day progress + recent activity, side by side ──
+              if (daily.isNotEmpty || recentActivity.isNotEmpty) ...[
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final left = daily.isNotEmpty ? _buildDailyPanel(daily) : null;
+                    final right = recentActivity.isNotEmpty
+                        ? _buildRecentActivity(recentActivity)
+                        : null;
+                    if (left != null && right != null) {
+                      if (constraints.maxWidth > 700) {
+                        return Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(flex: 3, child: left),
+                            const SizedBox(width: AppTheme.lg),
+                            Expanded(flex: 2, child: right),
+                          ],
+                        );
+                      }
+                      return Column(children: [
+                        left,
+                        const SizedBox(height: AppTheme.lg),
+                        right,
+                      ]);
+                    }
+                    return left ?? right!;
+                  },
+                ),
                 const SizedBox(height: AppTheme.lg),
               ],
 
-              // ── Two-column panels ──
+              // ── Words learned / words to review ──
               LayoutBuilder(
                 builder: (context, constraints) {
                   final left = _buildWordsPanel(words);
@@ -384,12 +422,6 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                   ]);
                 },
               ),
-
-              // ── Recent activity ──
-              if (recentActivity.isNotEmpty) ...[
-                const SizedBox(height: AppTheme.lg),
-                _buildRecentActivity(recentActivity),
-              ],
 
               const SizedBox(height: AppTheme.xxl),
             ],
@@ -1022,60 +1054,70 @@ class _StatCard extends StatelessWidget {
   final String icon;
   final String label;
   final String value;
+  final String caption;
   final Color color;
-  final bool dark;
 
   const _StatCard({
     required this.icon,
     required this.label,
     required this.value,
+    required this.caption,
     required this.color,
-    this.dark = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    final textColor = dark ? AppTheme.textDark : AppTheme.surface;
     return Container(
-      width: 170,
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(18),
-      ),
+      width: 180,
+      padding: const EdgeInsets.all(16),
+      decoration: AppTheme.cardDecoration,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Image.asset(
-                icon,
-                width: 28,
-                height: 28,
-                fit: BoxFit.contain,
-                errorBuilder: (_, _, _) => Text(
-                  '?',
-                  style: TextStyle(fontSize: 24, color: textColor),
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.14),
+                  shape: BoxShape.circle,
+                ),
+                alignment: Alignment.center,
+                child: Image.asset(
+                  icon,
+                  width: 20,
+                  height: 20,
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, _, _) => Text(
+                    '?',
+                    style: TextStyle(fontSize: 16, color: color),
+                  ),
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 10),
               Expanded(
                 child: Text(
                   label,
-                  style: AppTheme.caption
-                      .copyWith(color: textColor.withValues(alpha: 0.85)),
+                  maxLines: 2,
+                  style: AppTheme.caption.copyWith(fontSize: 12.5),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: AppTheme.sm),
+          const SizedBox(height: AppTheme.md),
           Text(
             value,
             style: AppTheme.heading.copyWith(
-              fontSize: 36,
+              fontSize: 32,
               fontWeight: FontWeight.w800,
-              color: textColor,
+              color: AppTheme.textDark,
             ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            caption,
+            style: AppTheme.caption.copyWith(fontSize: 11.5),
           ),
         ],
       ),
