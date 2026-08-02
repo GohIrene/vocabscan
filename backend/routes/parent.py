@@ -1,9 +1,11 @@
 """Parent Mode dashboard data.
 
-Two aggregate reads, both scoped to one parent's children:
+Aggregate reads, all scoped to one parent's children:
 
-  * `GET /parent/summary/<parent_id>`  — everything the dashboard draws
-  * `GET /parent/activity/<parent_id>` — the combined activity log
+  * `GET /parent/summary/<parent_id>`         — everything the dashboard draws
+  * `GET /parent/activity/<parent_id>`        — the combined activity log
+  * `GET /parent/activity/summary/<parent_id>` — weekly totals for the
+    Activity Log's header (stat tiles, top word, most active child)
 
 The summary exists so the dashboard is one request rather than one per child
 plus one for the family code. A parent with four children would otherwise fire
@@ -245,6 +247,127 @@ def parent_activity(parent_id):
             "activity": events[:limit],
             "count": len(events[:limit]),
             "today": local_today(),
+        })
+    except PyMongoError:
+        return jsonify({"status": "error", "message": "Database error"}), 500
+
+
+# Size of the "this week" / "last week" windows the summary compares.
+_SUMMARY_WINDOW_DAYS = 7
+
+_EMPTY_TOTALS = {"scans": 0, "quiz_attempts": 0, "speech_attempts": 0,
+                 "treasures": 0, "total": 0}
+
+_KIND_KEY = {"scan": "scans", "quiz": "quiz_attempts",
+             "speech": "speech_attempts", "treasure": "treasures"}
+
+
+def _activity_events(child_ids, start):
+    """(child_id, kind, english_key, timestamp) for every event since `start`.
+
+    One query per collection rather than one per child, same trade-off
+    `_week_series` above makes — cheaper than fanning out per child once the
+    family has more than a couple of kids.
+    """
+    events = []
+    for coll, kind, field in (
+        (state.db.scan_logs, "scan", "created_at"),
+        (state.db.quiz_logs, "quiz", "created_at"),
+        (state.db.speech_logs, "speech", "created_at"),
+        (state.db.child_treasures, "treasure", "discovered_at"),
+    ):
+        q = {"child_id": {"$in": child_ids}, field: {"$gte": start}}
+        for doc in coll.find(q, {"child_id": 1, "english_key": 1, field: 1}):
+            events.append((doc.get("child_id"), kind, doc.get("english_key") or "",
+                           doc.get(field)))
+    return events
+
+
+def _totals(rows):
+    counts = dict(_EMPTY_TOTALS)
+    counts.pop("total")
+    for _cid, kind, _key, _ts in rows:
+        counts[_KIND_KEY[kind]] += 1
+    counts["total"] = sum(counts.values())
+    return counts
+
+
+@bp.get("/parent/activity/summary/<parent_id>")
+def parent_activity_summary(parent_id):
+    """Weekly activity totals, this week vs last, for the Activity Log header.
+
+    The combined feed `parent_activity` returns is capped at `_MAX_ACTIVITY`
+    events and has no date-range filter, so it can't reliably answer "how
+    much happened this week" once a family crosses that cap. This rolls up
+    scans/quiz/speech/treasures across every active child instead. Read-only,
+    and doesn't touch how quiz or speech attempts are scored.
+    """
+    err = state._db_required()
+    if err:
+        return err
+
+    try:
+        children, _ = _children_of(parent_id)
+        active_ids = [c["child_id"] for c in children
+                      if c.get("is_active", True)]
+        if not active_ids:
+            return jsonify({
+                "status": "ok",
+                "this_week": dict(_EMPTY_TOTALS),
+                "last_week": dict(_EMPTY_TOTALS),
+                "top_word": None,
+                "most_active_child": None,
+            })
+
+        this_week_start = local_day_start_utc(
+            days_ago=_SUMMARY_WINDOW_DAYS - 1)
+        last_week_start = local_day_start_utc(
+            days_ago=2 * _SUMMARY_WINDOW_DAYS - 1)
+
+        events = _activity_events(active_ids, last_week_start)
+        this_week = [e for e in events if e[3] and e[3] >= this_week_start]
+        last_week = [e for e in events if e[3] and e[3] < this_week_start]
+
+        word_counts = {}
+        for _cid, _kind, key, _ts in this_week:
+            if key:
+                word_counts[key] = word_counts.get(key, 0) + 1
+        top_word = None
+        if word_counts:
+            best_key = max(word_counts, key=word_counts.get)
+            top_word = {
+                "english_key": best_key,
+                "english_word": vocab._resolve_vocab(best_key).get(
+                    "english_word", best_key),
+                "count": word_counts[best_key],
+            }
+
+        this_week_by_child = {}
+        last_week_by_child = {}
+        for cid, _kind, _key, _ts in this_week:
+            this_week_by_child[cid] = this_week_by_child.get(cid, 0) + 1
+        for cid, _kind, _key, _ts in last_week:
+            last_week_by_child[cid] = last_week_by_child.get(cid, 0) + 1
+
+        most_active_child = None
+        if this_week_by_child:
+            names = {c["child_id"]: c.get("nickname", "") for c in children}
+            avatars = {c["child_id"]: c.get("avatar_id") for c in children}
+            top_id = max(this_week_by_child, key=this_week_by_child.get)
+            most_active_child = {
+                "child_id": top_id,
+                "nickname": names.get(top_id, ""),
+                "avatar_id": avatars.get(top_id),
+                "activities_this_week": this_week_by_child[top_id],
+                "activities_last_week": last_week_by_child.get(top_id, 0),
+            }
+
+        return jsonify({
+            "status": "ok",
+            "this_week": _totals(this_week),
+            "last_week": _totals(last_week),
+            "top_word": top_word,
+            "most_active_child": most_active_child,
         })
     except PyMongoError:
         return jsonify({"status": "error", "message": "Database error"}), 500

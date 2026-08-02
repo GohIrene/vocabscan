@@ -415,6 +415,23 @@ class ApiService {
     throw Exception('getParentActivity failed (${response.statusCode}): $body');
   }
 
+  /// Weekly totals (this week vs last), top word, and most active child —
+  /// the Activity Log's header, which the capped feed above can't compute.
+  /// GET /parent/activity/summary/`parentId`
+  static Future<Map<String, dynamic>> getParentActivitySummary(
+      String parentId) async {
+    final response = await http
+        .get(Uri.parse(
+            '${AppConfig.baseUrl}/parent/activity/summary/$parentId'))
+        .timeout(const Duration(seconds: 15));
+    final body = utf8.decode(response.bodyBytes);
+    if (response.statusCode == 200) {
+      return jsonDecode(body) as Map<String, dynamic>;
+    }
+    throw Exception(
+        'getParentActivitySummary failed (${response.statusCode}): $body');
+  }
+
   /// Edits a child profile. Only the fields passed are changed, so the same
   /// call serves the edit form, the deactivate toggle and a PIN reset.
   ///

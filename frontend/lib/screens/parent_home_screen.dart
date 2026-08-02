@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -377,8 +379,8 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
                     child: switch (_section) {
                       ParentNavItem.dashboard => _buildDashboard(),
                       ParentNavItem.children => _buildChildren(),
-                      ParentNavItem.activity =>
-                        ParentActivityView(parentId: _parentId),
+                      ParentNavItem.activity => ParentActivityView(
+                          parentId: _parentId, children: _children),
                       ParentNavItem.reports => _buildReports(),
                       ParentNavItem.familyCode => _buildFamilyCode(),
                       ParentNavItem.settings => _buildSettings(),
@@ -920,23 +922,37 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: AppTheme.md),
-            decoration: BoxDecoration(
-              color: AppTheme.secondaryLight,
-              borderRadius: BorderRadius.circular(AppTheme.radiusSm),
-            ),
+          Align(
             alignment: Alignment.center,
-            child: Text(
-              code ?? '——————',
-              style: AppTheme.heading.copyWith(
-                fontSize: 30,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 8,
-                color: code == null ? AppTheme.textLight : AppTheme.textDark,
+            child: Icon(Icons.auto_awesome_rounded,
+                size: 14, color: AppTheme.secondary.withValues(alpha: 0.4)),
+          ),
+          const SizedBox(height: 4),
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: AppTheme.md),
+                decoration: BoxDecoration(
+                  color: AppTheme.secondaryLight,
+                  borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  code ?? '——————',
+                  style: AppTheme.heading.copyWith(
+                    fontSize: 30,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 8,
+                    color:
+                        code == null ? AppTheme.textLight : AppTheme.textDark,
+                  ),
+                ),
               ),
-            ),
+              Positioned(left: AppTheme.lg, child: _DotCluster()),
+              Positioned(right: AppTheme.lg, child: _DotCluster()),
+            ],
           ),
           const SizedBox(height: AppTheme.sm),
           Text(
@@ -948,14 +964,14 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
           Row(
             children: [
               Expanded(
-                child: OutlinedButton.icon(
+                child: FilledButton.icon(
                   onPressed: code == null ? null : _copyCode,
                   icon: const Icon(Icons.copy_rounded, size: 16),
                   label: const Text('Copy Code'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppTheme.secondary,
-                    side: BorderSide(
-                        color: AppTheme.secondary.withValues(alpha: 0.35)),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppTheme.secondary,
+                    foregroundColor: AppTheme.surface,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
                     shape: RoundedRectangleBorder(
                         borderRadius:
                             BorderRadius.circular(AppTheme.radiusSm)),
@@ -964,12 +980,19 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
               ),
               const SizedBox(width: AppTheme.sm),
               Expanded(
-                child: TextButton.icon(
+                child: OutlinedButton.icon(
                   onPressed: _regenerateCode,
                   icon: const Icon(Icons.refresh_rounded, size: 16),
-                  label: const Text('Regenerate'),
-                  style: TextButton.styleFrom(
-                      foregroundColor: AppTheme.textLight),
+                  label: const Text('Regenerate Code'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppTheme.secondary,
+                    side: BorderSide(
+                        color: AppTheme.secondary.withValues(alpha: 0.35)),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                        borderRadius:
+                            BorderRadius.circular(AppTheme.radiusSm)),
+                  ),
                 ),
               ),
             ],
@@ -987,20 +1010,13 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
       children: [
         if (_children.isEmpty)
           _buildNoChildren()
-        else
-          ParentCard(
-            child: Column(
-              children: [
-                for (var i = 0; i < _children.length; i++) ...[
-                  if (i > 0)
-                    Divider(
-                        height: AppTheme.lg,
-                        color: AppTheme.secondary.withValues(alpha: 0.1)),
-                  _buildChildRow(_children[i], active: true),
-                ],
-              ],
-            ),
-          ),
+        else ...[
+          for (final child in _children) ...[
+            ParentCard(child: _buildChildRow(child, active: true)),
+            const SizedBox(height: AppTheme.md),
+          ],
+          _buildAddAnotherChild(),
+        ],
         if (_inactive.isNotEmpty) ...[
           const SizedBox(height: AppTheme.lg),
           ParentCard(
@@ -1071,38 +1087,98 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
                   ],
                 ],
               ),
-              Text('Age ${child['age'] ?? '—'}', style: AppTheme.caption),
+              Row(
+                children: [
+                  const Icon(Icons.calendar_today_outlined,
+                      size: 12, color: AppTheme.textLight),
+                  const SizedBox(width: 4),
+                  Text('Age ${child['age'] ?? '—'}', style: AppTheme.caption),
+                ],
+              ),
             ],
           ),
         ),
+        Container(
+          width: 1,
+          height: 44,
+          margin: const EdgeInsets.symmetric(horizontal: AppTheme.md),
+          color: AppTheme.secondary.withValues(alpha: 0.12),
+        ),
         if (active) ...[
-          _RowAction(
+          _ChildAction(
               icon: Icons.edit_rounded,
-              tooltip: 'Edit',
+              label: 'Edit',
+              color: AppTheme.secondary,
               onTap: () => _editChild(child)),
-          _RowAction(
+          const SizedBox(width: 8),
+          _ChildAction(
               icon: Icons.insights_rounded,
-              tooltip: 'View progress',
+              label: 'Progress',
+              color: AppTheme.secondary,
               onTap: () => _viewProgress(child)),
-          _RowAction(
+          const SizedBox(width: 8),
+          _ChildAction(
             icon: Icons.visibility_off_rounded,
-            tooltip: 'Deactivate',
+            label: 'Deactivate',
+            color: AppTheme.error,
             onTap: () => _setActive(child, false),
           ),
         ] else ...[
-          _RowAction(
+          _ChildAction(
             icon: Icons.restart_alt_rounded,
-            tooltip: 'Reactivate',
+            label: 'Reactivate',
+            color: AppTheme.secondary,
             onTap: () => _setActive(child, true),
           ),
-          _RowAction(
+          const SizedBox(width: 8),
+          _ChildAction(
             icon: Icons.delete_outline_rounded,
-            tooltip: 'Delete',
-            tint: AppTheme.error,
+            label: 'Delete',
+            color: AppTheme.error,
             onTap: () => _deleteChild(child),
           ),
         ],
+        const SizedBox(width: 4),
+        const Icon(Icons.chevron_right_rounded, color: AppTheme.textLight),
       ],
+    );
+  }
+
+  Widget _buildAddAnotherChild() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppTheme.lg),
+      child: Column(
+        children: [
+          Container(
+            width: 72,
+            height: 72,
+            decoration: BoxDecoration(
+              color: AppTheme.secondaryLight,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.group_add_rounded,
+                color: AppTheme.secondary, size: 32),
+          ),
+          const SizedBox(height: AppTheme.md),
+          Text('Add another child',
+              style:
+                  AppTheme.subheading.copyWith(fontWeight: FontWeight.w800)),
+          const SizedBox(height: 2),
+          Text(
+            'Create a new profile to start their learning journey.',
+            style: AppTheme.caption,
+          ),
+          const SizedBox(height: AppTheme.lg),
+          FilledButton.icon(
+            onPressed: _addChild,
+            icon: const Icon(Icons.add_rounded, size: 18),
+            label: const Text('Add New Child'),
+            style: AppTheme.primaryButton.copyWith(
+                backgroundColor:
+                    const WidgetStatePropertyAll(AppTheme.secondary)),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1181,13 +1257,29 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _Step(n: 1, text: 'On the welcome screen, they tap '
-                    '"I\'m Learning at Home".'),
-                _Step(n: 2, text: 'They type this family code.'),
-                _Step(n: 3, text: 'They tap their own buddy to pick their '
-                    'profile.'),
-                _Step(n: 4, text: 'If you set a child PIN, they type it — '
-                    'otherwise they start straight away.'),
+                _Step(
+                  n: 1,
+                  text: 'On the welcome screen, they tap '
+                      '"I\'m Learning at Home".',
+                  trailingIcon: Icons.home_rounded,
+                ),
+                _Step(
+                  n: 2,
+                  text: 'They type this family code.',
+                  trailingIcon: Icons.tablet_mac_rounded,
+                ),
+                _Step(
+                  n: 3,
+                  text: 'They tap their own buddy to pick their '
+                      'profile.',
+                  trailingIcon: Icons.person_rounded,
+                ),
+                _Step(
+                  n: 4,
+                  text: 'If you set a child PIN, they type it — '
+                      'otherwise they start straight away.',
+                  trailingIcon: Icons.lock_rounded,
+                ),
               ],
             ),
           ),
@@ -1209,11 +1301,16 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
             icon: Icons.person_rounded,
             child: Column(
               children: [
-                _SettingRow(label: 'Username', value: _username),
-                const SizedBox(height: AppTheme.sm),
-                _SettingRow(label: 'Role', value: 'Parent'),
-                const SizedBox(height: AppTheme.sm),
                 _SettingRow(
+                    icon: Icons.person_rounded,
+                    label: 'Username',
+                    value: _username),
+                const Divider(height: AppTheme.lg),
+                _SettingRow(
+                    icon: Icons.shield_rounded, label: 'Role', value: 'Parent'),
+                const Divider(height: AppTheme.lg),
+                _SettingRow(
+                    icon: Icons.groups_rounded,
                     label: 'Child profiles',
                     value: '${_children.length} active, '
                         '${_inactive.length} inactive'),
@@ -1226,19 +1323,22 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
             icon: Icons.shield_rounded,
             iconTint: AppTheme.success,
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Your PIN is asked for before editing, deactivating or '
-                  'deleting a child, and before regenerating the family code '
-                  '— in case your child is holding the device.',
-                  style: AppTheme.caption,
+                _SafetyItem(
+                  icon: Icons.lock_rounded,
+                  title: 'PIN protection',
+                  description:
+                      'Your PIN is asked for before editing, deactivating or '
+                      'deleting a child, and before regenerating the family '
+                      'code — in case your child is holding the device.',
                 ),
-                const SizedBox(height: AppTheme.md),
-                Text(
-                  'Camera images are never stored. Only recognition, quiz and '
-                  'speech outcomes are recorded.',
-                  style: AppTheme.caption,
+                const SizedBox(height: AppTheme.sm),
+                _SafetyItem(
+                  icon: Icons.photo_camera_rounded,
+                  title: 'Privacy by design',
+                  description:
+                      'Camera images are never stored. Only recognition, '
+                      'quiz and speech outcomes are recorded.',
                 ),
               ],
             ),
@@ -1269,7 +1369,13 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
 class ParentActivityView extends StatefulWidget {
   final String? parentId;
 
-  const ParentActivityView({super.key, required this.parentId});
+  /// Every child (active and inactive), so the child filter can list a child
+  /// even before they have any logged activity. Falls back to deriving the
+  /// list from the fetched events when the dashboard hasn't loaded yet.
+  final List<Map<String, dynamic>> children;
+
+  const ParentActivityView(
+      {super.key, required this.parentId, this.children = const []});
 
   @override
   State<ParentActivityView> createState() => _ParentActivityViewState();
@@ -1278,11 +1384,27 @@ class ParentActivityView extends StatefulWidget {
 class _ParentActivityViewState extends State<ParentActivityView> {
   List<Map<String, dynamic>>? _events;
   String? _error;
+  Map<String, dynamic>? _summary;
+
+  final _searchController = TextEditingController();
+  String _search = '';
+  String? _childFilter;
+  String _typeFilter = 'all';
 
   @override
   void initState() {
     super.initState();
     _load();
+    _loadSummary();
+    _searchController.addListener(() {
+      setState(() => _search = _searchController.text.trim().toLowerCase());
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -1304,8 +1426,389 @@ class _ParentActivityViewState extends State<ParentActivityView> {
     }
   }
 
+  /// The header's weekly stats. Loaded separately from the timeline, and
+  /// failures here stay silent — the timeline is the part that matters, and
+  /// still works without this.
+  Future<void> _loadSummary() async {
+    final parentId = widget.parentId;
+    if (parentId == null) return;
+    try {
+      final data = await ApiService.getParentActivitySummary(parentId);
+      if (!mounted) return;
+      setState(() => _summary = data);
+    } catch (_) {
+      // Header just stays hidden; see doc comment above.
+    }
+  }
+
+  List<Map<String, dynamic>> get _childOptions {
+    if (widget.children.isNotEmpty) return widget.children;
+    final seen = <String>{};
+    final opts = <Map<String, dynamic>>[];
+    for (final e in _events ?? const []) {
+      final id = e['child_id'] as String?;
+      if (id == null || !seen.add(id)) continue;
+      opts.add({'child_id': id, 'nickname': e['child_nickname'] ?? ''});
+    }
+    return opts;
+  }
+
+  List<Map<String, dynamic>> get _filtered {
+    Iterable<Map<String, dynamic>> events = _events ?? const [];
+    if (_childFilter != null) {
+      events = events.where((e) => e['child_id'] == _childFilter);
+    }
+    if (_typeFilter != 'all') {
+      events = events.where((e) => e['type'] == _typeFilter);
+    }
+    if (_search.isNotEmpty) {
+      events = events.where((e) {
+        final desc = (e['description'] as String? ?? '').toLowerCase();
+        final word = (e['english_word'] as String? ?? '').toLowerCase();
+        return desc.contains(_search) || word.contains(_search);
+      });
+    }
+    return events.toList();
+  }
+
   @override
   Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _buildFilters(),
+        const SizedBox(height: AppTheme.md),
+        _buildSummary(),
+        const SizedBox(height: AppTheme.lg),
+        _buildTimeline(),
+      ],
+    );
+  }
+
+  // ── Filters ────────────────────────────────────────────────────────────────
+
+  Widget _buildFilters() {
+    return Wrap(
+      spacing: AppTheme.sm,
+      runSpacing: AppTheme.sm,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        SizedBox(
+          width: 260,
+          child: TextField(
+            controller: _searchController,
+            style: AppTheme.body.copyWith(fontSize: 14),
+            decoration: InputDecoration(
+              hintText: 'Search word or activity',
+              hintStyle: AppTheme.caption,
+              prefixIcon:
+                  Icon(Icons.search_rounded, size: 20, color: AppTheme.textLight),
+              isDense: true,
+              filled: true,
+              fillColor: AppTheme.surface,
+              contentPadding:
+                  const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+                borderSide:
+                    BorderSide(color: AppTheme.secondary.withValues(alpha: 0.2)),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+                borderSide:
+                    BorderSide(color: AppTheme.secondary.withValues(alpha: 0.2)),
+              ),
+            ),
+          ),
+        ),
+        if (_childOptions.length > 1) _buildChildDropdown(),
+        _buildTypePills(),
+      ],
+    );
+  }
+
+  Widget _buildChildDropdown() {
+    final options = _childOptions;
+    final valuePresent = options.any((c) => c['child_id'] == _childFilter);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+      decoration: BoxDecoration(
+        color: AppTheme.surface,
+        borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+        border: Border.all(color: AppTheme.secondary.withValues(alpha: 0.2)),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String?>(
+          value: valuePresent ? _childFilter : null,
+          isDense: true,
+          icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 18),
+          style: AppTheme.caption
+              .copyWith(color: AppTheme.textDark, fontWeight: FontWeight.w700),
+          items: [
+            const DropdownMenuItem(value: null, child: Text('All Children')),
+            for (final c in options)
+              DropdownMenuItem(
+                value: c['child_id'] as String?,
+                child: Text(c['nickname'] as String? ?? ''),
+              ),
+          ],
+          onChanged: (id) => setState(() => _childFilter = id),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTypePills() {
+    const options = [
+      ('all', 'All'),
+      ('scan', 'Scans'),
+      ('quiz', 'Quiz'),
+      ('speech', 'Speech'),
+      ('treasure', 'Treasures'),
+    ];
+    return Wrap(
+      spacing: 6,
+      children: [
+        for (final (value, label) in options)
+          _ActivityFilterChip(
+            label: label,
+            selected: _typeFilter == value,
+            onTap: () => setState(() => _typeFilter = value),
+          ),
+      ],
+    );
+  }
+
+  // ── Weekly summary ────────────────────────────────────────────────────────
+
+  Widget _buildSummary() {
+    final summary = _summary;
+    if (summary == null) return const SizedBox.shrink();
+
+    final thisWeek = (summary['this_week'] as Map?)?.cast<String, dynamic>();
+    final lastWeek = (summary['last_week'] as Map?)?.cast<String, dynamic>();
+    final topWord = (summary['top_word'] as Map?)?.cast<String, dynamic>();
+    final mostActive =
+        (summary['most_active_child'] as Map?)?.cast<String, dynamic>();
+
+    final tiles = _buildStatTiles(thisWeek, lastWeek);
+    final sideCards = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _buildDonutCard(thisWeek),
+        if (topWord != null) ...[
+          const SizedBox(height: AppTheme.md),
+          _buildTopWordCard(topWord),
+        ],
+        if (mostActive != null) ...[
+          const SizedBox(height: AppTheme.md),
+          _buildMostActiveCard(mostActive),
+        ],
+      ],
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 900) {
+          return Column(
+            children: [tiles, const SizedBox(height: AppTheme.md), sideCards],
+          );
+        }
+        return IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(flex: 3, child: tiles),
+              const SizedBox(width: AppTheme.md),
+              Expanded(flex: 2, child: sideCards),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildStatTiles(
+      Map<String, dynamic>? thisWeek, Map<String, dynamic>? lastWeek) {
+    final tw = thisWeek ?? const {};
+    final lw = lastWeek ?? const {};
+    final items = [
+      ('Total Activities', 'total', Icons.insights_rounded, AppTheme.primary),
+      ('Scans', 'scans', Icons.photo_camera_rounded, AppTheme.success),
+      ('Quiz Attempts', 'quiz_attempts', Icons.quiz_rounded,
+          AppTheme.secondary),
+      ('Speech Attempts', 'speech_attempts', Icons.mic_rounded,
+          AppTheme.blossom),
+    ];
+
+    return ParentCard(
+      title: "This Week's Activity",
+      icon: Icons.calendar_today_rounded,
+      iconTint: AppTheme.secondary,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          const columns = 2;
+          const gap = AppTheme.sm;
+          final tileWidth =
+              (constraints.maxWidth - gap * (columns - 1)) / columns;
+          return Wrap(
+            spacing: gap,
+            runSpacing: gap,
+            children: [
+              for (final (label, key, icon, tint) in items)
+                SizedBox(
+                  width: tileWidth,
+                  child: ParentStat(
+                    icon: icon,
+                    tint: tint,
+                    label: label,
+                    value: '${(tw[key] as num?)?.toInt() ?? 0}',
+                    caption: _weeklyDelta((tw[key] as num?)?.toInt() ?? 0,
+                        (lw[key] as num?)?.toInt() ?? 0),
+                  ),
+                ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildDonutCard(Map<String, dynamic>? thisWeek) {
+    final tw = thisWeek ?? const {};
+    final segments = [
+      _DonutSegment('Scans', (tw['scans'] as num?)?.toInt() ?? 0,
+          AppTheme.success),
+      _DonutSegment('Quiz', (tw['quiz_attempts'] as num?)?.toInt() ?? 0,
+          AppTheme.secondary),
+      _DonutSegment('Speech', (tw['speech_attempts'] as num?)?.toInt() ?? 0,
+          AppTheme.blossom),
+      _DonutSegment('Treasures', (tw['treasures'] as num?)?.toInt() ?? 0,
+          AppTheme.treasure),
+    ];
+    final total = segments.fold(0, (sum, s) => sum + s.value);
+
+    return ParentCard(
+      title: 'Activity Summary',
+      icon: Icons.pie_chart_rounded,
+      iconTint: AppTheme.primary,
+      child: Row(
+        children: [
+          _DonutChart(segments: segments, total: total),
+          const SizedBox(width: AppTheme.lg),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (final s in segments)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 3),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 9,
+                          height: 9,
+                          decoration: BoxDecoration(
+                              color: s.color, shape: BoxShape.circle),
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(s.label,
+                              style: AppTheme.caption.copyWith(fontSize: 12)),
+                        ),
+                        Text(
+                          total == 0
+                              ? '0'
+                              : '${s.value} '
+                                  '(${(s.value / total * 100).round()}%)',
+                          style: AppTheme.caption.copyWith(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: AppTheme.textDark),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTopWordCard(Map<String, dynamic> topWord) {
+    return ParentCard(
+      title: 'Top Word This Week',
+      icon: Icons.star_rounded,
+      iconTint: AppTheme.treasure,
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: AppTheme.treasure.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+            ),
+            child: const Icon(Icons.text_fields_rounded,
+                color: AppTheme.treasure),
+          ),
+          const SizedBox(width: AppTheme.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(topWord['english_word'] as String? ?? '',
+                    style: AppTheme.body.copyWith(fontWeight: FontWeight.w800)),
+                Text('Practiced ${topWord['count'] ?? 0} times',
+                    style: AppTheme.caption),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMostActiveCard(Map<String, dynamic> child) {
+    final now = (child['activities_this_week'] as num?)?.toInt() ?? 0;
+    final before = (child['activities_last_week'] as num?)?.toInt() ?? 0;
+    final delta = _weeklyDelta(now, before);
+
+    return ParentCard(
+      title: 'Most Active Child',
+      icon: Icons.emoji_events_rounded,
+      iconTint: AppTheme.adventure,
+      child: Row(
+        children: [
+          ChildAvatar(avatarId: child['avatar_id'] as String?, size: 44),
+          const SizedBox(width: AppTheme.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(child['nickname'] as String? ?? '',
+                    style: AppTheme.body.copyWith(fontWeight: FontWeight.w800)),
+                Text('$now activities this week', style: AppTheme.caption),
+                if (delta != null)
+                  Text(delta,
+                      style: AppTheme.caption.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: now >= before
+                              ? AppTheme.success
+                              : AppTheme.textLight)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Timeline ──────────────────────────────────────────────────────────────
+
+  Widget _buildTimeline() {
     if (_error != null) {
       return ParentCard(
         child: Column(
@@ -1349,9 +1852,28 @@ class _ParentActivityViewState extends State<ParentActivityView> {
       );
     }
 
+    final events = _filtered;
+    if (events.isEmpty) {
+      return ParentCard(
+        padding: const EdgeInsets.all(AppTheme.xxl),
+        child: Column(
+          children: [
+            const Text('🔍', style: TextStyle(fontSize: 44)),
+            const SizedBox(height: AppTheme.md),
+            Text('No matching activity',
+                style:
+                    AppTheme.subheading.copyWith(fontWeight: FontWeight.w800)),
+            const SizedBox(height: AppTheme.xs),
+            Text('Try a different search or filter.',
+                textAlign: TextAlign.center, style: AppTheme.caption),
+          ],
+        ),
+      );
+    }
+
     // Grouped by local day, the same GMT+8 bucketing the report uses.
     final grouped = <String, List<Map<String, dynamic>>>{};
-    for (final e in _events!) {
+    for (final e in events) {
       grouped.putIfAbsent(e['local_date'] as String? ?? '', () => []).add(e);
     }
 
@@ -1380,6 +1902,7 @@ class _ParentActivityViewState extends State<ParentActivityView> {
                       final e = entry.value[i];
                       final (icon, tint) =
                           _activityStyle(e['type'] as String? ?? '');
+                      final statusPill = _statusPillFor(e);
                       return Row(
                         children: [
                           Container(
@@ -1410,6 +1933,10 @@ class _ParentActivityViewState extends State<ParentActivityView> {
                               ],
                             ),
                           ),
+                          if (statusPill != null) ...[
+                            statusPill,
+                            const SizedBox(width: AppTheme.sm),
+                          ],
                           Text(e['local_time'] as String? ?? '',
                               style: AppTheme.caption.copyWith(fontSize: 11)),
                         ],
@@ -1424,6 +1951,148 @@ class _ParentActivityViewState extends State<ParentActivityView> {
       ],
     );
   }
+
+  Widget? _statusPillFor(Map<String, dynamic> e) {
+    final type = e['type'] as String? ?? '';
+    if (type == 'treasure') {
+      return const _Pill(label: 'New Treasure', tint: AppTheme.treasure);
+    }
+    if (type == 'quiz' || type == 'speech') {
+      final correct = e['correct'];
+      if (correct == true) {
+        return const _Pill(label: 'Correct', tint: AppTheme.success);
+      }
+      if (correct == false) {
+        return _Pill(
+            label: type == 'speech' ? 'Try Again' : 'Incorrect',
+            tint: AppTheme.error);
+      }
+    }
+    return null;
+  }
+}
+
+/// Percent change vs. last week, formatted for a [ParentStat] caption. Null
+/// when there's nothing meaningful to compare (both weeks empty).
+String? _weeklyDelta(int now, int before) {
+  if (before == 0) return now > 0 ? 'New this week' : null;
+  final pct = ((now - before) / before * 100).round();
+  if (pct == 0) return 'Same as last week';
+  final arrow = pct > 0 ? '↑' : '↓';
+  return '$arrow${pct.abs()}% vs last week';
+}
+
+class _ActivityFilterChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _ActivityFilterChip(
+      {required this.label, required this.selected, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected ? AppTheme.secondary : AppTheme.surface,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+              color: selected
+                  ? AppTheme.secondary
+                  : AppTheme.secondary.withValues(alpha: 0.2)),
+        ),
+        child: Text(
+          label,
+          style: AppTheme.caption.copyWith(
+            fontSize: 12.5,
+            fontWeight: FontWeight.w700,
+            color: selected ? Colors.white : AppTheme.textDark,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DonutSegment {
+  final String label;
+  final int value;
+  final Color color;
+  const _DonutSegment(this.label, this.value, this.color);
+}
+
+/// A ring chart with the total centred inside it — no charting package, just
+/// a small [CustomPainter] arc per segment.
+class _DonutChart extends StatelessWidget {
+  final List<_DonutSegment> segments;
+  final int total;
+
+  const _DonutChart({required this.segments, required this.total});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 108,
+      height: 108,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          CustomPaint(
+            size: const Size(108, 108),
+            painter: _DonutPainter(segments: segments, total: total),
+          ),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('$total',
+                  style: AppTheme.heading
+                      .copyWith(fontSize: 24, fontWeight: FontWeight.w800)),
+              Text('Total', style: AppTheme.caption.copyWith(fontSize: 11)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DonutPainter extends CustomPainter {
+  final List<_DonutSegment> segments;
+  final int total;
+
+  const _DonutPainter({required this.segments, required this.total});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = (Offset.zero & size).deflate(9);
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 16
+      ..strokeCap = StrokeCap.butt;
+
+    if (total <= 0) {
+      paint.color = AppTheme.textLight.withValues(alpha: 0.15);
+      canvas.drawArc(rect, 0, 2 * math.pi, false, paint);
+      return;
+    }
+
+    var start = -math.pi / 2;
+    for (final s in segments) {
+      if (s.value <= 0) continue;
+      final sweep = (s.value / total) * 2 * math.pi;
+      paint.color = s.color;
+      canvas.drawArc(rect, start, sweep, false, paint);
+      start += sweep;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _DonutPainter oldDelegate) =>
+      oldDelegate.segments != segments || oldDelegate.total != total;
 }
 
 /// Shared by the full Activity Log and the dashboard's recent-activity
@@ -1831,27 +2500,51 @@ class _CardAction extends StatelessWidget {
   }
 }
 
-class _RowAction extends StatelessWidget {
+/// A bordered icon-over-label button used in a child row (Edit, Progress,
+/// Deactivate, ...).
+class _ChildAction extends StatelessWidget {
   final IconData icon;
-  final String tooltip;
+  final String label;
+  final Color color;
   final VoidCallback onTap;
-  final Color? tint;
 
-  const _RowAction({
+  const _ChildAction({
     required this.icon,
-    required this.tooltip,
+    required this.label,
+    required this.color,
     required this.onTap,
-    this.tint,
   });
 
   @override
   Widget build(BuildContext context) {
-    return IconButton(
-      onPressed: onTap,
-      icon: Icon(icon, size: 19),
-      color: tint ?? AppTheme.secondary,
-      tooltip: tooltip,
-      visualDensity: VisualDensity.compact,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+        child: Container(
+          width: 76,
+          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+            border: Border.all(color: color.withValues(alpha: 0.35)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 17, color: color),
+              const SizedBox(height: 3),
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTheme.caption.copyWith(
+                    fontSize: 10.5, fontWeight: FontWeight.w700, color: color),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -1915,14 +2608,27 @@ class _AddChildCardState extends State<_AddChildCard> {
 }
 
 class _SettingRow extends StatelessWidget {
+  final IconData? icon;
   final String label;
   final String value;
-  const _SettingRow({required this.label, required this.value});
+  const _SettingRow({this.icon, required this.label, required this.value});
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
+        if (icon != null) ...[
+          Container(
+            width: 30,
+            height: 30,
+            decoration: BoxDecoration(
+              color: AppTheme.primaryLight,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, size: 15, color: AppTheme.primary),
+          ),
+          const SizedBox(width: AppTheme.sm),
+        ],
         Expanded(child: Text(label, style: AppTheme.caption)),
         Flexible(
           child: Text(
@@ -1937,10 +2643,74 @@ class _SettingRow extends StatelessWidget {
   }
 }
 
+/// One boxed safety fact in the Settings > Safety card: icon, short title
+/// plus description, and a trailing "verified" checkmark badge.
+class _SafetyItem extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String description;
+  const _SafetyItem({
+    required this.icon,
+    required this.title,
+    required this.description,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(AppTheme.md),
+      decoration: BoxDecoration(
+        color: AppTheme.secondaryLight.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: const BoxDecoration(
+              color: AppTheme.surface,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, size: 17, color: AppTheme.secondary),
+          ),
+          const SizedBox(width: AppTheme.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: AppTheme.body.copyWith(fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: AppTheme.xs),
+                Text(description, style: AppTheme.caption),
+              ],
+            ),
+          ),
+          const SizedBox(width: AppTheme.sm),
+          Container(
+            width: 22,
+            height: 22,
+            decoration: const BoxDecoration(
+              color: AppTheme.success,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.check_rounded,
+                size: 14, color: AppTheme.surface),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _Step extends StatelessWidget {
   final int n;
   final String text;
-  const _Step({required this.n, required this.text});
+  final IconData? trailingIcon;
+  const _Step({required this.n, required this.text, this.trailingIcon});
 
   @override
   Widget build(BuildContext context) {
@@ -1963,7 +2733,51 @@ class _Step extends StatelessWidget {
           ),
           const SizedBox(width: AppTheme.sm),
           Expanded(child: Text(text, style: AppTheme.caption)),
+          if (trailingIcon != null) ...[
+            const SizedBox(width: AppTheme.sm),
+            Container(
+              width: 26,
+              height: 26,
+              decoration: const BoxDecoration(
+                  color: AppTheme.secondaryLight, shape: BoxShape.circle),
+              alignment: Alignment.center,
+              child: Icon(trailingIcon, size: 14, color: AppTheme.secondary),
+            ),
+          ],
         ],
+      ),
+    );
+  }
+}
+
+/// Small decorative dot grid used to flank the family code display.
+class _DotCluster extends StatelessWidget {
+  const _DotCluster();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: List.generate(
+        3,
+        (_) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 2),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: List.generate(
+              3,
+              (_) => Container(
+                width: 3,
+                height: 3,
+                margin: const EdgeInsets.symmetric(horizontal: 2),
+                decoration: BoxDecoration(
+                  color: AppTheme.secondary.withValues(alpha: 0.25),
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
