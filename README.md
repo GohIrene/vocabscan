@@ -24,7 +24,7 @@ Built as a final-year capstone project.
 - Trilingual vocabulary cards (English / Malay / Chinese) with audio playback
 - Multiple-choice quizzes generated from real vocabulary data, not a hardcoded question bank
 - Pronunciation practice with automatic scoring
-- Revision mode — re-practise previously scanned words without needing the physical object
+- Revision mode: re-practise previously scanned words without needing the physical object
 - Adventure Mode: XP, streaks, avatars and collectable treasures
 - Children can log in directly with their own username, no parent account required
 
@@ -35,7 +35,7 @@ Built as a final-year capstone project.
 
 **For teachers**
 - Classroom management with student rosters and CSV import
-- Live Class Code sessions — students join from their own devices with a 6-character code
+- Live Class Code sessions: students join from their own devices with a 6-character code
 - Push a quiz to every connected student at once, with a real-time leaderboard
 - Batch quizzes, summary quizzes, and pre-staged vocabulary for a lesson
 - Session history and past leaderboards
@@ -208,7 +208,7 @@ Handlers live in [backend/sockets.py](backend/sockets.py); the client is [fronte
 | `push_batch_quiz` | Teacher | Broadcast a multi-question batch |
 | `stage_batch_words` | Teacher | Pre-load vocabulary into the session |
 | `end_session` | Teacher | Close the session and finalise the leaderboard |
-| `disconnect` | — | Clean up participant state |
+| `disconnect` | - | Clean up participant state |
 
 ## Image Classifier
 
@@ -216,4 +216,4 @@ The shipped classifier is **MobileNetV3Large** fine-tuned on a custom 30-class d
 
 Three other architectures were trained and benchmarked against it during development — MobileNetV2, EfficientNetV2-S, and YOLO11n-cls. MobileNetV3Large was selected on the accuracy-versus-latency trade-off for CPU inference, which is what the Flask server runs on.
 
-`model_loader.py` uses a custom loader instead of a plain `load_model()` call — the model was saved under Keras 2.15, but the server runs Keras 3 on Python 3.12, which can't deserialize the archive directly. It rebuilds the architecture in code and copies weights across by shape. See [backend/model_loader.py](backend/model_loader.py) for the full explanation.
+`model_loader.py` uses a custom loader instead of a plain `load_model()` call — the model was saved under Keras 2.15, but the server runs Keras 3 on Python 3.12, which can't deserialize the archive directly. It rebuilds the architecture in code and copies weights across by shape.
