@@ -122,15 +122,15 @@ const List<AdventureAssetTheme> kAdventureAssetThemes = [
     // Top-right woodland island, where the deer and rabbit stand.
     mapX: 0.825,
     mapY: 0.340,
-    // Art pending. Until then this badge stands in everywhere a scene would go.
-    // To finish the area, drop AnimalForest_S1..S6.png into
-    // `assets/adventure/animal_forest/` and add:
-    //   stageAssets: [
-    //     '$_adv/animal_forest/AnimalForest_S1.png',
-    //     ... through S6 ...
-    //   ],
-    // Nothing else needs to change — every screen picks the scenes up from here.
     iconAsset: '$_adv/animal_forest/icon.svg',
+    stageAssets: [
+      '$_adv/animal_forest/AnimalForest_S1.png',
+      '$_adv/animal_forest/AnimalForest_S2.png',
+      '$_adv/animal_forest/AnimalForest_S3.png',
+      '$_adv/animal_forest/AnimalForest_S4.png',
+      '$_adv/animal_forest/AnimalForest_S5.png',
+      '$_adv/animal_forest/AnimalForest_S6.png',
+    ],
   ),
   AdventureAssetTheme(
     // `home_corner` server-side; `cozy_home_corner` is only the asset folder.
