@@ -8,8 +8,10 @@ import 'quiz_practice_screen.dart';
 import 'speech_practice_screen.dart';
 import '../config.dart';
 import '../learning_flow.dart';
+import '../object_icons.dart';
 import '../socket_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/child_avatar.dart';
 
 /// Screen 3 – Recognition Result
 /// Displays the object the AI recognised together with its trilingual vocabulary.
@@ -127,6 +129,13 @@ class _RecognitionResultScreenState extends State<RecognitionResultScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.flowMode.isGuidedChildFlow) {
+      return _buildGuidedResult(context);
+    }
+    return _buildStandardResult(context);
+  }
+
+  Widget _buildStandardResult(BuildContext context) {
     final english = widget.predictionData['english_word'] ?? '';
     final malay = widget.predictionData['malay_word'] ?? '';
     final chinese = widget.predictionData['chinese_word'] ?? '';
@@ -217,30 +226,6 @@ class _RecognitionResultScreenState extends State<RecognitionResultScreen> {
                           ),
                         ),
                         const SizedBox(height: 28),
-
-                        // ── Guided child flow: one way forward ──
-                        // No Quiz / Speech / Scan-Another buttons here: the
-                        // sequence is fixed, and offering side doors is
-                        // exactly what lets a child skip the speaking step.
-                        if (widget.flowMode.isGuidedChildFlow) ...[
-                          FilledButton.icon(
-                            onPressed: _continueToSpeaking,
-                            icon: const Text('🎤',
-                                style: TextStyle(fontSize: 18)),
-                            label: const Text('Continue to Speaking'),
-                            style: FilledButton.styleFrom(
-                              backgroundColor: AppTheme.primary,
-                              foregroundColor: Colors.white,
-                              minimumSize: const Size(260, 58),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(18),
-                              ),
-                              textStyle:
-                                  AppTheme.buttonText.copyWith(fontSize: 17),
-                            ),
-                          ),
-                          const SizedBox(height: AppTheme.xxl),
-                        ] else ...[
 
                         // ── Class Code mode: push this word as a quiz ──
                         // Hidden without a usable key: pushing an empty one
@@ -356,13 +341,392 @@ class _RecognitionResultScreenState extends State<RecognitionResultScreen> {
                           style: AppTheme.secondaryButton,
                         ),
                         const SizedBox(height: AppTheme.xxl),
-                        ],
                       ],
                     ),
                   ),
                 ),
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Guided child flow: reward-style result screen ──────────────────────
+  //
+  // Visuals only — the single "Practice Speaking" button below still calls
+  // the same _continueToSpeaking as before, so the no-skip guided sequence
+  // (scan → speak → quiz → reward) is unchanged.
+
+  Widget _buildGuidedResult(BuildContext context) {
+    final english = (widget.predictionData['english_word'] as String?) ?? '';
+    final malay = (widget.predictionData['malay_word'] as String?) ?? '';
+    final chinese = (widget.predictionData['chinese_word'] as String?) ?? '';
+    final confidence = (widget.predictionData['confidence'] as num?) ?? 0.0;
+    final pct = (confidence * 100).toStringAsFixed(0);
+    final avatarId = widget.cycle?.avatarId;
+
+    return Scaffold(
+      backgroundColor: AppTheme.background,
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: Image.asset(
+              'assets/images/ScanningPage_background.png',
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) =>
+                  Container(color: AppTheme.background),
+            ),
+          ),
+          SafeArea(
+            child: Column(
+              children: [
+                _backButton(context),
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 760),
+                        child: Column(
+                          children: [
+                            const SizedBox(height: AppTheme.sm),
+                            _buildGuidedHeader(english),
+                            const SizedBox(height: AppTheme.xl),
+                            _buildGuidedBody(english, pct, avatarId),
+                            const SizedBox(height: AppTheme.lg),
+                            _buildGuidedLangRow(english, malay, chinese),
+                            const SizedBox(height: AppTheme.lg),
+                            _buildDidYouKnowBanner(),
+                            const SizedBox(height: AppTheme.xl),
+                            _buildPracticeSpeakingButton(),
+                            const SizedBox(height: AppTheme.xxl),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGuidedHeader(String english) {
+    return Column(
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.auto_awesome,
+                size: 18, color: Color(0xFFFFC94D)),
+            const SizedBox(width: 10),
+            Text(
+              english.isEmpty ? 'I found something!' : 'I found a $english!',
+              textAlign: TextAlign.center,
+              style: AppTheme.heading.copyWith(
+                fontSize: 28,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(width: 10),
+            const Icon(Icons.auto_awesome,
+                size: 18, color: Color(0xFFFFC94D)),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Text(
+          "Great job! You're learning so well! 💜",
+          style:
+              AppTheme.body.copyWith(fontSize: 15, color: AppTheme.textLight),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildGuidedBody(String english, String pct, String? avatarId) {
+    final resultCard = _buildResultCard(english, pct);
+    final buddy = _buildBuddyReaction(english, avatarId);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 620) {
+          return Column(
+            children: [
+              resultCard,
+              const SizedBox(height: AppTheme.lg),
+              buddy,
+            ],
+          );
+        }
+        return IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(flex: 3, child: resultCard),
+              const SizedBox(width: AppTheme.lg),
+              Expanded(flex: 2, child: buddy),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildResultCard(String english, String pct) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppTheme.xl),
+      decoration: BoxDecoration(
+        color: AppTheme.surface.withValues(alpha: 0.97),
+        borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+        boxShadow: const [
+          BoxShadow(
+              color: AppTheme.shadowColor, blurRadius: 20, offset: Offset(0, 8)),
+        ],
+      ),
+      child: Column(
+        children: [
+          Container(
+            width: 140,
+            height: 140,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: RadialGradient(
+                colors: [
+                  AppTheme.primary.withValues(alpha: 0.18),
+                  AppTheme.primary.withValues(alpha: 0.0),
+                ],
+              ),
+            ),
+            alignment: Alignment.center,
+            child: ClipOval(
+              child: Image.asset(
+                objectIconFor(english),
+                width: 116,
+                height: 116,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) =>
+                    const Icon(Icons.card_giftcard, size: 84),
+              ),
+            ),
+          ),
+          const SizedBox(height: AppTheme.lg),
+          _pillBadge(
+            icon: Icons.check_circle_rounded,
+            label: 'Object Recognised!',
+            color: AppTheme.success,
+            background: AppTheme.successLight,
+          ),
+          const SizedBox(height: AppTheme.md),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Flexible(
+                child: Text(
+                  english.isEmpty ? "It's a match!" : "It's a $english!",
+                  textAlign: TextAlign.center,
+                  style: AppTheme.heading
+                      .copyWith(fontSize: 22, fontWeight: FontWeight.w800),
+                ),
+              ),
+              const SizedBox(width: 6),
+              const Icon(Icons.star_rounded,
+                  color: AppTheme.treasure, size: 22),
+            ],
+          ),
+          const SizedBox(height: AppTheme.md),
+          _pillBadge(
+            icon: Icons.star_rounded,
+            label: '$pct% match!',
+            color: AppTheme.success,
+            background: AppTheme.successLight,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _pillBadge({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required Color background,
+  }) {
+    return Container(
+      padding:
+          const EdgeInsets.symmetric(horizontal: AppTheme.lg, vertical: 8),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: color),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: AppTheme.body.copyWith(
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBuddyReaction(String english, String? avatarId) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(AppTheme.md),
+          decoration: BoxDecoration(
+            color: AppTheme.surface.withValues(alpha: 0.97),
+            borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+            boxShadow: const [
+              BoxShadow(
+                  color: AppTheme.shadowColor,
+                  blurRadius: 12,
+                  offset: Offset(0, 4)),
+            ],
+          ),
+          child: Column(
+            children: [
+              Text(
+                english.isEmpty
+                    ? 'Yay! Great find!'
+                    : 'Yay! You found a $english!',
+                textAlign: TextAlign.center,
+                style: AppTheme.body
+                    .copyWith(fontWeight: FontWeight.w800, fontSize: 14),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                "Let's learn more together! 💗",
+                textAlign: TextAlign.center,
+                style: AppTheme.caption.copyWith(fontSize: 12),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: AppTheme.sm),
+        ChildAvatar(avatarId: avatarId, size: 96),
+      ],
+    );
+  }
+
+  Widget _buildGuidedLangRow(String english, String malay, String chinese) {
+    final cards = [
+      _LangCard(
+        code: 'EN',
+        word: english,
+        color: AppTheme.primary,
+        background: AppTheme.primaryLight,
+        isPlaying: _playingLang == 'en',
+        onPlay: () => _playAudio('en', english),
+      ),
+      _LangCard(
+        code: 'MS',
+        word: malay,
+        color: AppTheme.success,
+        background: AppTheme.successLight,
+        isPlaying: _playingLang == 'ms',
+        onPlay: () => _playAudio('ms', malay),
+      ),
+      _LangCard(
+        code: 'CN',
+        word: chinese,
+        color: AppTheme.error,
+        background: AppTheme.errorLight,
+        isPlaying: _playingLang == 'zh',
+        onPlay: () => _playAudio('zh', chinese),
+      ),
+    ];
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 460) {
+          return Column(
+            children: [
+              for (final c in cards) ...[
+                c,
+                if (c != cards.last) const SizedBox(height: AppTheme.sm),
+              ],
+            ],
+          );
+        }
+        return Row(
+          children: [
+            for (final c in cards) ...[
+              Expanded(child: c),
+              if (c != cards.last) const SizedBox(width: AppTheme.sm),
+            ],
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildDidYouKnowBanner() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppTheme.lg, vertical: AppTheme.md),
+      decoration: BoxDecoration(
+        color: AppTheme.warningLight,
+        borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+      ),
+      child: Row(
+        children: [
+          const Text('💡', style: TextStyle(fontSize: 22)),
+          const SizedBox(width: AppTheme.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Did you know?',
+                    style: AppTheme.body.copyWith(fontWeight: FontWeight.w800)),
+                const SizedBox(height: 2),
+                Text(
+                  'Practising new words every day helps you remember them '
+                  'better!',
+                  style: AppTheme.caption.copyWith(fontSize: 13),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPracticeSpeakingButton() {
+    return SizedBox(
+      width: double.infinity,
+      child: FilledButton(
+        onPressed: _continueToSpeaking,
+        style: FilledButton.styleFrom(
+          backgroundColor: AppTheme.success,
+          foregroundColor: AppTheme.textDark,
+          minimumSize: const Size(double.infinity, 58),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          textStyle: AppTheme.buttonText.copyWith(fontSize: 17),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: const [
+            Text('🎤', style: TextStyle(fontSize: 18)),
+            SizedBox(width: 10),
+            Text('Practice Speaking'),
+            SizedBox(width: 10),
+            Icon(Icons.arrow_forward_rounded, size: 18),
           ],
         ),
       ),
@@ -451,6 +815,87 @@ class _VocabRow extends StatelessWidget {
                 isPlaying ? Icons.volume_up : Icons.volume_up_outlined,
                 color:
                     isPlaying ? AppTheme.primary : AppTheme.textLight,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// One language's word in the guided-flow result screen: a colour-coded
+/// language pill, the word itself, and a speaker button — the same
+/// [_playAudio] behind it as [_VocabRow], just laid out as a standalone card.
+class _LangCard extends StatelessWidget {
+  final String code;
+  final String word;
+  final Color color;
+  final Color background;
+  final bool isPlaying;
+  final VoidCallback onPlay;
+
+  const _LangCard({
+    required this.code,
+    required this.word,
+    required this.color,
+    required this.background,
+    required this.isPlaying,
+    required this.onPlay,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+          vertical: AppTheme.lg, horizontal: AppTheme.md),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+        border: isPlaying ? Border.all(color: color, width: 2) : null,
+      ),
+      child: Column(
+        children: [
+          Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text(
+              code,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+          const SizedBox(height: AppTheme.sm),
+          Text(
+            word,
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppTheme.heading.copyWith(
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+              color: color,
+            ),
+          ),
+          const SizedBox(height: AppTheme.sm),
+          InkWell(
+            onTap: onPlay,
+            borderRadius: BorderRadius.circular(999),
+            child: Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+              child: Icon(
+                isPlaying ? Icons.volume_up : Icons.volume_up_outlined,
+                color: Colors.white,
+                size: 18,
               ),
             ),
           ),

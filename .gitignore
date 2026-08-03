@@ -32,11 +32,13 @@ dataset/processed/
 # the blanket rule above is meant for the ML dataset, not the Flutter app.
 !frontend/assets/**/*.png
 
-# dataset_v7 pipeline - generated output, staging, and large raw source zips
+# Dataset pipeline - generated output, staging, and large raw source archives
 dataset_v7/
 _staging_v7/
-supplement/*.zip
-dataset_v3.zip
+*.zip
+
+# ML training run outputs
+ml/runs/
 
 # AI model files - usually too large for GitHub
 *.h5

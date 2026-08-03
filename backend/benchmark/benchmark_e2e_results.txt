@@ -1,0 +1,10 @@
+VocabScan CP2 - End-to-End /predict Latency
+Server: http://127.0.0.1:5000 | Measured: 60 | Warmup: 5 | Sequential
+======================================================================
+All values in milliseconds.
+
+total round-trip       n=60   mean=  259.7  median=  262.2  p95=  303.5  min=  212.6  max=  313.8  std=  25.5
+server inference       n=60   mean=  250.1  median=  249.6  p95=  289.5  min=  207.0  max=  298.3  std=  24.2
+network+overhead       n=60   mean=    9.7  median=    5.9  p95=   27.7  min=    5.3  max=   29.7  std=   7.9
+
+Sanity: 56/60 confident predictions matched source class (93.3%).

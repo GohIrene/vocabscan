@@ -18,8 +18,12 @@ from PIL import Image
 
 from benchmark_model_loader import load_trained_model
 
-MODELS_DIR = "models"
-TEST_DIR = r"C:\Users\Irenehaha\capstoneProject\vocabscan\dataset_v6\test"
+HERE = os.path.dirname(os.path.abspath(__file__))
+REPO = os.path.abspath(os.path.join(HERE, "..", ".."))
+MODELS_DIR = os.path.join(HERE, "models")
+# The v6 images live in dataset/ (dataset_v6/ holds only the JSON reports).
+TEST_DIR = os.path.join(REPO, "dataset", "test")
+DATA_ROOT = os.path.join(REPO, "dataset")
 BATCH = 32
 
 KERAS_MODELS = [
@@ -82,8 +86,7 @@ def eval_yolo():
     print(f"\n{'='*60}\nEvaluating: YOLO11n-cls (ultralytics .val)")
     from ultralytics import YOLO
     model = YOLO(os.path.join(MODELS_DIR, "yolo11n_cls_final.pt"))
-    data_root = r"C:\Users\Irenehaha\capstoneProject\vocabscan\dataset_v6"
-    metrics = model.val(data=data_root, split="test", imgsz=224, verbose=False)
+    metrics = model.val(data=DATA_ROOT, split="test", imgsz=224, verbose=False)
     print(f"  Top-1: {metrics.top1:.4f}   Top-5: {metrics.top5:.4f}")
     return {"model": "YOLO11n-cls", "top1": float(metrics.top1),
             "top5": float(metrics.top5), "per_class": None}

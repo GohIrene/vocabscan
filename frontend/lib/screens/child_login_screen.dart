@@ -193,31 +193,44 @@ class _ChildLoginScreenState extends State<ChildLoginScreen> {
               ),
             ),
             Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(
-                      // The profile grid wants room to breathe on a desktop
-                      // browser; the two typing steps read better narrow.
-                      maxWidth: _step == _Step.profiles ? 720 : 480,
-                    ),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 28,
-                        vertical: AppTheme.xxl,
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  // Center inside a scroll view has no bounded height to
+                  // center within, so it collapses to the top — giving it a
+                  // minHeight matching the viewport is what actually lets the
+                  // card sit in the middle of the screen.
+                  return SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: ConstrainedBox(
+                      constraints:
+                          BoxConstraints(minHeight: constraints.maxHeight),
+                      child: Center(
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(
+                            // The profile grid wants room to breathe on a
+                            // desktop browser; the two typing steps read
+                            // better narrow.
+                            maxWidth: _step == _Step.profiles ? 720 : 480,
+                          ),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 28,
+                              vertical: AppTheme.xxl,
+                            ),
+                            decoration: AppTheme.cardDecoration.copyWith(
+                              borderRadius: BorderRadius.circular(28),
+                            ),
+                            child: switch (_step) {
+                              _Step.code => _buildCodeStep(),
+                              _Step.profiles => _buildProfilesStep(),
+                              _Step.pin => _buildPinStep(),
+                            },
+                          ),
+                        ),
                       ),
-                      decoration: AppTheme.cardDecoration.copyWith(
-                        borderRadius: BorderRadius.circular(28),
-                      ),
-                      child: switch (_step) {
-                        _Step.code => _buildCodeStep(),
-                        _Step.profiles => _buildProfilesStep(),
-                        _Step.pin => _buildPinStep(),
-                      },
                     ),
-                  ),
-                ),
+                  );
+                },
               ),
             ),
           ],
@@ -298,7 +311,7 @@ class _ChildLoginScreenState extends State<ChildLoginScreen> {
           child: FilledButton(
             onPressed: _loading ? null : _submitCode,
             style: FilledButton.styleFrom(
-              backgroundColor: AppTheme.adventure,
+              backgroundColor: AppTheme.success,
               foregroundColor: Colors.white,
               minimumSize: const Size(double.infinity, 54),
               shape: RoundedRectangleBorder(

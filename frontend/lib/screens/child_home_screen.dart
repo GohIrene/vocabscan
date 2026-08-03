@@ -11,6 +11,7 @@ import '../widgets/child_nav_sidebar.dart';
 import '../widgets/child_adventure_panel.dart';
 import '../widgets/learning_journey_strip.dart';
 import 'child_adventure_map_screen.dart';
+import 'child_avatar_screen.dart';
 import 'child_settings_screen.dart';
 import 'child_treasure_album_screen.dart';
 import 'scan_object_screen.dart';
@@ -57,12 +58,13 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
   /// Below this the stat tiles stack instead of sitting side by side.
   static const double _compactBreakpoint = 640;
 
-  /// Destinations whose screens exist. Avatar and Achievements render as
-  /// locked until they have screens of their own.
+  /// Destinations whose screens exist. Achievements renders as locked until
+  /// it has a screen of its own.
   static const Set<ChildNavItem> _enabledNav = {
     ChildNavItem.home,
     ChildNavItem.adventureMap,
     ChildNavItem.treasureAlbum,
+    ChildNavItem.avatar,
     ChildNavItem.settings,
   };
 
@@ -177,6 +179,17 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
     });
   }
 
+  void _openAvatarScreen() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ChildAvatarScreen(childId: widget.childId),
+      ),
+    ).then((_) {
+      if (mounted) _load();
+    });
+  }
+
   void _openSettings() {
     Navigator.push(
       context,
@@ -210,10 +223,11 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
         _openAdventureMap();
       case ChildNavItem.treasureAlbum:
         _openTreasureAlbum();
+      case ChildNavItem.avatar:
+        _openAvatarScreen();
       case ChildNavItem.settings:
         _openSettings();
       case ChildNavItem.home:
-      case ChildNavItem.avatar:
       case ChildNavItem.achievements:
         break;
     }
@@ -237,6 +251,8 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
       enabled: _enabledNav,
       onSelect: _onNavSelect,
       onExit: _exit,
+      avatarId: _avatarId,
+      avatarStage: _avatarStage,
     );
 
     return Scaffold(
@@ -247,12 +263,23 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
         children: [
           if (isWide) sidebar,
           Expanded(
-            child: SafeArea(
-              child: _loading
-                  ? const Center(child: CircularProgressIndicator())
-                  : _error != null
-                      ? _buildError()
-                      : _buildContent(isWide, width),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                // Decorative only, behind the (already opaque) dashboard
+                // cards — the scenery just shows through their gaps.
+                Image.asset(
+                  'assets/background_childhome.png',
+                  fit: BoxFit.cover,
+                ),
+                SafeArea(
+                  child: _loading
+                      ? const Center(child: CircularProgressIndicator())
+                      : _error != null
+                          ? _buildError()
+                          : _buildContent(isWide, width),
+                ),
+              ],
             ),
           ),
         ],
@@ -569,6 +596,7 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
       ),
       _StatTile(
         icon: Icons.pets_rounded,
+        leading: ChildAvatar(avatarId: _avatarId, stage: _avatarStage, size: 20),
         tint: AppTheme.primary,
         label: _buddyName,
         value: 'Stage $_avatarStage',
@@ -852,6 +880,11 @@ class _StatTile extends StatelessWidget {
   final double? progress;
   final String? trailing;
 
+  /// Overrides both [icon] and [iconAsset] with a whole widget — used for the
+  /// Buddy Progress tile, which shows the child's actual buddy rather than a
+  /// generic paw icon.
+  final Widget? leading;
+
   /// Optional — a tile with somewhere to go becomes tappable and shows a
   /// pointer cursor; the rest stay as plain readouts.
   final VoidCallback? onTap;
@@ -865,6 +898,7 @@ class _StatTile extends StatelessWidget {
     this.caption,
     this.progress,
     this.trailing,
+    this.leading,
     this.onTap,
   });
 
@@ -894,7 +928,9 @@ class _StatTile extends StatelessWidget {
         children: [
           Row(
             children: [
-              if (iconAsset != null)
+              if (leading != null)
+                leading!
+              else if (iconAsset != null)
                 SvgPicture.asset(iconAsset!, width: 18, height: 18)
               else
                 Icon(icon, size: 16, color: tint),

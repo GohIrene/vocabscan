@@ -24,12 +24,14 @@ def on_connect_session(data):
     nickname = (data.get("nickname") or "").strip()
 
     try:
+        cs.expire_stale_sessions({"code": code})
         session = state.db.class_sessions.find_one({"code": code, "status": {"$ne": "ended"}})
         if session is None:
             emit("session_error", {"message": "Class not found or ended"})
             return
 
         join_room(code)
+        cs.touch_session(session["session_id"])
 
         if role == "student" and nickname:
             state.db.class_sessions.update_one(
@@ -86,6 +88,7 @@ def on_connect_session(data):
                     "nickname": nickname,
                     "student_count": cs._count_connected(session),
                     "word_count": cs._count_words(session),
+                    "students": cs.roster_state(session),
                 },
                 to=code,
             )
@@ -94,10 +97,13 @@ def on_connect_session(data):
             # word_count comes from the session doc rather than the teacher
             # counting their own pushes, so the summary-quiz button is correct
             # immediately on (re)connect instead of resetting to disabled.
+            # `students` does the same for the live roster grid, which a count
+            # alone couldn't repopulate after a dropped connection.
             emit("student_joined", {
                 "nickname": None,
                 "student_count": cs._count_connected(session),
                 "word_count": cs._count_words(session),
+                "students": cs.roster_state(session),
             })
     except PyMongoError:
         emit("session_error", {"message": "Could not connect to the class. Please try again."})
@@ -149,6 +155,7 @@ def on_push_quiz(data):
         if push_ops:
             update["$push"] = push_ops
         state.db.class_sessions.update_one({"session_id": session_id}, update)
+        cs.touch_session(session_id)
         # Post-push distinct word count, so the teacher's summary-quiz gate is
         # server-derived rather than a local tally of their own pushes.
         word_count = len({k for k in (session.get("word_keys") or []) if vocab._is_known(k)}
@@ -205,6 +212,7 @@ def on_submit_answer(data):
             {"session_id": session_id, "students.nickname": nickname},
             update,
         )
+        cs.touch_session(session_id)
         session = state.db.class_sessions.find_one({"session_id": session_id})
 
         emit("answer_result", {"correct": correct, "correct_answer": quiz.get("correct_answer")})
@@ -281,6 +289,7 @@ def on_push_summary_quiz(data):
         if push_ops:
             update["$push"] = push_ops
         state.db.class_sessions.update_one({"session_id": session_id}, update)
+        cs.touch_session(session_id)
 
         emit(
             "summary_quiz",
@@ -364,6 +373,7 @@ def on_submit_summary_answer(data):
             {"session_id": session_id, "students.nickname": nickname},
             update,
         )
+        cs.touch_session(session_id)
         session = state.db.class_sessions.find_one({"session_id": session_id})
 
         total = len(summary.get("questions", []))
@@ -446,6 +456,7 @@ def on_push_batch_quiz(data):
         if push_ops:
             update["$push"] = push_ops
         state.db.class_sessions.update_one({"session_id": session_id}, update)
+        cs.touch_session(session_id)
 
         emit(
             "summary_quiz",
@@ -500,7 +511,10 @@ def on_stage_batch_words(data):
 
         state.db.class_sessions.update_one(
             {"session_id": session_id},
-            {"$addToSet": {"word_keys": {"$each": keys}}},
+            {
+                "$addToSet": {"word_keys": {"$each": keys}},
+                "$set": {"last_activity_at": datetime.utcnow()},
+            },
         )
         session = state.db.class_sessions.find_one({"session_id": session_id})
 
@@ -518,7 +532,7 @@ def _award_classroom_progress(session, leaderboard):
     original type-your-nickname flow working exactly as before.
     """
     classroom_id = session.get("classroom_id")
-    if not classroom_id:
+    if not classroom_id or session.get("progress_applied_at"):
         return
 
     doc = state.db.classrooms.find_one({"classroom_id": classroom_id})
@@ -574,6 +588,11 @@ def _award_classroom_progress(session, leaderboard):
                 "badges": updated["badges"],
             }, to=sid)
 
+    state.db.class_sessions.update_one(
+        {"session_id": session.get("session_id")},
+        {"$set": {"progress_applied_at": datetime.utcnow()}},
+    )
+
 
 @socketio.on("end_session")
 def on_end_session(data):
@@ -587,12 +606,7 @@ def on_end_session(data):
         if session is None:
             return
 
-        leaderboard = sorted(
-            [{"nickname": s.get("nickname"), "score": s.get("score", 0)}
-             for s in session.get("students", [])],
-            key=lambda x: x["score"],
-            reverse=True,
-        )
+        leaderboard = cs._leaderboard(session)
 
         update = {"$set": {
             "status": "ended",
@@ -600,14 +614,17 @@ def on_end_session(data):
             "current_quiz": None,
             "summary_quiz": None,
         }}
-        push_ops = {}
-        if session.get("current_quiz"):
-            push_ops["quiz_history"] = session["current_quiz"]
-        if session.get("summary_quiz"):
-            push_ops["summary_history"] = session["summary_quiz"]
+        push_ops = cs._archive_live_quizzes(session)
         if push_ops:
             update["$push"] = push_ops
-        state.db.class_sessions.update_one({"session_id": session_id}, update)
+
+        res = state.db.class_sessions.update_one(
+            {"session_id": session_id, "status": {"$ne": "ended"}},
+            update,
+        )
+        if res.modified_count == 0:
+            emit("session_error", {"message": "Session already ended"})
+            return
 
         # Before the broadcast, so a child's level-up is already stored by the
         # time their end-of-session screen renders. Isolated because losing XP
@@ -644,7 +661,9 @@ def on_disconnect():
         session = state.db.class_sessions.find_one({"session_id": session["session_id"]})
         emit(
             "student_left",
-            {"nickname": nickname, "student_count": cs._count_connected(session)},
+            {"nickname": nickname,
+             "student_count": cs._count_connected(session),
+             "students": cs.roster_state(session)},
             to=session["code"],
         )
     except PyMongoError as e:

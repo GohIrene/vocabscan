@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -6,6 +8,7 @@ import '../learning_flow.dart';
 import '../socket_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/class_leaderboard.dart';
+import '../widgets/student_avatar.dart';
 import '../widgets/teacher_shell.dart';
 import '../widgets/teacher_ui.dart';
 import '../widgets/vocab_icon.dart';
@@ -56,6 +59,21 @@ class _TeacherClassSessionScreenState extends State<TeacherClassSessionScreen> {
   int _studentCount = 0;
   bool _connected = false;
 
+  // Who is in the room, not just how many — the server sends this alongside
+  // every count so the roster grid survives a reconnect.
+  List<Map<String, dynamic>> _students = const [];
+
+  // Saved-class extras, fetched once: the class name for the header and the
+  // roster (name + avatar index) the student chips draw their faces from.
+  // Both stay null/empty for a nickname-only session, which has no roster.
+  String? _className;
+  List<Map<String, dynamic>> _roster = const [];
+
+  // Wall-clock length of the session, shown in the header.
+  Timer? _ticker;
+  DateTime? _startedAt;
+  Duration _elapsed = Duration.zero;
+
   bool _quizLive = false;
   int _answeredCount = 0;
   int _quizStudentCount = 0;
@@ -101,7 +119,10 @@ class _TeacherClassSessionScreenState extends State<TeacherClassSessionScreen> {
       _sessionId = sessionId;
       _code = code;
       _loading = false;
+      _startedAt = DateTime.now();
     });
+    _startTicker();
+    _loadClassInfo();
 
     _socket
       ..onConnectionChange = (c) {
@@ -114,12 +135,16 @@ class _TeacherClassSessionScreenState extends State<TeacherClassSessionScreen> {
             // Present on our own join sync and on every student join, so the
             // count re-syncs after a dropped connection too.
             _wordCount = (d['word_count'] ?? _wordCount) as int;
+            _students = _readStudents(d);
           });
         }
       }
       ..onStudentLeft = (d) {
         if (mounted) {
-          setState(() => _studentCount = (d['student_count'] ?? 0) as int);
+          setState(() {
+            _studentCount = (d['student_count'] ?? 0) as int;
+            _students = _readStudents(d);
+          });
         }
       }
       ..onNewQuiz = (d) {
@@ -187,6 +212,67 @@ class _TeacherClassSessionScreenState extends State<TeacherClassSessionScreen> {
         }
       }
       ..connect(code: code, role: 'teacher');
+  }
+
+  /// The live roster carried on every join/leave payload. Falls back to the
+  /// list we already hold if a payload arrives without one, so an older server
+  /// simply leaves the grid as-is rather than blanking it.
+  List<Map<String, dynamic>> _readStudents(Map<String, dynamic> d) {
+    final raw = d['students'];
+    if (raw is! List) return _students;
+    return raw
+        .whereType<Map>()
+        .map((s) => Map<String, dynamic>.from(s))
+        .toList();
+  }
+
+  void _startTicker() {
+    _ticker?.cancel();
+    _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
+      final start = _startedAt;
+      if (!mounted || start == null) return;
+      setState(() => _elapsed = DateTime.now().difference(start));
+    });
+  }
+
+  String get _elapsedLabel {
+    two(int n) => n.toString().padLeft(2, '0');
+    return '${two(_elapsed.inHours)}:${two(_elapsed.inMinutes.remainder(60))}'
+        ':${two(_elapsed.inSeconds.remainder(60))}';
+  }
+
+  /// Name and roster for a saved class, used by the header and the student
+  /// chips. Failure is silent — the session itself doesn't depend on this, so
+  /// a hiccup here just means a generic title and letter-initial avatars.
+  Future<void> _loadClassInfo() async {
+    final classroomId = widget.classroomId;
+    if (classroomId == null) return;
+    try {
+      final room = await ApiService.getClassroom(classroomId);
+      if (!mounted) return;
+      setState(() {
+        _className = room['name'] as String?;
+        _roster = (room['students'] as List? ?? const [])
+            .whereType<Map>()
+            .map((s) => Map<String, dynamic>.from(s))
+            .toList();
+      });
+    } catch (_) {
+      // See doc comment above.
+    }
+  }
+
+  /// The roster avatar index for a joined student, matched on name the same
+  /// case-insensitive way the server credits XP at end of session. Null when
+  /// there's no roster entry — an ad-hoc nickname, or a class-free session.
+  int? _avatarFor(String nickname) {
+    final key = nickname.trim().toLowerCase();
+    for (final s in _roster) {
+      if ((s['name'] as String? ?? '').trim().toLowerCase() == key) {
+        return (s['avatar'] as num?)?.toInt() ?? 0;
+      }
+    }
+    return null;
   }
 
   Future<void> _scanForQuiz() async {
@@ -369,6 +455,7 @@ class _TeacherClassSessionScreenState extends State<TeacherClassSessionScreen> {
 
   @override
   void dispose() {
+    _ticker?.cancel();
     _socket.dispose();
     super.dispose();
   }
@@ -377,52 +464,155 @@ class _TeacherClassSessionScreenState extends State<TeacherClassSessionScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.background,
-      body: SafeArea(
-        child: Column(
-          children: [
-            _topBar(),
-            Expanded(
+      body: Column(
+        children: [
+          _topBar(),
+          Expanded(
+            child: SafeArea(
+              top: false,
               child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: AppTheme.xl, vertical: AppTheme.sm),
+                padding: const EdgeInsets.fromLTRB(
+                    AppTheme.xl, AppTheme.lg, AppTheme.xl, AppTheme.sm),
                 child: Center(
                   child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 1040),
+                    constraints: const BoxConstraints(maxWidth: 1120),
                     child: _buildBody(),
                   ),
                 ),
               ),
             ),
-          ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// The session banner. Full-bleed accent so a projected session reads as
+  /// "we are live" from the back of the room, and so the status, elapsed time
+  /// and class name sit together rather than scattered down the page.
+  Widget _topBar() {
+    final live = !_loading && _error == null && !_ended;
+    return Material(
+      color: TeacherShell.accent,
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+              horizontal: AppTheme.md, vertical: 10),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              // Below this the meta trio is what gives, not the title or the
+              // way out of the screen.
+              final roomy = constraints.maxWidth >= 900;
+              return Row(
+                children: [
+                  TextButton.icon(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.arrow_back, size: 18),
+                    label: Text(roomy ? 'Back to Teacher Dashboard' : 'Back'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: Colors.white,
+                      textStyle: AppTheme.body
+                          .copyWith(fontWeight: FontWeight.w700, fontSize: 14),
+                    ),
+                  ),
+                  if (roomy) ...[
+                    _barDivider(),
+                    const Icon(Icons.cast_for_education_rounded,
+                        size: 20, color: Colors.white),
+                    const SizedBox(width: AppTheme.sm),
+                  ],
+                  Flexible(
+                    child: Text(
+                      'Live Class Session',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTheme.subheading.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                        fontSize: roomy ? 19 : 16,
+                      ),
+                    ),
+                  ),
+                  const Spacer(),
+                  if (live && roomy) ...[
+                    _barStatus(),
+                    _barDivider(),
+                    _barMeta(Icons.schedule_rounded, _elapsedLabel),
+                    if (_className != null) ...[
+                      _barDivider(),
+                      _barMeta(Icons.groups_rounded, _className!),
+                    ],
+                    const SizedBox(width: AppTheme.md),
+                  ],
+                  if (live)
+                    OutlinedButton.icon(
+                      onPressed: _endSession,
+                      icon: const Icon(Icons.power_settings_new_rounded,
+                          size: 16),
+                      label: const Text('End Session'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.white,
+                        backgroundColor: Colors.white.withValues(alpha: 0.12),
+                        side: BorderSide(
+                            color: Colors.white.withValues(alpha: 0.55)),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 10),
+                        textStyle: AppTheme.body.copyWith(
+                            fontWeight: FontWeight.w700, fontSize: 13.5),
+                        shape: RoundedRectangleBorder(
+                            borderRadius:
+                                BorderRadius.circular(AppTheme.radiusSm)),
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
         ),
       ),
     );
   }
 
-  Widget _topBar() {
-    return Padding(
-      padding: const EdgeInsets.all(AppTheme.md),
-      child: Row(
+  Widget _barDivider() => Container(
+        width: 1,
+        height: 22,
+        margin: const EdgeInsets.symmetric(horizontal: AppTheme.md),
+        color: Colors.white.withValues(alpha: 0.3),
+      );
+
+  Widget _barMeta(IconData icon, String label) => Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          TextButton.icon(
-            onPressed: () => Navigator.pop(context),
-            icon: const Icon(Icons.arrow_back, size: 18),
-            label: const Text('Exit'),
-            style: AppTheme.backButtonStyle,
+          Icon(icon, size: 15, color: Colors.white.withValues(alpha: 0.85)),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: AppTheme.caption.copyWith(
+                color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13),
           ),
-          const Spacer(),
-          if (!_loading && _error == null && !_ended)
-            TeacherStatusChip(
-              label: _connected ? 'Live' : 'Connecting…',
-              tone: _connected
-                  ? TeacherStatusTone.live
-                  : TeacherStatusTone.warning,
-              solid: _connected,
-            ),
         ],
-      ),
-    );
-  }
+      );
+
+  Widget _barStatus() => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(
+              color: _connected ? AppTheme.success : AppTheme.warning,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            _connected ? 'Connected' : 'Connecting…',
+            style: AppTheme.caption.copyWith(
+                color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13),
+          ),
+        ],
+      );
 
   Widget _buildBody() {
     if (_loading) {
@@ -494,34 +684,155 @@ class _TeacherClassSessionScreenState extends State<TeacherClassSessionScreen> {
       );
     }
 
-    // Live session: projector column + controls column (side-by-side when wide).
+    // Live session: where-we-are stepper, then the projector column beside the
+    // teacher's controls (stacked on a narrow screen).
     return LayoutBuilder(
       builder: (context, constraints) {
         final wide = constraints.maxWidth >= 860;
         final projector = _buildProjectorColumn();
         final controls = _buildControlsColumn();
-        if (!wide) {
-          return Column(
-            children: [
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _buildStepper(),
+            const SizedBox(height: AppTheme.lg),
+            if (!wide) ...[
               projector,
               const SizedBox(height: AppTheme.lg),
               controls,
-              const SizedBox(height: AppTheme.xxl),
-            ],
-          );
-        }
-        return Padding(
-          padding: const EdgeInsets.only(top: AppTheme.sm, bottom: AppTheme.xxl),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(flex: 5, child: projector),
-              const SizedBox(width: AppTheme.lg),
-              Expanded(flex: 4, child: controls),
-            ],
-          ),
+            ] else
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(flex: 4, child: projector),
+                  const SizedBox(width: AppTheme.lg),
+                  Expanded(flex: 6, child: controls),
+                ],
+              ),
+            const SizedBox(height: AppTheme.xxl),
+          ],
         );
       },
+    );
+  }
+
+  /// Which of the four session stages we're in. Derived from state the screen
+  /// already tracks rather than stored separately, so it can never disagree
+  /// with what the buttons below it will actually do.
+  int get _currentStep {
+    if (_summaryLive) return 3;
+    if (_quizLive) return 2;
+    if (_wordCount > 0) return 1;
+    return 0;
+  }
+
+  Widget _buildStepper() {
+    const steps = <(IconData, String, String)>[
+      (Icons.groups_rounded, 'Waiting Room', 'Students joining…'),
+      (Icons.menu_book_rounded, 'Teaching', 'Send a word to begin'),
+      (Icons.quiz_rounded, 'Live Quiz', 'Students answering'),
+      (Icons.emoji_events_rounded, 'Summary', 'End of session quiz'),
+    ];
+    final current = _currentStep;
+
+    return TeacherSectionCard(
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppTheme.lg, vertical: AppTheme.md),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          // Four labelled steps need real width; below that the labels are
+          // dropped to numbered dots rather than being squeezed unreadable.
+          final labelled = constraints.maxWidth >= 720;
+          return Row(
+            children: [
+              for (var i = 0; i < steps.length; i++) ...[
+                if (i > 0)
+                  Expanded(
+                    child: Container(
+                      height: 2,
+                      margin: const EdgeInsets.symmetric(
+                          horizontal: AppTheme.sm),
+                      color: i <= current
+                          ? TeacherShell.accent.withValues(alpha: 0.45)
+                          : AppTheme.textLight.withValues(alpha: 0.22),
+                    ),
+                  ),
+                _buildStep(
+                  index: i,
+                  icon: steps[i].$1,
+                  title: steps[i].$2,
+                  subtitle: steps[i].$3,
+                  current: current,
+                  labelled: labelled,
+                ),
+              ],
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildStep({
+    required int index,
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required int current,
+    required bool labelled,
+  }) {
+    final done = index < current;
+    final active = index == current;
+    final tint = done || active ? TeacherShell.accent : AppTheme.textLight;
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 30,
+          height: 30,
+          decoration: BoxDecoration(
+            color: active || done
+                ? TeacherShell.accent
+                : AppTheme.textLight.withValues(alpha: 0.18),
+            shape: BoxShape.circle,
+          ),
+          alignment: Alignment.center,
+          child: done
+              ? const Icon(Icons.check_rounded, size: 17, color: Colors.white)
+              : Text(
+                  '${index + 1}',
+                  style: AppTheme.caption.copyWith(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 13,
+                    color: active ? Colors.white : AppTheme.textLight,
+                  ),
+                ),
+        ),
+        if (labelled) ...[
+          const SizedBox(width: AppTheme.sm),
+          Icon(icon, size: 19, color: tint),
+          const SizedBox(width: AppTheme.sm),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                title,
+                style: AppTheme.body.copyWith(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 14,
+                  color: active || done ? TeacherShell.accent : AppTheme.textDark,
+                ),
+              ),
+              Text(
+                subtitle,
+                style: AppTheme.caption.copyWith(fontSize: 11.5),
+              ),
+            ],
+          ),
+        ],
+      ],
     );
   }
 
@@ -529,114 +840,319 @@ class _TeacherClassSessionScreenState extends State<TeacherClassSessionScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // ── Big projector-readable code ──
-        TeacherSectionCard(
-          padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 20),
-          child: Column(
-            children: [
-              Text('Share this code with students',
-                  style: AppTheme.caption.copyWith(fontSize: 14)),
-              const SizedBox(height: 12),
-              FittedBox(
-                fit: BoxFit.scaleDown,
-                child: SelectableText(
-                  _code ?? '',
-                  style: AppTheme.heading.copyWith(
-                    fontSize: 92,
-                    fontWeight: FontWeight.w900,
-                    color: TeacherShell.accent,
-                    letterSpacing: 10,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextButton.icon(
-                onPressed: () {
-                  Clipboard.setData(ClipboardData(text: _code ?? ''));
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Code copied!')),
-                  );
-                },
-                icon: const Icon(Icons.copy, size: 16),
-                label: const Text('Copy code'),
-              ),
-            ],
-          ),
-        ),
+        _buildCodeCard(),
         const SizedBox(height: AppTheme.lg),
+        _buildStudentsCard(),
+      ],
+    );
+  }
 
-        // ── Live student count ──
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 20),
-          decoration: BoxDecoration(
-            color: TeacherShell.accentLight,
-            borderRadius: BorderRadius.circular(AppTheme.radiusMd),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.groups_rounded,
-                  size: 26, color: TeacherShell.accent),
-              const SizedBox(width: 10),
-              Text(
-                '$_studentCount student${_studentCount == 1 ? '' : 's'} joined',
-                style: AppTheme.subheading.copyWith(fontWeight: FontWeight.w800),
+  Widget _buildCodeCard() {
+    return TeacherSectionCard(
+      padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('Share this code with your students',
+              textAlign: TextAlign.center,
+              style: AppTheme.body
+                  .copyWith(fontWeight: FontWeight.w800, fontSize: 15)),
+          const SizedBox(height: AppTheme.md),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: SelectableText(
+              _code ?? '',
+              style: AppTheme.heading.copyWith(
+                fontSize: 64,
+                fontWeight: FontWeight.w900,
+                color: TeacherShell.accent,
+                letterSpacing: 4,
               ),
-            ],
+            ),
           ),
-        ),
-
-        // ── Live quiz status ──
-        if (_quizLive) ...[
-          const SizedBox(height: AppTheme.lg),
+          const SizedBox(height: AppTheme.md),
+          OutlinedButton.icon(
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: _code ?? ''));
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Code copied!')),
+              );
+            },
+            icon: const Icon(Icons.copy_rounded, size: 16),
+            label: const Text('Copy Code'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: TeacherShell.accent,
+              side: BorderSide(
+                  color: TeacherShell.accent.withValues(alpha: 0.4)),
+              minimumSize: const Size.fromHeight(42),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppTheme.radiusSm)),
+              textStyle: AppTheme.body
+                  .copyWith(fontWeight: FontWeight.w700, fontSize: 14),
+            ),
+          ),
+          const SizedBox(height: AppTheme.md),
+          Text.rich(
+            TextSpan(
+              style: AppTheme.caption.copyWith(fontSize: 12.5),
+              children: [
+                const TextSpan(text: 'Ask students to enter this code on the '),
+                TextSpan(
+                  text: 'VocabScan Class Code',
+                  style: AppTheme.caption.copyWith(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w800,
+                      color: TeacherShell.accent),
+                ),
+                const TextSpan(text: ' page'),
+              ],
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: AppTheme.md),
           Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+            padding: const EdgeInsets.symmetric(vertical: 9),
             decoration: BoxDecoration(
               color: AppTheme.successLight,
-              borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+              borderRadius: BorderRadius.circular(AppTheme.radiusSm),
             ),
-            child: Column(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // No answer-leak concern here — the teacher isn't taking the
-                // quiz, so the icon shows regardless of question pattern.
-                VocabIcon(englishKey: _quizEnglishKey, size: 40),
-                const SizedBox(height: 6),
-                Text('Quiz sent! 🎯',
-                    style:
-                        AppTheme.body.copyWith(fontWeight: FontWeight.w700)),
-                const SizedBox(height: 4),
-                Text(
-                  '$_answeredCount of $_quizStudentCount answered',
-                  style: AppTheme.caption,
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: const BoxDecoration(
+                      color: AppTheme.success, shape: BoxShape.circle),
                 ),
+                const SizedBox(width: 7),
+                Text('Session is open',
+                    style: AppTheme.caption.copyWith(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                        color: AppTheme.textDark)),
               ],
             ),
           ),
         ],
+      ),
+    );
+  }
 
-        // ── Live summary-quiz status ──
-        if (_summaryLive) ...[
-          const SizedBox(height: AppTheme.lg),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
-            decoration: BoxDecoration(
-              color: AppTheme.primaryLight,
-              borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+  /// The live roster. Names come from the socket; faces come from the saved
+  /// class roster where there is one, falling back to an initial for a student
+  /// who typed a nickname that doesn't match any roster entry.
+  Widget _buildStudentsCard() {
+    final joined = _students.where((s) => s['connected'] == true).length;
+    return TeacherSectionCard(
+      title: 'Students',
+      icon: Icons.groups_rounded,
+      action: Text(
+        _roster.isEmpty ? '$joined' : '$joined / ${_roster.length}',
+        style: AppTheme.body.copyWith(
+            fontWeight: FontWeight.w800,
+            fontSize: 15,
+            color: TeacherShell.accent),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (_students.isNotEmpty)
+            LayoutBuilder(
+              builder: (context, constraints) {
+                const columns = 3;
+                const gap = AppTheme.sm;
+                final width =
+                    (constraints.maxWidth - gap * (columns - 1)) / columns;
+                return Wrap(
+                  spacing: gap,
+                  runSpacing: gap,
+                  children: [
+                    for (final s in _students)
+                      SizedBox(width: width, child: _buildStudentChip(s)),
+                  ],
+                );
+              },
             ),
-            child: Column(
-              children: [
-                Text('Summary quiz sent! 📝',
-                    style: AppTheme.body.copyWith(fontWeight: FontWeight.w700)),
-                const SizedBox(height: 4),
-                Text(
-                  '$_summaryFinished of $_quizStudentCount finished '
-                  'all $_summaryTotal question${_summaryTotal == 1 ? '' : 's'}',
-                  style: AppTheme.caption,
-                  textAlign: TextAlign.center,
+          if (_students.isNotEmpty) const SizedBox(height: AppTheme.md),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(Icons.info_outline_rounded,
+                  size: 14, color: AppTheme.textLight),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  'Students will appear here when they join this session.',
+                  style: AppTheme.caption.copyWith(fontSize: 11.5),
                 ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStudentChip(Map<String, dynamic> student) {
+    final nickname = student['nickname'] as String? ?? '';
+    final online = student['connected'] == true;
+    final avatar = _avatarFor(nickname);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+      decoration: BoxDecoration(
+        color: AppTheme.background,
+        borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+        border: Border.all(color: AppTheme.textLight.withValues(alpha: 0.18)),
+      ),
+      child: Opacity(
+        // A student who dropped stays listed but reads as absent, so the
+        // teacher can tell "left the room" from "never joined".
+        opacity: online ? 1 : 0.45,
+        child: Row(
+          children: [
+            if (avatar != null)
+              StudentAvatar(avatar: avatar, size: 28)
+            else
+              Container(
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                  color: TeacherShell.accentLight,
+                  shape: BoxShape.circle,
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  nickname.isEmpty ? '?' : nickname[0].toUpperCase(),
+                  style: AppTheme.caption.copyWith(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 13,
+                      color: TeacherShell.accent),
+                ),
+              ),
+            const SizedBox(width: 7),
+            Expanded(
+              child: Text(
+                nickname,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTheme.caption.copyWith(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12.5,
+                    color: AppTheme.textDark),
+              ),
+            ),
+            const SizedBox(width: 4),
+            Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(
+                color: online ? AppTheme.success : AppTheme.textLight,
+                shape: BoxShape.circle,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildControlsColumn() {
+    // Prepared vocabulary only exists for a saved class, so the grid is built
+    // from whatever applies rather than showing a control that can't work.
+    final tiles = <Widget>[
+      _ActivityTile(
+        icon: Icons.photo_camera_rounded,
+        title: 'Scan Object',
+        description: 'Recognise one object and immediately send a quiz.',
+        featured: true,
+        onTap: _scanForQuiz,
+        footer: TeacherPrimaryButton(
+          label: 'Scan and Send Quiz',
+          icon: Icons.arrow_forward_rounded,
+          onPressed: _scanForQuiz,
+          expand: true,
+        ),
+      ),
+      _ActivityTile(
+        icon: Icons.photo_library_rounded,
+        title: 'Upload Photos',
+        description: 'Recognise several objects and create a quiz set.',
+        onTap: _batchUpload,
+      ),
+      if (widget.classroomId != null)
+        _ActivityTile(
+          icon: Icons.menu_book_rounded,
+          title: 'Prepared Vocabulary',
+          description: 'Use words prepared for this classroom.',
+          onTap: _pickFromPrepared,
+        ),
+      _ActivityTile(
+        icon: Icons.autorenew_rounded,
+        title: 'Revise a Past Word',
+        description: 'Reuse vocabulary from an earlier session.',
+        onTap: _revisePastWord,
+      ),
+    ];
+
+    return TeacherSectionCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (_quizLive || _summaryLive) ...[
+            _buildLiveBanner(),
+            const SizedBox(height: AppTheme.lg),
+          ],
+          _sectionHeading(Icons.star_rounded, 'Start an Activity'),
+          const SizedBox(height: AppTheme.md),
+          _buildTileGrid(tiles),
+          const SizedBox(height: AppTheme.lg),
+          Divider(height: 1, color: AppTheme.textLight.withValues(alpha: 0.2)),
+          const SizedBox(height: AppTheme.lg),
+          _sectionHeading(Icons.emoji_events_rounded, 'Session Wrap-up'),
+          const SizedBox(height: AppTheme.md),
+          _buildSummaryCard(),
+        ],
+      ),
+    );
+  }
+
+  Widget _sectionHeading(IconData icon, String label) => Row(
+        children: [
+          Icon(icon, size: 19, color: TeacherShell.accent),
+          const SizedBox(width: AppTheme.sm),
+          Text(label,
+              style: AppTheme.body
+                  .copyWith(fontWeight: FontWeight.w800, fontSize: 15.5)),
+        ],
+      );
+
+  /// Two per row, each row given a common height so the grid doesn't read as
+  /// ragged when one tile carries a button and its neighbour doesn't. Nothing
+  /// inside [_ActivityTile] may be a LayoutBuilder or a scrollable, since
+  /// IntrinsicHeight asks every descendant for its intrinsic height.
+  Widget _buildTileGrid(List<Widget> tiles) {
+    const columns = 2;
+    const gap = AppTheme.md;
+    return Column(
+      children: [
+        for (var start = 0; start < tiles.length; start += columns) ...[
+          if (start > 0) const SizedBox(height: gap),
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (var c = 0; c < columns; c++) ...[
+                  if (c > 0) const SizedBox(width: gap),
+                  // A short last row keeps its empty slot so the tiles above
+                  // stay in the same columns.
+                  Expanded(
+                    child: start + c < tiles.length
+                        ? tiles[start + c]
+                        : const SizedBox.shrink(),
+                  ),
+                ],
               ],
             ),
           ),
@@ -645,63 +1161,228 @@ class _TeacherClassSessionScreenState extends State<TeacherClassSessionScreen> {
     );
   }
 
-  Widget _buildControlsColumn() {
-    return TeacherSectionCard(
-      title: 'Session Controls',
-      icon: Icons.tune_rounded,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+  Widget _buildSummaryCard() {
+    final locked = _wordCount == 0;
+    final tint = locked ? AppTheme.textLight : TeacherShell.accent;
+
+    return Container(
+      padding: const EdgeInsets.all(AppTheme.md),
+      decoration: BoxDecoration(
+        color: locked
+            ? AppTheme.textLight.withValues(alpha: 0.07)
+            : TeacherShell.accentLight,
+        borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+        border: Border.all(color: tint.withValues(alpha: 0.25)),
+      ),
+      child: Row(
         children: [
-          TeacherPrimaryButton(
-            label: 'Scan Object → Send Quiz',
-            icon: Icons.center_focus_strong,
-            onPressed: _scanForQuiz,
-            expand: true,
-          ),
-          const SizedBox(height: AppTheme.md),
-          TeacherSecondaryButton(
-            label: 'Upload Photos → Quiz Set',
-            icon: Icons.photo_library_outlined,
-            onPressed: _batchUpload,
-            expand: true,
-          ),
-          if (widget.classroomId != null) ...[
-            const SizedBox(height: AppTheme.md),
-            TeacherSecondaryButton(
-              label: 'Prepared Vocabulary',
-              icon: Icons.collections_bookmark_outlined,
-              onPressed: _pickFromPrepared,
-              expand: true,
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: AppTheme.surface,
+              borderRadius: BorderRadius.circular(AppTheme.radiusSm),
             ),
-          ],
-          const SizedBox(height: AppTheme.md),
-          TeacherSecondaryButton(
-            label: 'Revise a Past Word',
-            icon: Icons.history,
-            onPressed: _revisePastWord,
-            expand: true,
+            child: Icon(
+                locked ? Icons.lock_rounded : Icons.checklist_rtl_rounded,
+                size: 21,
+                color: tint),
           ),
-          const SizedBox(height: AppTheme.md),
-          TeacherSecondaryButton(
-            label: _wordCount == 0
-                ? 'Summary Quiz (send a word first)'
-                : 'Send Summary Quiz 📝 ($_wordCount word'
-                    '${_wordCount == 1 ? '' : 's'})',
-            icon: Icons.checklist_rtl,
-            onPressed: _wordCount == 0 ? null : _sendSummaryQuiz,
-            expand: true,
+          const SizedBox(width: AppTheme.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Summary Quiz',
+                    style: AppTheme.body.copyWith(
+                        fontWeight: FontWeight.w800, fontSize: 14.5)),
+                const SizedBox(height: 2),
+                Text(
+                  locked
+                      ? 'Review all words used during this session. Available '
+                          'after at least one word has been taught.'
+                      : 'Review all $_wordCount word'
+                          '${_wordCount == 1 ? '' : 's'} used during this '
+                          'session.',
+                  style: AppTheme.caption.copyWith(fontSize: 12),
+                ),
+              ],
+            ),
           ),
-          const SizedBox(height: AppTheme.lg),
-          const Divider(height: 1),
-          const SizedBox(height: AppTheme.lg),
-          TeacherSecondaryButton(
-            label: 'End Session',
-            icon: Icons.stop_circle_outlined,
-            onPressed: _endSession,
-            tint: AppTheme.error,
-            expand: true,
+          const SizedBox(width: AppTheme.md),
+          if (locked)
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+              decoration: BoxDecoration(
+                color: AppTheme.textLight.withValues(alpha: 0.18),
+                borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+              ),
+              child: Text('Locked',
+                  style: AppTheme.caption.copyWith(
+                      fontWeight: FontWeight.w700, fontSize: 12.5)),
+            )
+          else
+            TeacherPrimaryButton(
+              label: 'Send Quiz',
+              icon: Icons.send_rounded,
+              onPressed: _sendSummaryQuiz,
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// What the class is doing right now, shown above the activity grid so a
+  /// teacher mid-quiz sees progress without hunting for it.
+  Widget _buildLiveBanner() {
+    final summary = _summaryLive;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppTheme.md),
+      decoration: BoxDecoration(
+        color: summary ? AppTheme.primaryLight : AppTheme.successLight,
+        borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+      ),
+      child: Row(
+        children: [
+          if (summary)
+            const Icon(Icons.checklist_rtl_rounded,
+                size: 34, color: AppTheme.primary)
+          else
+            // No answer-leak concern here — the teacher isn't taking the quiz,
+            // so the icon shows regardless of question pattern.
+            VocabIcon(englishKey: _quizEnglishKey, size: 36),
+          const SizedBox(width: AppTheme.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(summary ? 'Summary quiz sent! 📝' : 'Quiz sent! 🎯',
+                    style: AppTheme.body.copyWith(
+                        fontWeight: FontWeight.w800, fontSize: 14.5)),
+                const SizedBox(height: 2),
+                Text(
+                  summary
+                      ? '$_summaryFinished of $_quizStudentCount finished all '
+                          '$_summaryTotal question'
+                          '${_summaryTotal == 1 ? '' : 's'}'
+                      : '$_answeredCount of $_quizStudentCount answered',
+                  style: AppTheme.caption.copyWith(fontSize: 12.5),
+                ),
+              ],
+            ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// One tappable action in the "Start an Activity" grid. [featured] tints the
+/// tile as the primary path; [footer] hangs a button beneath the description.
+class _ActivityTile extends StatefulWidget {
+  final IconData icon;
+  final String title;
+  final String description;
+  final VoidCallback onTap;
+  final bool featured;
+  final Widget? footer;
+
+  const _ActivityTile({
+    required this.icon,
+    required this.title,
+    required this.description,
+    required this.onTap,
+    this.featured = false,
+    this.footer,
+  });
+
+  @override
+  State<_ActivityTile> createState() => _ActivityTileState();
+}
+
+class _ActivityTileState extends State<_ActivityTile> {
+  bool _hovering = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final featured = widget.featured;
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovering = true),
+      onExit: (_) => setState(() => _hovering = false),
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.all(AppTheme.md),
+          decoration: BoxDecoration(
+            color: featured
+                ? TeacherShell.accentLight
+                : _hovering
+                    ? TeacherShell.accent.withValues(alpha: 0.05)
+                    : AppTheme.surface,
+            borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+            border: Border.all(
+              color: featured
+                  ? TeacherShell.accent.withValues(alpha: 0.55)
+                  : AppTheme.textLight.withValues(alpha: 0.2),
+              width: featured ? 1.6 : 1,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: featured
+                          ? AppTheme.surface
+                          : TeacherShell.accentLight,
+                      borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+                    ),
+                    child: Icon(widget.icon,
+                        size: 20, color: TeacherShell.accent),
+                  ),
+                  const SizedBox(width: AppTheme.sm),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          widget.title,
+                          style: AppTheme.body.copyWith(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 14.5,
+                              color: TeacherShell.accent),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          widget.description,
+                          style: AppTheme.caption.copyWith(fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (!featured) ...[
+                    const SizedBox(width: 4),
+                    const Icon(Icons.chevron_right_rounded,
+                        size: 20, color: AppTheme.textLight),
+                  ],
+                ],
+              ),
+              if (widget.footer != null) ...[
+                const SizedBox(height: AppTheme.md),
+                widget.footer!,
+              ],
+            ],
+          ),
+        ),
       ),
     );
   }

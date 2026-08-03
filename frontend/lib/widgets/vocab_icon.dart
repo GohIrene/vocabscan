@@ -1,39 +1,43 @@
 import 'package:flutter/material.dart';
 
-/// english_key -> icon asset path. Mirrors the 30 words in backend/vocab.py;
+/// english_key -> photo asset path. Mirrors the 30 words in backend/vocab.py;
 /// filenames don't follow the key naming (spaces, abbreviations) because they
 /// were added ad hoc before this mapping existed.
+///
+/// These are full-bleed photos (not transparent icon cutouts), so [VocabIcon]
+/// crops them with `ClipRRect` + `BoxFit.cover` rather than laying them over
+/// a background with the default fit.
 const Map<String, String> _vocabIconAssets = {
-  'apple': 'assets/icons/apple.png',
-  'backpack': 'assets/icons/bagpack.png',
-  'ball': 'assets/icons/ball.png',
-  'banana': 'assets/icons/banana.png',
-  'book': 'assets/icons/book.png',
-  'bottle': 'assets/icons/bottle.png',
-  'bowl': 'assets/icons/bowl.png',
-  'bread': 'assets/icons/bread.png',
-  'chair': 'assets/icons/chair.png',
-  'clock': 'assets/icons/clock.png',
-  'cup': 'assets/icons/coffee-cup.png',
-  'fork': 'assets/icons/fork.png',
-  'glasses': 'assets/icons/glasses.png',
-  'keyboard': 'assets/icons/keyboard.png',
-  'knife': 'assets/icons/knife.png',
-  'lamp': 'assets/icons/lamp.png',
-  'laptop': 'assets/icons/laptop.png',
-  'mobile_phone': 'assets/icons/phone.png',
-  'orange': 'assets/icons/orange.png',
-  'pen': 'assets/icons/pen.png',
-  'plate': 'assets/icons/plate.png',
-  'remote_control': 'assets/icons/remote control.png',
-  'ruler': 'assets/icons/ruler.png',
-  'scissors': 'assets/icons/scissor.png',
-  'shoe': 'assets/icons/shoe.png',
-  'spoon': 'assets/icons/spoon.png',
-  'table': 'assets/icons/table.png',
-  'teddy_bear': 'assets/icons/teddy bear.png',
-  'toothbrush': 'assets/icons/toothbrush.png',
-  'umbrella': 'assets/icons/umbrella.png',
+  'apple': 'assets/classes/apple_v2.png',
+  'backpack': 'assets/classes/backpack_v2.png',
+  'ball': 'assets/classes/ball_v2.png',
+  'banana': 'assets/classes/banana_v2.png',
+  'book': 'assets/classes/book_v2.png',
+  'bottle': 'assets/classes/bottle_v2.png',
+  'bowl': 'assets/classes/bowl_v2.png',
+  'bread': 'assets/classes/bread_v2.png',
+  'chair': 'assets/classes/chair_v2.png',
+  'clock': 'assets/classes/clock_v2.png',
+  'cup': 'assets/classes/cup_v2.png',
+  'fork': 'assets/classes/fork_v2.png',
+  'glasses': 'assets/classes/glasses_v2.png',
+  'keyboard': 'assets/classes/keyboard_v2.png',
+  'knife': 'assets/classes/knife_v2.png',
+  'lamp': 'assets/classes/lamp_v2.png',
+  'laptop': 'assets/classes/laptop_v2.png',
+  'mobile_phone': 'assets/classes/mobile_phone_v2.png',
+  'orange': 'assets/classes/orange_v2.png',
+  'pen': 'assets/classes/pen_v2.png',
+  'plate': 'assets/classes/plate_v2.png',
+  'remote_control': 'assets/classes/remotecontrol_v2.png',
+  'ruler': 'assets/classes/ruler_v2.png',
+  'scissors': 'assets/classes/scissor_v2.png',
+  'shoe': 'assets/classes/shoe_v2.png',
+  'spoon': 'assets/classes/spoon_v2.png',
+  'table': 'assets/classes/table_v2.png',
+  'teddy_bear': 'assets/classes/teddybear_v2.png',
+  'toothbrush': 'assets/classes/toothbrush_v2.png',
+  'umbrella': 'assets/classes/umbrella_v2.png',
 };
 
 /// Renders the object icon for [englishKey], or nothing when there's no
@@ -50,11 +54,15 @@ class VocabIcon extends StatelessWidget {
   Widget build(BuildContext context) {
     final asset = englishKey == null ? null : _vocabIconAssets[englishKey];
     if (asset == null) return const SizedBox.shrink();
-    return Image.asset(
-      asset,
-      width: size,
-      height: size,
-      errorBuilder: (context, error, stackTrace) => const SizedBox.shrink(),
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(size * 0.18),
+      child: Image.asset(
+        asset,
+        width: size,
+        height: size,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) => const SizedBox.shrink(),
+      ),
     );
   }
 }

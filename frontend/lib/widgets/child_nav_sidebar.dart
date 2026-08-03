@@ -1,12 +1,20 @@
 import 'package:flutter/material.dart';
 
 import '../theme/app_theme.dart';
+import 'child_avatar.dart';
 
 /// The destinations in Child Adventure mode.
 ///
 /// Every one is listed from Phase 3 so the navigation reads as a complete
 /// place rather than growing an item at a time, but only the ones whose
 /// screens exist are selectable — see [ChildNavSidebar.enabled].
+///
+/// These are plain Material icons on purpose. Painterly icons cropped from the
+/// reference art were tried here and reverted: they are 3/4-view illustrations
+/// with soft edges and fine internal detail, none of it legible once shrunk to
+/// a 30px nav row. The Avatar row is the one exception — see [_NavIcon], which
+/// swaps in the child's live [ChildAvatar], since no static icon can represent
+/// whichever of the 5 buddies a given child actually picked.
 enum ChildNavItem {
   home('Home', Icons.home_rounded),
   adventureMap('Adventure Map', Icons.map_rounded),
@@ -37,12 +45,19 @@ class ChildNavSidebar extends StatelessWidget {
   final ValueChanged<ChildNavItem> onSelect;
   final VoidCallback onExit;
 
+  /// The child's current buddy, shown live on the Avatar row instead of a
+  /// fixed icon — see [ChildNavItem].
+  final String? avatarId;
+  final int avatarStage;
+
   const ChildNavSidebar({
     super.key,
     required this.selected,
     required this.enabled,
     required this.onSelect,
     required this.onExit,
+    this.avatarId,
+    this.avatarStage = 1,
   });
 
   @override
@@ -64,39 +79,20 @@ class ChildNavSidebar extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.fromLTRB(
                   AppTheme.lg, AppTheme.xl, AppTheme.lg, AppTheme.lg),
-              child: Row(
-                children: [
-                  // A small brand mark before the wordmark, matching the
-                  // dashboard design. Drawn from theme colours rather than a
-                  // logo asset so it stays crisp at any DPI.
-                  Container(
-                    width: 34,
-                    height: 34,
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [AppTheme.primary, Color(0xFF6B4EFF)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(Icons.center_focus_strong_rounded,
-                        size: 20, color: Colors.white),
+              child: Image.asset(
+                'assets/images/Logo/VocabScanLogo.png',
+                fit: BoxFit.contain,
+                alignment: Alignment.centerLeft,
+                errorBuilder: (_, _, _) => Text(
+                  'VocabScan',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTheme.heading.copyWith(
+                    fontSize: 23,
+                    fontWeight: FontWeight.w800,
+                    color: AppTheme.primary,
                   ),
-                  const SizedBox(width: AppTheme.sm),
-                  Flexible(
-                    child: Text(
-                      'VocabScan',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTheme.heading.copyWith(
-                        fontSize: 23,
-                        fontWeight: FontWeight.w800,
-                        color: AppTheme.primary,
-                      ),
-                    ),
-                  ),
-                ],
+                ),
               ),
             ),
             Divider(
@@ -116,6 +112,8 @@ class ChildNavSidebar extends StatelessWidget {
                       selected: item == selected,
                       enabled: enabled.contains(item),
                       onTap: () => onSelect(item),
+                      avatarId: avatarId,
+                      avatarStage: avatarStage,
                     ),
                 ],
               ),
@@ -149,12 +147,16 @@ class _NavTile extends StatefulWidget {
   final bool selected;
   final bool enabled;
   final VoidCallback onTap;
+  final String? avatarId;
+  final int avatarStage;
 
   const _NavTile({
     required this.item,
     required this.selected,
     required this.enabled,
     required this.onTap,
+    this.avatarId,
+    this.avatarStage = 1,
   });
 
   @override
@@ -195,7 +197,12 @@ class _NavTileState extends State<_NavTile> {
             opacity: enabled ? 1 : 0.45,
             child: Row(
               children: [
-                Icon(widget.item.icon, size: 20, color: color),
+                _NavIcon(
+                  item: widget.item,
+                  color: color,
+                  avatarId: widget.avatarId,
+                  avatarStage: widget.avatarStage,
+                ),
                 const SizedBox(width: AppTheme.md),
                 Expanded(
                   child: Text(
@@ -217,6 +224,37 @@ class _NavTileState extends State<_NavTile> {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// One nav row's leading icon: the child's live buddy for the Avatar row, the
+/// item's Material icon everywhere else.
+///
+/// Both are drawn in a 30px box so the labels line up whichever one a row uses.
+class _NavIcon extends StatelessWidget {
+  final ChildNavItem item;
+  final Color color;
+  final String? avatarId;
+  final int avatarStage;
+
+  const _NavIcon({
+    required this.item,
+    required this.color,
+    required this.avatarId,
+    required this.avatarStage,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (item == ChildNavItem.avatar) {
+      return ChildAvatar(avatarId: avatarId, stage: avatarStage, size: 30);
+    }
+
+    return SizedBox(
+      width: 30,
+      height: 30,
+      child: Icon(item.icon, size: 22, color: color),
     );
   }
 }

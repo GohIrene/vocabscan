@@ -147,10 +147,10 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                               title: 'Parent',
                               subtitle:
                                   "Manage your children's learning and progress.",
-                              accent: AppTheme.secondary,
-                              tint: AppTheme.secondaryLight,
+                              accent: AppTheme.primary,
+                              tint: AppTheme.primaryLight,
                               badgeIcon: Icons.groups_rounded,
-                              imagePath: 'assets/images/parents.png',
+                              imagePath: 'assets/images/parent.png',
                               onTap: () => Navigator.push(
                                 context,
                                 MaterialPageRoute(
@@ -166,8 +166,8 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                               title: 'Teacher',
                               subtitle:
                                   'Create classes, activities and track students.',
-                              accent: AppTheme.primary,
-                              tint: AppTheme.primaryLight,
+                              accent: AppTheme.secondary,
+                              tint: AppTheme.secondaryLight,
                               badgeIcon: Icons.school_rounded,
                               imagePath: 'assets/images/teacher.png',
                               onTap: () => Navigator.push(
@@ -200,7 +200,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                                   subtitle: 'Enter class code and join the fun quiz!',
                                   accent: AppTheme.adventure,
                                   tint: AppTheme.adventureLight,
-                                  badgeIcon: Icons.qr_code_scanner_rounded,
+                                  badgeIcon: Icons.quiz_rounded,
                                   imagePath: 'assets/images/backpack.png',
                                   onTap: () => Navigator.push(
                                     context,
@@ -414,7 +414,7 @@ class _RoleCardState extends State<_RoleCard> {
                       widget.title,
                       textAlign: TextAlign.center,
                       style: AppTheme.subheading.copyWith(
-                        color: widget.accent,
+                        color: AppTheme.textDark,
                         fontWeight: FontWeight.w800,
                         fontSize: 19,
                       ),
@@ -424,7 +424,7 @@ class _RoleCardState extends State<_RoleCard> {
                       widget.subtitle,
                       textAlign: TextAlign.center,
                       style: AppTheme.caption.copyWith(
-                        color: AppTheme.textDark.withValues(alpha: 0.75),
+                        color: AppTheme.textDark,
                         fontSize: 13,
                       ),
                     ),

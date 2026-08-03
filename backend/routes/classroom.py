@@ -4,6 +4,8 @@ from datetime import datetime
 from flask import Blueprint, jsonify, request
 from pymongo.errors import PyMongoError
 
+import class_sessions as cs
+
 import progress
 import state
 import vocab
@@ -362,8 +364,10 @@ def classroom_roster_by_code(code):
         return err
 
     try:
+        live_code = (code or "").strip().upper()
+        cs.expire_stale_sessions({"code": live_code})
         session = state.db.class_sessions.find_one(
-            {"code": (code or "").strip().upper(), "status": {"$ne": "ended"}}
+            {"code": live_code, "status": {"$ne": "ended"}}
         )
         if session is None:
             return jsonify({"status": "error", "message": "Class not found or already ended"}), 404

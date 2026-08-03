@@ -328,20 +328,6 @@ def parent_activity_summary(parent_id):
         this_week = [e for e in events if e[3] and e[3] >= this_week_start]
         last_week = [e for e in events if e[3] and e[3] < this_week_start]
 
-        word_counts = {}
-        for _cid, _kind, key, _ts in this_week:
-            if key:
-                word_counts[key] = word_counts.get(key, 0) + 1
-        top_word = None
-        if word_counts:
-            best_key = max(word_counts, key=word_counts.get)
-            top_word = {
-                "english_key": best_key,
-                "english_word": vocab._resolve_vocab(best_key).get(
-                    "english_word", best_key),
-                "count": word_counts[best_key],
-            }
-
         this_week_by_child = {}
         last_week_by_child = {}
         for cid, _kind, _key, _ts in this_week:
@@ -366,7 +352,6 @@ def parent_activity_summary(parent_id):
             "status": "ok",
             "this_week": _totals(this_week),
             "last_week": _totals(last_week),
-            "top_word": top_word,
             "most_active_child": most_active_child,
         })
     except PyMongoError:

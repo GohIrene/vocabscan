@@ -158,23 +158,24 @@ class _ParentSidebar extends StatelessWidget {
                         style: AppTheme.heading.copyWith(
                           fontSize: 24,
                           fontWeight: FontWeight.w800,
-                          color: AppTheme.secondary,
+                          color: AppTheme.primary,
                         ),
                       ),
                       const SizedBox(width: 4),
                       const Icon(Icons.auto_awesome_rounded,
-                          size: 16, color: AppTheme.secondary),
+                          size: 16, color: AppTheme.primary),
                     ],
                   ),
                   const SizedBox(height: AppTheme.sm),
                   // Makes it unmistakable which side of the app this is —
-                  // the same device is used by the child. Blue matches the
-                  // "Parent" tile on the welcome screen (AppTheme.secondary).
+                  // the same device is used by the child. Purple is Parent
+                  // Mode's theme throughout (AppTheme.primary), matching
+                  // parent_dashboard_screen.dart and parent_edit_child_screen.dart.
                   Container(
                     padding: const EdgeInsets.symmetric(
                         horizontal: AppTheme.md, vertical: 6),
                     decoration: BoxDecoration(
-                      color: AppTheme.secondary,
+                      color: AppTheme.primary,
                       borderRadius: BorderRadius.circular(30),
                     ),
                     child: Row(
@@ -199,7 +200,7 @@ class _ParentSidebar extends StatelessWidget {
             ),
             Divider(
               height: 1,
-              color: AppTheme.secondary.withValues(alpha: 0.12),
+              color: AppTheme.primary.withValues(alpha: 0.12),
               indent: AppTheme.lg,
               endIndent: AppTheme.lg,
             ),
@@ -257,49 +258,43 @@ class _NavTile extends StatefulWidget {
 }
 
 class _NavTileState extends State<_NavTile> {
-  bool _hovering = false;
-
   @override
   Widget build(BuildContext context) {
     final selected = widget.selected;
-    final color = selected ? AppTheme.secondary : AppTheme.textDark;
+    final color = selected ? AppTheme.primary : AppTheme.textDark;
 
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hovering = true),
-      onExit: (_) => setState(() => _hovering = false),
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          margin: const EdgeInsets.only(bottom: 4),
-          padding: const EdgeInsets.symmetric(
-              horizontal: AppTheme.md, vertical: 13),
-          decoration: BoxDecoration(
-            color: selected
-                ? AppTheme.secondaryLight
-                : (_hovering
-                    ? AppTheme.secondary.withValues(alpha: 0.06)
-                    : Colors.transparent),
-            borderRadius: BorderRadius.circular(AppTheme.radiusSm),
-          ),
-          child: Row(
-            children: [
-              Icon(widget.item.icon, size: 19, color: color),
-              const SizedBox(width: AppTheme.md),
-              Expanded(
-                child: Text(
-                  widget.item.label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTheme.body.copyWith(
-                    fontSize: 14.5,
-                    fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
-                    color: color,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Material(
+        color: selected ? AppTheme.primaryLight : Colors.transparent,
+        borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+        child: InkWell(
+          onTap: widget.onTap,
+          hoverColor: selected
+              ? AppTheme.primaryLight
+              : AppTheme.primary.withValues(alpha: 0.06),
+          borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+                horizontal: AppTheme.md, vertical: 13),
+            child: Row(
+              children: [
+                Icon(widget.item.icon, size: 19, color: color),
+                const SizedBox(width: AppTheme.md),
+                Expanded(
+                  child: Text(
+                    widget.item.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTheme.body.copyWith(
+                      fontSize: 14.5,
+                      fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                      color: color,
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -386,12 +381,12 @@ class _ParentHeader extends StatelessWidget {
                 children: [
                   CircleAvatar(
                     radius: 15,
-                    backgroundColor: AppTheme.secondaryLight,
+                    backgroundColor: AppTheme.primaryLight,
                     child: Text(
                       username.isEmpty ? '?' : username[0].toUpperCase(),
                       style: AppTheme.body.copyWith(
                         fontWeight: FontWeight.w800,
-                        color: AppTheme.secondary,
+                        color: AppTheme.primary,
                       ),
                     ),
                   ),

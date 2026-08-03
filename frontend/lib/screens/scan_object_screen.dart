@@ -12,6 +12,7 @@ import 'package:flutter/material.dart';
 import '../api_service.dart';
 import '../image_upload_utils.dart';
 import '../learning_flow.dart';
+import '../object_icons.dart';
 import '../socket_service.dart';
 import 'recognition_result_screen.dart';
 import '../theme/app_theme.dart';
@@ -64,40 +65,16 @@ class _ScanObjectScreenState extends State<ScanObjectScreen> {
   static const int _objectPreviewCount = 12;
 
   // The full set the model can recognise (mirrors mobilenetv3_classes.json —
-  // 30 classes). Kept in sync with the backend so the UI advertises exactly
-  // what's scannable, not a hardcoded subset.
-  static const List<Map<String, String>> _objects = [
-    {'icon': 'assets/icons/book.png', 'label': 'Book'},
-    {'icon': 'assets/icons/pen.png', 'label': 'Pen'},
-    {'icon': 'assets/icons/ruler.png', 'label': 'Ruler'},
-    {'icon': 'assets/icons/bagpack.png', 'label': 'Backpack'},
-    {'icon': 'assets/icons/bottle.png', 'label': 'Bottle'},
-    {'icon': 'assets/icons/coffee-cup.png', 'label': 'Cup'},
-    {'icon': 'assets/icons/spoon.png', 'label': 'Spoon'},
-    {'icon': 'assets/icons/fork.png', 'label': 'Fork'},
-    {'icon': 'assets/icons/knife.png', 'label': 'Knife'},
-    {'icon': 'assets/icons/plate.png', 'label': 'Plate'},
-    {'icon': 'assets/icons/bowl.png', 'label': 'Bowl'},
-    {'icon': 'assets/icons/remote control.png', 'label': 'Remote'},
-    {'icon': 'assets/icons/apple.png', 'label': 'Apple'},
-    {'icon': 'assets/icons/banana.png', 'label': 'Banana'},
-    {'icon': 'assets/icons/orange.png', 'label': 'Orange'},
-    {'icon': 'assets/icons/bread.png', 'label': 'Bread'},
-    {'icon': 'assets/icons/ball.png', 'label': 'Ball'},
-    {'icon': 'assets/icons/chair.png', 'label': 'Chair'},
-    {'icon': 'assets/icons/table.png', 'label': 'Table'},
-    {'icon': 'assets/icons/clock.png', 'label': 'Clock'},
-    {'icon': 'assets/icons/lamp.png', 'label': 'Lamp'},
-    {'icon': 'assets/icons/glasses.png', 'label': 'Glasses'},
-    {'icon': 'assets/icons/keyboard.png', 'label': 'Keyboard'},
-    {'icon': 'assets/icons/laptop.png', 'label': 'Laptop'},
-    {'icon': 'assets/icons/phone.png', 'label': 'Phone'},
-    {'icon': 'assets/icons/scissor.png', 'label': 'Scissors'},
-    {'icon': 'assets/icons/shoe.png', 'label': 'Shoe'},
-    {'icon': 'assets/icons/teddy bear.png', 'label': 'Teddy Bear'},
-    {'icon': 'assets/icons/toothbrush.png', 'label': 'Toothbrush'},
-    {'icon': 'assets/icons/umbrella.png', 'label': 'Umbrella'},
-  ];
+  // 30 classes), derived from the shared icon map so this list and the
+  // recognition result screen's icon lookup can't drift apart.
+  static final List<Map<String, String>> _objects = objectIcons.entries
+      .map((e) => {'icon': e.value, 'label': _titleCase(e.key)})
+      .toList();
+
+  static String _titleCase(String s) => s
+      .split(' ')
+      .map((w) => w.isEmpty ? w : '${w[0].toUpperCase()}${w.substring(1)}')
+      .join(' ');
 
   @override
   void initState() {
@@ -360,6 +337,14 @@ class _ScanObjectScreenState extends State<ScanObjectScreen> {
       backgroundColor: AppTheme.background,
       body: Stack(
         children: [
+          Positioned.fill(
+            child: Image.asset(
+              'assets/images/ScanningPage_background.png',
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) =>
+                  Container(color: AppTheme.background),
+            ),
+          ),
           SafeArea(
         child: Column(
           children: [
@@ -386,13 +371,25 @@ class _ScanObjectScreenState extends State<ScanObjectScreen> {
                     child: Column(
                       children: [
                         // Header
-                        Image.asset(
-                          'assets/icons/camera.png',
-                          width: 44,
-                          height: 44,
-                          errorBuilder: (context, error, stackTrace) {
-                            return const Icon(Icons.camera_alt, size: 44);
-                          },
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.auto_awesome,
+                                size: 18, color: Color(0xFFFFC94D)),
+                            const SizedBox(width: 10),
+                            Image.asset(
+                              'assets/icons/camera.png',
+                              width: 44,
+                              height: 44,
+                              errorBuilder: (context, error, stackTrace) {
+                                return const Icon(Icons.camera_alt, size: 44);
+                              },
+                            ),
+                            const SizedBox(width: 10),
+                            const Icon(Icons.auto_awesome,
+                                size: 14, color: AppTheme.primary),
+                          ],
                         ),
                         const SizedBox(height: 6),
                         Text(
@@ -403,11 +400,25 @@ class _ScanObjectScreenState extends State<ScanObjectScreen> {
                           ),
                         ),
                         const SizedBox(height: AppTheme.xs),
-                        Text(
-                          'Point your camera at an object!',
-                          style: AppTheme.body.copyWith(
-                            fontSize: 15,
-                            color: AppTheme.textLight,
+                        RichText(
+                          textAlign: TextAlign.center,
+                          text: TextSpan(
+                            style: AppTheme.body.copyWith(
+                              fontSize: 15,
+                              color: AppTheme.textLight,
+                            ),
+                            children: [
+                              const TextSpan(text: 'Place '),
+                              TextSpan(
+                                text: 'one',
+                                style: const TextStyle(
+                                  color: AppTheme.primary,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              const TextSpan(
+                                  text: ' object inside the magic frame!'),
+                            ],
                           ),
                         ),
                         const SizedBox(height: 20),
@@ -469,15 +480,99 @@ class _ScanObjectScreenState extends State<ScanObjectScreen> {
             width: 2,
           ),
         ),
-        child: Stack(
-          fit: StackFit.expand,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final side =
+                math.min(constraints.maxWidth, constraints.maxHeight) *
+                    _focusFraction;
+            final left = (constraints.maxWidth - side) / 2;
+            final top = (constraints.maxHeight - side) / 2;
+
+            return Stack(
+              fit: StackFit.expand,
+              children: [
+                if (_camState == _CamState.running)
+                  HtmlElementView(viewType: _viewType)
+                else
+                  _buildCameraPlaceholder(),
+                if (_camState == _CamState.running) ...[
+                  CustomPaint(painter: _FocusBoxPainter()),
+                  _buildCornerStar(left - 14, top - 14),
+                  _buildCornerStar(left + side - 14, top - 14),
+                  _buildCornerStar(left - 14, top + side - 14),
+                  _buildCornerStar(left + side - 14, top + side - 14),
+                  Positioned(
+                    left: left,
+                    top: top + side - 14,
+                    width: side,
+                    child: Center(child: _buildFrameHintPill()),
+                  ),
+                ],
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCornerStar(double left, double top) {
+    return Positioned(
+      left: left,
+      top: top,
+      child: Container(
+        width: 28,
+        height: 28,
+        decoration: BoxDecoration(
+          color: AppTheme.primary,
+          borderRadius: BorderRadius.circular(8),
+          boxShadow: [
+            BoxShadow(
+              color: AppTheme.primary.withValues(alpha: 0.5),
+              blurRadius: 8,
+            ),
+          ],
+        ),
+        child: Center(
+          child: Image.asset(
+            'assets/icons/star.png',
+            width: 16,
+            height: 16,
+            errorBuilder: (context, error, stackTrace) =>
+                const Icon(Icons.star, size: 16, color: Colors.white),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFrameHintPill() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFF2A2550),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: const [
+          BoxShadow(
+              color: Colors.black26, blurRadius: 8, offset: Offset(0, 2)),
+        ],
+      ),
+      child: RichText(
+        text: TextSpan(
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+          ),
           children: [
-            if (_camState == _CamState.running)
-              HtmlElementView(viewType: _viewType)
-            else
-              _buildCameraPlaceholder(),
-            if (_camState == _CamState.running)
-              CustomPaint(painter: _FocusBoxPainter()),
+            const TextSpan(text: 'Keep '),
+            TextSpan(
+              text: 'one',
+              style: TextStyle(
+                  color: const Color(0xFFFFC94D),
+                  fontWeight: FontWeight.w800),
+            ),
+            const TextSpan(text: ' object inside the box'),
           ],
         ),
       ),
@@ -569,53 +664,70 @@ class _ScanObjectScreenState extends State<ScanObjectScreen> {
       children: [
         // Toggles between "Start Camera" and "Scan Object"
         if (_camState != _CamState.running)
-          FilledButton.icon(
-            onPressed:
-                _camState == _CamState.starting ? null : _startCamera,
-            icon: _camState == _CamState.starting
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(
-                        strokeWidth: 2, color: Colors.white),
-                  )
-                : const Icon(Icons.camera_alt, size: 18),
-            label: Text(
-              _camState == _CamState.error ? 'Retry Camera' : 'Start Camera',
-            ),
-            style: FilledButton.styleFrom(
-              backgroundColor: AppTheme.success,
-              foregroundColor: AppTheme.textDark,
-              minimumSize: const Size(200, 52),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16)),
-              textStyle: AppTheme.buttonText,
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed:
+                  _camState == _CamState.starting ? null : _startCamera,
+              icon: _camState == _CamState.starting
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white),
+                    )
+                  : const Icon(Icons.camera_alt, size: 18),
+              label: Text(
+                _camState == _CamState.error
+                    ? 'Retry Camera'
+                    : 'Start Camera',
+              ),
+              style: FilledButton.styleFrom(
+                backgroundColor: AppTheme.success,
+                foregroundColor: AppTheme.textDark,
+                minimumSize: const Size(double.infinity, 56),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16)),
+                textStyle: AppTheme.buttonText,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+              ),
             ),
           )
         else
-          FilledButton.icon(
-            onPressed: _isScanning ? null : _scanObject,
-            icon: _isScanning
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(
-                        strokeWidth: 2, color: Colors.white),
-                  )
-                : const Icon(Icons.center_focus_strong, size: 20),
-            label: const Text('Scan Object'),
-            style: AppTheme.primaryButton,
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: _isScanning ? null : _scanObject,
+              icon: _isScanning
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white),
+                    )
+                  : const Icon(Icons.center_focus_strong, size: 20),
+              label: const Text('Scan Object'),
+              style: AppTheme.primaryButton.copyWith(
+                minimumSize: const WidgetStatePropertyAll(
+                    Size(double.infinity, 56)),
+              ),
+            ),
           ),
 
         const SizedBox(height: AppTheme.md),
 
-        OutlinedButton.icon(
-          onPressed: _isScanning ? null : _uploadPhoto,
-          icon: const Icon(Icons.upload_file, size: 18),
-          label: const Text('Upload Photo'),
-          style: AppTheme.secondaryButton,
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: _isScanning ? null : _uploadPhoto,
+            icon: const Icon(Icons.upload_file, size: 18),
+            label: const Text('Upload Photo'),
+            style: AppTheme.secondaryButton.copyWith(
+              minimumSize: const WidgetStatePropertyAll(
+                  Size(double.infinity, 56)),
+            ),
+          ),
         ),
       ],
     );
@@ -632,8 +744,14 @@ class _ScanObjectScreenState extends State<ScanObjectScreen> {
             onTap: () => setState(() => _showObjectList = !_showObjectList),
             child: Row(
               children: [
-                Icon(Icons.info_outline,
-                    size: 20, color: AppTheme.textLight),
+                Image.asset(
+                  'assets/icons/star.png',
+                  width: 20,
+                  height: 20,
+                  errorBuilder: (context, error, stackTrace) =>
+                      Icon(Icons.info_outline,
+                          size: 20, color: AppTheme.textLight),
+                ),
                 const SizedBox(width: AppTheme.sm),
                 Expanded(
                   child: Text(
@@ -815,43 +933,6 @@ class _FocusBoxPainter extends CustomPainter {
       5,
     );
 
-    // Purple L-shaped corner accents
-    final corner = Paint()
-      ..color = AppTheme.primary
-      ..strokeWidth = 3.5
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
-    const cl = 22.0;
-
-    canvas.drawLine(Offset(left, top + cl), Offset(left, top), corner);
-    canvas.drawLine(Offset(left, top), Offset(left + cl, top), corner);
-    canvas.drawLine(
-        Offset(left + side - cl, top), Offset(left + side, top), corner);
-    canvas.drawLine(
-        Offset(left + side, top), Offset(left + side, top + cl), corner);
-    canvas.drawLine(
-        Offset(left, top + side - cl), Offset(left, top + side), corner);
-    canvas.drawLine(
-        Offset(left, top + side), Offset(left + cl, top + side), corner);
-    canvas.drawLine(Offset(left + side - cl, top + side),
-        Offset(left + side, top + side), corner);
-    canvas.drawLine(Offset(left + side, top + side),
-        Offset(left + side, top + side - cl), corner);
-
-    // Hint label below the box
-    final tp = TextPainter(
-      text: TextSpan(
-        text: 'Place object inside the box',
-        style: TextStyle(
-          color: Colors.white.withValues(alpha: 0.80),
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
-          letterSpacing: 0.4,
-        ),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout();
-    tp.paint(canvas, Offset(left + (side - tp.width) / 2, top + side + 7));
   }
 
   void _drawDashedRect(
@@ -974,12 +1055,16 @@ class _ObjectChip extends StatelessWidget {
       ),
       child: Column(
         children: [
-          Image.asset(
-            iconPath,
-            width: 48,
-            height: 48,
-            fit: BoxFit.contain,
-            errorBuilder: (_, _, _) => const Icon(Icons.image_not_supported, size: 48),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: Image.asset(
+              iconPath,
+              width: 56,
+              height: 56,
+              fit: BoxFit.cover,
+              errorBuilder: (_, _, _) =>
+                  const Icon(Icons.image_not_supported, size: 48),
+            ),
           ),
           const SizedBox(height: AppTheme.xs),
           Text(

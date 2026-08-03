@@ -64,11 +64,14 @@ flutter:
 
   # To add assets to your application, add an assets section, like this:
   assets:
+    - assets/background_childhome.png
     - assets/icons/
+    - assets/classes/
     - assets/images/
     # Listed separately because a directory entry is not recursive — without
     # this line the avatar stage artwork is not bundled.
     - assets/images/avatars/
+    - assets/images/Logo/
     - assets/learning/
     # Adventure art. Directory entries are not recursive, so each area folder
     # is listed on its own. The design references that live loose in

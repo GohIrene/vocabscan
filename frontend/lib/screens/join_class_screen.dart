@@ -150,27 +150,39 @@ class _JoinClassScreenState extends State<JoinClassScreen> {
               ),
             ),
             Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(
-                      maxWidth: _showGrid ? 560 : 440,
-                    ),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 28,
-                        vertical: AppTheme.xxl,
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  // Center inside a scroll view has no bounded height to
+                  // center within, so it collapses to the top — giving it a
+                  // minHeight matching the viewport is what actually lets the
+                  // card sit in the middle of the screen.
+                  return SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: ConstrainedBox(
+                      constraints:
+                          BoxConstraints(minHeight: constraints.maxHeight),
+                      child: Center(
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(
+                            maxWidth: _showGrid ? 560 : 440,
+                          ),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 28,
+                              vertical: AppTheme.xxl,
+                            ),
+                            decoration: AppTheme.cardDecoration.copyWith(
+                              borderRadius: BorderRadius.circular(28),
+                            ),
+                            child: _step == _JoinStep.code
+                                ? _buildCodeStep()
+                                : _buildIdentityStep(),
+                          ),
+                        ),
                       ),
-                      decoration: AppTheme.cardDecoration.copyWith(
-                        borderRadius: BorderRadius.circular(28),
-                      ),
-                      child: _step == _JoinStep.code
-                          ? _buildCodeStep()
-                          : _buildIdentityStep(),
                     ),
-                  ),
-                ),
+                  );
+                },
               ),
             ),
           ],
@@ -407,7 +419,7 @@ class _JoinClassScreenState extends State<JoinClassScreen> {
           width: 64,
           height: 64,
           decoration: const BoxDecoration(
-            color: AppTheme.success,
+            color: AppTheme.adventure,
             shape: BoxShape.circle,
           ),
           alignment: Alignment.center,
@@ -463,14 +475,13 @@ class _JoinClassScreenState extends State<JoinClassScreen> {
       child: FilledButton(
         onPressed: onPressed,
         style: FilledButton.styleFrom(
-          backgroundColor: AppTheme.success,
-          foregroundColor: AppTheme.textDark,
+          backgroundColor: AppTheme.adventure,
+          foregroundColor: Colors.white,
           minimumSize: const Size(double.infinity, 54),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppTheme.radiusMd),
           ),
-          textStyle:
-              AppTheme.buttonText.copyWith(color: AppTheme.textDark, fontSize: 17),
+          textStyle: AppTheme.buttonText.copyWith(fontSize: 17),
         ),
         child: _loading
             ? const SizedBox(
@@ -478,7 +489,7 @@ class _JoinClassScreenState extends State<JoinClassScreen> {
                 height: 22,
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
-                  color: AppTheme.textDark,
+                  color: Colors.white,
                 ),
               )
             : Text(label),

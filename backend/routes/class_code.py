@@ -55,6 +55,7 @@ def class_create():
             "summary_quiz": None,
             "summary_history": [],
             "created_at": datetime.utcnow(),
+            "last_activity_at": datetime.utcnow(),
             "ended_at": None,
         })
         return jsonify({"session_id": session_id, "code": code}), 201
@@ -77,6 +78,7 @@ def class_join():
         return jsonify({"status": "error", "message": "Nickname is required"}), 400
 
     try:
+        cs.expire_stale_sessions({"code": code})
         session = state.db.class_sessions.find_one({"code": code, "status": {"$ne": "ended"}})
         if session is None:
             return jsonify({"status": "error", "message": "Class not found or already ended"}), 404
@@ -86,16 +88,20 @@ def class_join():
                 if s.get("connected"):
                     return jsonify({"status": "error", "message": "That name is already taken in this class"}), 409
                 # Exists but disconnected → this is a rejoin, allow it.
+                cs.touch_session(session["session_id"])
                 return jsonify({"session_id": session["session_id"], "joined": True})
 
         state.db.class_sessions.update_one(
             {"session_id": session["session_id"]},
-            {"$push": {"students": {
-                "nickname": nickname,
-                "score": 0,
-                "answered_current": False,
-                "connected": False,
-            }}},
+            {
+                "$push": {"students": {
+                    "nickname": nickname,
+                    "score": 0,
+                    "answered_current": False,
+                    "connected": False,
+                }},
+                "$set": {"last_activity_at": datetime.utcnow()},
+            },
         )
         return jsonify({"session_id": session["session_id"], "joined": True})
     except PyMongoError:
@@ -114,6 +120,7 @@ def class_sessions(teacher_id):
         return v.isoformat() if isinstance(v, datetime) else v
 
     try:
+        cs.expire_stale_sessions({"teacher_id": teacher_id})
         docs = list(state.db.class_sessions.find({"teacher_id": teacher_id}))
         docs.sort(key=lambda d: d.get("created_at") or datetime.min, reverse=True)
 

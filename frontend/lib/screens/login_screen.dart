@@ -158,7 +158,14 @@ class _LoginScreenState extends State<LoginScreen> {
                         const SizedBox(height: AppTheme.xl),
                         FilledButton(
                           onPressed: _loading ? null : _login,
-                          style: AppTheme.primaryButton,
+                          // Parent Mode is purple throughout, Teacher Mode
+                          // blue (see parent_shell.dart / teacher_shell.dart)
+                          // — this button matches whichever mode is signing in.
+                          style: _isParent
+                              ? AppTheme.primaryButton
+                              : AppTheme.primaryButton.copyWith(
+                                  backgroundColor: const WidgetStatePropertyAll(
+                                      AppTheme.secondary)),
                           child: _loading
                               ? const SizedBox(
                                   width: 20,

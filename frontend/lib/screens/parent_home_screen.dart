@@ -363,7 +363,7 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
               label: const Text('Add New Child'),
               style: AppTheme.smallButton.copyWith(
                   backgroundColor:
-                      const WidgetStatePropertyAll(AppTheme.secondary)),
+                      const WidgetStatePropertyAll(AppTheme.primary)),
             )
           : null,
       child: _loading
@@ -413,7 +413,7 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
               label: const Text('Try Again'),
               style: AppTheme.primaryButton.copyWith(
                   backgroundColor:
-                      const WidgetStatePropertyAll(AppTheme.secondary)),
+                      const WidgetStatePropertyAll(AppTheme.primary)),
             ),
           ],
         ),
@@ -467,6 +467,13 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
 
   /// Lays cards out side by side above [breakpoint], stacked below it — the
   /// same rule the dashboard's card row has always used.
+  ///
+  /// Side by side, the cards are given a common height so the row doesn't read
+  /// as ragged. That relies on IntrinsicHeight, which asks every descendant
+  /// for its intrinsic height — so nothing inside a card passed here may be a
+  /// LayoutBuilder or a scrollable (ListView/GridView/SingleChildScrollView),
+  /// both of which throw rather than answer. Measure with a fixed layout
+  /// instead, as [_LearningHighlightsCardState._buildTiles] does.
   Widget _responsiveRow(List<(int, Widget)> items, {double breakpoint = 900}) {
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -519,7 +526,7 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
             label: const Text('Add New Child'),
             style: AppTheme.primaryButton.copyWith(
                 backgroundColor:
-                    const WidgetStatePropertyAll(AppTheme.secondary)),
+                    const WidgetStatePropertyAll(AppTheme.primary)),
           ),
         ],
       ),
@@ -562,7 +569,7 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
                         ),
                         const SizedBox(width: 6),
                         _Pill(
-                            label: buddy.displayName, tint: AppTheme.secondary),
+                            label: buddy.displayName, tint: AppTheme.primary),
                       ],
                     ),
                     Text('Age ${child['age'] ?? '—'}',
@@ -624,9 +631,9 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
                   icon: const Icon(Icons.insights_rounded, size: 16),
                   label: const Text('View Progress'),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: AppTheme.secondary,
+                    foregroundColor: AppTheme.primary,
                     side: BorderSide(
-                        color: AppTheme.secondary.withValues(alpha: 0.4)),
+                        color: AppTheme.primary.withValues(alpha: 0.4)),
                     padding:
                         const EdgeInsets.symmetric(vertical: 10),
                     shape: RoundedRectangleBorder(
@@ -642,7 +649,7 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
                   icon: const Icon(Icons.play_circle_rounded, size: 16),
                   label: const Text('Enter Child Mode'),
                   style: FilledButton.styleFrom(
-                    backgroundColor: AppTheme.secondary,
+                    backgroundColor: AppTheme.primary,
                     foregroundColor: Colors.white,
                     padding:
                         const EdgeInsets.symmetric(vertical: 10),
@@ -753,9 +760,9 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
               icon: const Icon(Icons.arrow_forward_rounded, size: 16),
               label: const Text('View Activity Log'),
               style: OutlinedButton.styleFrom(
-                foregroundColor: AppTheme.secondary,
+                foregroundColor: AppTheme.primary,
                 side: BorderSide(
-                    color: AppTheme.secondary.withValues(alpha: 0.35)),
+                    color: AppTheme.primary.withValues(alpha: 0.35)),
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(AppTheme.radiusSm)),
               ),
@@ -925,7 +932,7 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
           Align(
             alignment: Alignment.center,
             child: Icon(Icons.auto_awesome_rounded,
-                size: 14, color: AppTheme.secondary.withValues(alpha: 0.4)),
+                size: 14, color: AppTheme.primary.withValues(alpha: 0.4)),
           ),
           const SizedBox(height: 4),
           Stack(
@@ -935,7 +942,7 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(vertical: AppTheme.md),
                 decoration: BoxDecoration(
-                  color: AppTheme.secondaryLight,
+                  color: AppTheme.primaryLight,
                   borderRadius: BorderRadius.circular(AppTheme.radiusSm),
                 ),
                 alignment: Alignment.center,
@@ -969,7 +976,7 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
                   icon: const Icon(Icons.copy_rounded, size: 16),
                   label: const Text('Copy Code'),
                   style: FilledButton.styleFrom(
-                    backgroundColor: AppTheme.secondary,
+                    backgroundColor: AppTheme.primary,
                     foregroundColor: AppTheme.surface,
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     shape: RoundedRectangleBorder(
@@ -985,9 +992,9 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
                   icon: const Icon(Icons.refresh_rounded, size: 16),
                   label: const Text('Regenerate Code'),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: AppTheme.secondary,
+                    foregroundColor: AppTheme.primary,
                     side: BorderSide(
-                        color: AppTheme.secondary.withValues(alpha: 0.35)),
+                        color: AppTheme.primary.withValues(alpha: 0.35)),
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     shape: RoundedRectangleBorder(
                         borderRadius:
@@ -1038,7 +1045,7 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
                   if (i > 0)
                     Divider(
                         height: AppTheme.lg,
-                        color: AppTheme.secondary.withValues(alpha: 0.1)),
+                        color: AppTheme.primary.withValues(alpha: 0.1)),
                   _buildChildRow(_inactive[i], active: false),
                 ],
               ],
@@ -1078,7 +1085,7 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
                   const SizedBox(width: 6),
                   _Pill(
                     label: active ? buddy.displayName : 'Inactive',
-                    tint: active ? AppTheme.secondary : AppTheme.textLight,
+                    tint: active ? AppTheme.primary : AppTheme.textLight,
                   ),
                   if (active && child['has_pin'] == true) ...[
                     const SizedBox(width: 4),
@@ -1102,19 +1109,19 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
           width: 1,
           height: 44,
           margin: const EdgeInsets.symmetric(horizontal: AppTheme.md),
-          color: AppTheme.secondary.withValues(alpha: 0.12),
+          color: AppTheme.primary.withValues(alpha: 0.12),
         ),
         if (active) ...[
           _ChildAction(
               icon: Icons.edit_rounded,
               label: 'Edit',
-              color: AppTheme.secondary,
+              color: AppTheme.primary,
               onTap: () => _editChild(child)),
           const SizedBox(width: 8),
           _ChildAction(
               icon: Icons.insights_rounded,
               label: 'Progress',
-              color: AppTheme.secondary,
+              color: AppTheme.primary,
               onTap: () => _viewProgress(child)),
           const SizedBox(width: 8),
           _ChildAction(
@@ -1127,7 +1134,7 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
           _ChildAction(
             icon: Icons.restart_alt_rounded,
             label: 'Reactivate',
-            color: AppTheme.secondary,
+            color: AppTheme.primary,
             onTap: () => _setActive(child, true),
           ),
           const SizedBox(width: 8),
@@ -1153,11 +1160,11 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
             width: 72,
             height: 72,
             decoration: BoxDecoration(
-              color: AppTheme.secondaryLight,
+              color: AppTheme.primaryLight,
               shape: BoxShape.circle,
             ),
             child: const Icon(Icons.group_add_rounded,
-                color: AppTheme.secondary, size: 32),
+                color: AppTheme.primary, size: 32),
           ),
           const SizedBox(height: AppTheme.md),
           Text('Add another child',
@@ -1175,7 +1182,7 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
             label: const Text('Add New Child'),
             style: AppTheme.primaryButton.copyWith(
                 backgroundColor:
-                    const WidgetStatePropertyAll(AppTheme.secondary)),
+                    const WidgetStatePropertyAll(AppTheme.primary)),
           ),
         ],
       ),
@@ -1193,7 +1200,7 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
             if (i > 0)
               Divider(
                   height: AppTheme.lg,
-                  color: AppTheme.secondary.withValues(alpha: 0.1)),
+                  color: AppTheme.primary.withValues(alpha: 0.1)),
             Row(
               children: [
                 ChildAvatar(
@@ -1228,7 +1235,7 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
                   label: const Text('View Report'),
                   style: AppTheme.smallButton.copyWith(
                       backgroundColor:
-                          const WidgetStatePropertyAll(AppTheme.secondary)),
+                          const WidgetStatePropertyAll(AppTheme.primary)),
                 ),
               ],
             ),
@@ -1511,12 +1518,12 @@ class _ParentActivityViewState extends State<ParentActivityView> {
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(AppTheme.radiusSm),
                 borderSide:
-                    BorderSide(color: AppTheme.secondary.withValues(alpha: 0.2)),
+                    BorderSide(color: AppTheme.primary.withValues(alpha: 0.2)),
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(AppTheme.radiusSm),
                 borderSide:
-                    BorderSide(color: AppTheme.secondary.withValues(alpha: 0.2)),
+                    BorderSide(color: AppTheme.primary.withValues(alpha: 0.2)),
               ),
             ),
           ),
@@ -1535,7 +1542,7 @@ class _ParentActivityViewState extends State<ParentActivityView> {
       decoration: BoxDecoration(
         color: AppTheme.surface,
         borderRadius: BorderRadius.circular(AppTheme.radiusSm),
-        border: Border.all(color: AppTheme.secondary.withValues(alpha: 0.2)),
+        border: Border.all(color: AppTheme.primary.withValues(alpha: 0.2)),
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String?>(
@@ -1587,7 +1594,6 @@ class _ParentActivityViewState extends State<ParentActivityView> {
 
     final thisWeek = (summary['this_week'] as Map?)?.cast<String, dynamic>();
     final lastWeek = (summary['last_week'] as Map?)?.cast<String, dynamic>();
-    final topWord = (summary['top_word'] as Map?)?.cast<String, dynamic>();
     final mostActive =
         (summary['most_active_child'] as Map?)?.cast<String, dynamic>();
 
@@ -1596,10 +1602,6 @@ class _ParentActivityViewState extends State<ParentActivityView> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _buildDonutCard(thisWeek),
-        if (topWord != null) ...[
-          const SizedBox(height: AppTheme.md),
-          _buildTopWordCard(topWord),
-        ],
         if (mostActive != null) ...[
           const SizedBox(height: AppTheme.md),
           _buildMostActiveCard(mostActive),
@@ -1614,15 +1616,13 @@ class _ParentActivityViewState extends State<ParentActivityView> {
             children: [tiles, const SizedBox(height: AppTheme.md), sideCards],
           );
         }
-        return IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(flex: 3, child: tiles),
-              const SizedBox(width: AppTheme.md),
-              Expanded(flex: 2, child: sideCards),
-            ],
-          ),
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(flex: 3, child: tiles),
+            const SizedBox(width: AppTheme.md),
+            Expanded(flex: 2, child: sideCards),
+          ],
         );
       },
     );
@@ -1737,40 +1737,6 @@ class _ParentActivityViewState extends State<ParentActivityView> {
     );
   }
 
-  Widget _buildTopWordCard(Map<String, dynamic> topWord) {
-    return ParentCard(
-      title: 'Top Word This Week',
-      icon: Icons.star_rounded,
-      iconTint: AppTheme.treasure,
-      child: Row(
-        children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: AppTheme.treasure.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(AppTheme.radiusSm),
-            ),
-            child: const Icon(Icons.text_fields_rounded,
-                color: AppTheme.treasure),
-          ),
-          const SizedBox(width: AppTheme.md),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(topWord['english_word'] as String? ?? '',
-                    style: AppTheme.body.copyWith(fontWeight: FontWeight.w800)),
-                Text('Practiced ${topWord['count'] ?? 0} times',
-                    style: AppTheme.caption),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildMostActiveCard(Map<String, dynamic> child) {
     final now = (child['activities_this_week'] as num?)?.toInt() ?? 0;
     final before = (child['activities_last_week'] as num?)?.toInt() ?? 0;
@@ -1821,7 +1787,7 @@ class _ParentActivityViewState extends State<ParentActivityView> {
               onPressed: _load,
               style: AppTheme.smallButton.copyWith(
                   backgroundColor:
-                      const WidgetStatePropertyAll(AppTheme.secondary)),
+                      const WidgetStatePropertyAll(AppTheme.primary)),
               child: const Text('Try Again'),
             ),
           ],
@@ -1896,7 +1862,7 @@ class _ParentActivityViewState extends State<ParentActivityView> {
                   if (i > 0)
                     Divider(
                         height: AppTheme.md,
-                        color: AppTheme.secondary.withValues(alpha: 0.08)),
+                        color: AppTheme.primary.withValues(alpha: 0.08)),
                   Builder(
                     builder: (context) {
                       final e = entry.value[i];
@@ -1998,12 +1964,12 @@ class _ActivityFilterChip extends StatelessWidget {
         duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          color: selected ? AppTheme.secondary : AppTheme.surface,
+          color: selected ? AppTheme.primary : AppTheme.surface,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
               color: selected
-                  ? AppTheme.secondary
-                  : AppTheme.secondary.withValues(alpha: 0.2)),
+                  ? AppTheme.primary
+                  : AppTheme.primary.withValues(alpha: 0.2)),
         ),
         child: Text(
           label,
@@ -2258,24 +2224,39 @@ class _LearningHighlightsCardState extends State<_LearningHighlightsCard> {
           Icons.mic_rounded, AppTheme.primary),
     ];
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        const columns = 3;
-        const gap = AppTheme.sm;
-        final tileWidth = (constraints.maxWidth - gap * (columns - 1)) / columns;
-        return Wrap(
-          spacing: gap,
-          runSpacing: gap,
-          children: [
-            for (final (label, value, icon, tint) in tiles)
-              SizedBox(
-                width: tileWidth,
-                child: ParentStat(
-                    icon: icon, tint: tint, label: label, value: value),
-              ),
-          ],
-        );
-      },
+    // Fixed 3-wide rows of Expanded rather than a width-measuring
+    // LayoutBuilder + Wrap. Same result — the old code always divided the
+    // width into exactly 3 columns, so it never reflowed — but this card sits
+    // inside the dashboard's IntrinsicHeight row (see [_responsiveRow]), and
+    // a LayoutBuilder cannot answer an intrinsic-height query.
+    const columns = 3;
+    const gap = AppTheme.sm;
+    return Column(
+      children: [
+        for (var start = 0; start < tiles.length; start += columns) ...[
+          if (start > 0) const SizedBox(height: gap),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (var c = 0; c < columns; c++) ...[
+                if (c > 0) const SizedBox(width: gap),
+                // A short last row keeps its empty slots, so the tiles above
+                // and below stay in the same columns.
+                Expanded(
+                  child: start + c < tiles.length
+                      ? ParentStat(
+                          icon: tiles[start + c].$3,
+                          tint: tiles[start + c].$4,
+                          label: tiles[start + c].$1,
+                          value: tiles[start + c].$2,
+                        )
+                      : const SizedBox.shrink(),
+                ),
+              ],
+            ],
+          ),
+        ],
+      ],
     );
   }
 }
@@ -2357,7 +2338,7 @@ class _RecentActivityPreviewState extends State<_RecentActivityPreview> {
                           if (i > 0)
                             Divider(
                                 height: AppTheme.md,
-                                color: AppTheme.secondary
+                                color: AppTheme.primary
                                     .withValues(alpha: 0.08)),
                           _buildRow(_events![i]),
                         ],
@@ -2368,38 +2349,42 @@ class _RecentActivityPreviewState extends State<_RecentActivityPreview> {
 
   Widget _buildRow(Map<String, dynamic> e) {
     final (icon, tint) = _activityStyle(e['type'] as String? ?? '');
-    return Row(
-      children: [
-        Container(
-          width: 32,
-          height: 32,
-          decoration: BoxDecoration(
-            color: tint.withValues(alpha: 0.15),
-            shape: BoxShape.circle,
+    return SizedBox(
+      height: 56,
+      child: Row(
+        children: [
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: tint.withValues(alpha: 0.15),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, size: 16, color: tint),
           ),
-          child: Icon(icon, size: 16, color: tint),
-        ),
-        const SizedBox(width: AppTheme.md),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                e['description'] as String? ?? '',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: AppTheme.body.copyWith(fontSize: 14),
-              ),
-              Text(
-                e['child_nickname'] as String? ?? '',
-                style: AppTheme.caption.copyWith(fontSize: 11),
-              ),
-            ],
+          const SizedBox(width: AppTheme.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  e['description'] as String? ?? '',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTheme.body.copyWith(fontSize: 14),
+                ),
+                Text(
+                  e['child_nickname'] as String? ?? '',
+                  style: AppTheme.caption.copyWith(fontSize: 11),
+                ),
+              ],
+            ),
           ),
-        ),
-        Text(e['local_time'] as String? ?? '',
-            style: AppTheme.caption.copyWith(fontSize: 11)),
-      ],
+          Text(e['local_time'] as String? ?? '',
+              style: AppTheme.caption.copyWith(fontSize: 11)),
+        ],
+      ),
     );
   }
 }
@@ -2473,23 +2458,27 @@ class _CardAction extends StatelessWidget {
         child: Container(
           width: centered ? double.infinity : null,
           padding:
-              const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+              const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
           decoration: BoxDecoration(
-            color: AppTheme.secondaryLight,
+            color: AppTheme.primaryLight,
             borderRadius: BorderRadius.circular(AppTheme.radiusSm),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: 14, color: AppTheme.secondary),
-              const SizedBox(width: 5),
-              Text(
-                label,
-                style: AppTheme.caption.copyWith(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: AppTheme.secondary,
+              Icon(icon, size: 14, color: AppTheme.primary),
+              const SizedBox(width: 4),
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTheme.caption.copyWith(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.primary,
+                  ),
                 ),
               ),
             ],
@@ -2558,26 +2547,21 @@ class _AddChildCard extends StatefulWidget {
 }
 
 class _AddChildCardState extends State<_AddChildCard> {
-  bool _hovering = false;
-
   @override
   Widget build(BuildContext context) {
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hovering = true),
-      onExit: (_) => setState(() => _hovering = false),
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
         onTap: widget.onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
+        hoverColor: AppTheme.primary.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+        child: Container(
           constraints: const BoxConstraints(minHeight: 240),
           decoration: BoxDecoration(
-            color: _hovering
-                ? AppTheme.secondary.withValues(alpha: 0.06)
-                : AppTheme.surface,
+            color: AppTheme.surface,
             borderRadius: BorderRadius.circular(AppTheme.radiusMd),
             border: Border.all(
-              color: AppTheme.secondary.withValues(alpha: 0.3),
+              color: AppTheme.primary.withValues(alpha: 0.3),
               width: 2,
             ),
           ),
@@ -2588,14 +2572,14 @@ class _AddChildCardState extends State<_AddChildCard> {
                 width: 54,
                 height: 54,
                 decoration: const BoxDecoration(
-                    color: AppTheme.secondary, shape: BoxShape.circle),
+                    color: AppTheme.primary, shape: BoxShape.circle),
                 child: const Icon(Icons.add_rounded,
                     color: Colors.white, size: 28),
               ),
               const SizedBox(height: AppTheme.md),
               Text('Add New Child',
                   style: AppTheme.body.copyWith(
-                      fontWeight: FontWeight.w800, color: AppTheme.secondary)),
+                      fontWeight: FontWeight.w800, color: AppTheme.primary)),
               const SizedBox(height: 2),
               Text('Create a new child profile',
                   style: AppTheme.caption.copyWith(fontSize: 12)),
@@ -2660,7 +2644,7 @@ class _SafetyItem extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(AppTheme.md),
       decoration: BoxDecoration(
-        color: AppTheme.secondaryLight.withValues(alpha: 0.5),
+        color: AppTheme.primaryLight.withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(AppTheme.radiusSm),
       ),
       child: Row(
@@ -2673,7 +2657,7 @@ class _SafetyItem extends StatelessWidget {
               color: AppTheme.surface,
               shape: BoxShape.circle,
             ),
-            child: Icon(icon, size: 17, color: AppTheme.secondary),
+            child: Icon(icon, size: 17, color: AppTheme.primary),
           ),
           const SizedBox(width: AppTheme.md),
           Expanded(
@@ -2723,12 +2707,12 @@ class _Step extends StatelessWidget {
             width: 22,
             height: 22,
             decoration: const BoxDecoration(
-                color: AppTheme.secondaryLight, shape: BoxShape.circle),
+                color: AppTheme.primaryLight, shape: BoxShape.circle),
             alignment: Alignment.center,
             child: Text('$n',
                 style: AppTheme.caption.copyWith(
                     fontWeight: FontWeight.w800,
-                    color: AppTheme.secondary,
+                    color: AppTheme.primary,
                     fontSize: 11)),
           ),
           const SizedBox(width: AppTheme.sm),
@@ -2739,9 +2723,9 @@ class _Step extends StatelessWidget {
               width: 26,
               height: 26,
               decoration: const BoxDecoration(
-                  color: AppTheme.secondaryLight, shape: BoxShape.circle),
+                  color: AppTheme.primaryLight, shape: BoxShape.circle),
               alignment: Alignment.center,
-              child: Icon(trailingIcon, size: 14, color: AppTheme.secondary),
+              child: Icon(trailingIcon, size: 14, color: AppTheme.primary),
             ),
           ],
         ],
@@ -2771,7 +2755,7 @@ class _DotCluster extends StatelessWidget {
                 height: 3,
                 margin: const EdgeInsets.symmetric(horizontal: 2),
                 decoration: BoxDecoration(
-                  color: AppTheme.secondary.withValues(alpha: 0.25),
+                  color: AppTheme.primary.withValues(alpha: 0.25),
                   shape: BoxShape.circle,
                 ),
               ),
