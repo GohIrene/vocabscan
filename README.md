@@ -2,7 +2,7 @@
 
 AI-based object recognition and trilingual vocabulary learning web app for children aged 3–10.
 
-A child points a camera at a real object — a cup, a chair, a banana — the backend classifies it with a trained image model, and the app returns the word in **English, Malay, and Chinese** with audio pronunciation, followed by a quiz and a pronunciation-practice activity. Parents track progress from their own dashboard; teachers run a live multiplayer quiz for a whole class using a 6-character join code.
+Point a camera at a real object such as glasses, a pen, a book, whatever's around and the app identifies it, then shows the word in **English, Malay, and Chinese** with audio, a quiz, and a pronunciation-practice activity. Parents get a progress dashboard for their kids. Teachers can run a live quiz for the whole class; students just join with a 6-character code.
 
 Built as a final-year capstone project.
 
@@ -16,8 +16,6 @@ Built as a final-year capstone project.
 - [API Reference](#api-reference)
 - [Socket.IO Events](#socketio-events)
 - [Image Classifier](#image-classifier)
-- [Known Limitations](#known-limitations)
-- [Project Status](#project-status)
 
 ## Features
 
@@ -46,7 +44,7 @@ Built as a final-year capstone project.
 
 | Layer | Technology |
 |---|---|
-| Frontend | Flutter Web (Dart) — 29 screens |
+| Frontend | Flutter Web (Dart) - 29 screens |
 | Backend | Flask + Flask-SocketIO (Python 3.12) |
 | Concurrency | eventlet green threads (one per connected student) |
 | Real-time | Socket.IO |
@@ -218,33 +216,4 @@ The shipped classifier is **MobileNetV3Large** fine-tuned on a custom 30-class d
 
 Three other architectures were trained and benchmarked against it during development — MobileNetV2, EfficientNetV2-S, and YOLO11n-cls. MobileNetV3Large was selected on the accuracy-versus-latency trade-off for CPU inference, which is what the Flask server runs on.
 
-The dataset preparation scripts, per-architecture training scripts and benchmark harness are no longer part of this repository — they were removed once the model was finalised, since none of them are used at runtime. They remain in the Git history if the comparison needs to be reproduced.
-
-`model_loader.py` does not use a plain `load_model()` call. The model was saved under Keras 2.15, but only Keras 3 installs on Python 3.12, and the legacy shim cannot deserialize the archive — the layer names in `config.json` don't match the weight keys in `model.weights.h5`. The loader instead rebuilds the architecture in code (`build_model()` mirrors the original training graph layer for layer) and copies weights across positionally, validating by shape. See the module docstring in [backend/model_loader.py](backend/model_loader.py) for the full explanation.
-
-## Known Limitations
-
-- The MongoDB URI and the frontend `baseUrl` are hardcoded rather than read from environment variables
-- No Docker setup and no CI pipeline
-- The classifier covers 30 object classes; anything outside that set is misclassified rather than rejected
-- Browser speech recognition availability varies — Malay always falls back to the server-side Whisper route
-- Audio clips are pre-generated, not synthesised on demand
-- No automated test suite
-
-## Project Status
-
-Active capstone project. Working end to end:
-
-- Object recognition and trilingual vocabulary cards
-- Quiz and pronunciation practice
-- Revision mode
-- Adventure Mode (XP, avatars, streaks, treasures)
-- Parent dashboard and progress reporting
-- Classroom management and live Class Code sessions with leaderboards
-
-Before any real deployment:
-
-- [ ] Move configuration into environment variables
-- [ ] Add Docker support and a CI pipeline
-- [ ] Add an out-of-distribution / low-confidence rejection path
-- [ ] Add automated tests
+`model_loader.py` uses a custom loader instead of a plain `load_model()` call — the model was saved under Keras 2.15, but the server runs Keras 3 on Python 3.12, which can't deserialize the archive directly. It rebuilds the architecture in code and copies weights across by shape. See [backend/model_loader.py](backend/model_loader.py) for the full explanation.
