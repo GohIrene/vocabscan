@@ -1,7 +1,5 @@
 """Loads the trained MobileNetV3Large VocabScan model.
 
-Why this exists (instead of a plain ``tf.keras.models.load_model``):
-
 The model was trained and saved with Keras 2.15 (see ``train_mobilenetv3_v3data.py``).
 On this machine (Python 3.12) only TensorFlow 2.16+ / Keras 3 is installable, and
 even the ``tf-keras`` 2.21 legacy shim cannot deserialize the Keras 2.15 ``.keras``
