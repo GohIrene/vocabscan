@@ -6,6 +6,7 @@ import '../adventure_assets.dart';
 import '../api_service.dart';
 import '../learning_flow.dart';
 import '../theme/app_theme.dart';
+import '../widgets/adventure_art.dart';
 import 'scan_object_screen.dart';
 
 /// One adventure area up close: how far it has grown, the keys it has earned,
@@ -180,7 +181,8 @@ class _ChildAdventureAreaScreenState extends State<ChildAdventureAreaScreen> {
 
   Widget _buildArea() {
     final area = _area!;
-    final theme = areaThemeById(area['area_id'] as String?);
+    final areaId = area['area_id'] as String?;
+    final theme = areaThemeById(areaId);
     final status = area['status'] as String? ?? 'locked';
     final progress = (area['progress_percentage'] as num?)?.toInt() ?? 0;
     final stage = (area['visual_stage'] as num?)?.toInt() ?? 0;
@@ -199,27 +201,6 @@ class _ChildAdventureAreaScreenState extends State<ChildAdventureAreaScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(
-                theme.name,
-                textAlign: TextAlign.center,
-                style: AppTheme.heading.copyWith(
-                  fontSize: 30,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: AppTheme.xs),
-              Text(
-                isCompleted
-                    ? 'You grew this place all the way! 🎉'
-                    : isLocked
-                        ? 'Finish ${_unlockedBy ?? 'the place before this'} '
-                            'to unlock it'
-                        : 'Keep learning words to grow this place',
-                textAlign: TextAlign.center,
-                style: AppTheme.body.copyWith(color: AppTheme.textLight),
-              ),
-              const SizedBox(height: AppTheme.lg),
-
               // Child-wide totals, echoing the reference board's top strip.
               Wrap(
                 alignment: WrapAlignment.center,
@@ -245,12 +226,30 @@ class _ChildAdventureAreaScreenState extends State<ChildAdventureAreaScreen> {
               ),
               const SizedBox(height: AppTheme.xl),
 
-              _AreaScene(
+              _AreaHero(
                 theme: theme,
-                areaId: area['area_id'] as String?,
+                areaId: areaId,
                 stage: stage,
+                progress: progress,
                 locked: isLocked,
+                completed: isCompleted,
+                unlockedBy: _unlockedBy,
               ),
+
+              // The whole growth path at a glance — the six painted scenes and
+              // the percentage each one arrives at, exactly the milestones the
+              // backend derives `visual_stage` from. Skipped for an area whose
+              // art is still pending: six copies of the same badge would say
+              // nothing about growing.
+              if (hasSceneArt(areaId)) ...[
+                const SizedBox(height: AppTheme.lg),
+                _StageFilmstrip(
+                  theme: theme,
+                  areaId: areaId,
+                  stage: stage,
+                  locked: isLocked,
+                ),
+              ],
               const SizedBox(height: AppTheme.xl),
 
               if (!isLocked) ...[
@@ -331,19 +330,256 @@ class _ChildAdventureAreaScreenState extends State<ChildAdventureAreaScreen> {
   }
 }
 
-/// The area itself, filling in one decoration per growth stage.
+/// The place itself, painted at exactly the stage the child has grown it to.
 ///
-/// Two renderings behind one shell: an area with real SVG scene art (currently
-/// only Home Village, per [hasSceneArt]) shows the pre-composited stage scene;
-/// every other area keeps the emoji fallback, so no area ever renders blank
-/// while its art is still pending.
-class _AreaScene extends StatelessWidget {
+/// The scene is the screen's centrepiece, so the area's name and its one-line
+/// status sit on top of the artwork rather than above it — the same framing the
+/// reference boards use. An area whose art is still being produced falls back to
+/// its badge on the area's own colours (handled inside [AreaArtwork]), so no
+/// area ever renders blank.
+class _AreaHero extends StatelessWidget {
+  final AreaTheme theme;
+  final String? areaId;
+  final int stage;
+  final int progress;
+  final bool locked;
+  final bool completed;
+
+  /// The place that has to be finished first, named so "locked" tells a child
+  /// something they can act on.
+  final String? unlockedBy;
+
+  const _AreaHero({
+    required this.theme,
+    required this.areaId,
+    required this.stage,
+    required this.progress,
+    required this.locked,
+    required this.completed,
+    required this.unlockedBy,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final subtitle = completed
+        ? 'You grew this place all the way! 🎉'
+        : locked
+            ? 'Finish ${unlockedBy ?? 'the place before this'} to unlock it'
+            : 'Keep learning words to grow this place';
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final w = constraints.maxWidth;
+        final titleSize = (w * 0.075).clamp(22.0, 38.0);
+
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+              border: Border.all(
+                  color: theme.accent.withValues(alpha: 0.35), width: 2),
+            ),
+            child: AspectRatio(
+              aspectRatio: 4 / 3,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  AreaArtwork(
+                    areaId: areaId,
+                    stage: stage,
+                    locked: locked,
+                    displayWidth: w,
+                  ),
+                  // Scrims top and bottom. Without them white text lands on
+                  // bright sky or pale grass and stops being readable.
+                  const DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        stops: [0.0, 0.45, 0.72, 1.0],
+                        colors: [
+                          Color(0x8C000000),
+                          Color(0x00000000),
+                          Color(0x00000000),
+                          Color(0x73000000),
+                        ],
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.all(AppTheme.lg),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    theme.name,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: AppTheme.heading.copyWith(
+                                      fontSize: titleSize,
+                                      height: 1.1,
+                                      fontWeight: FontWeight.w800,
+                                      color: Colors.white,
+                                      shadows: const [
+                                        Shadow(
+                                            color: Color(0x99000000),
+                                            blurRadius: 8,
+                                            offset: Offset(0, 2)),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    subtitle,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: AppTheme.body.copyWith(
+                                      color: Colors.white
+                                          .withValues(alpha: 0.95),
+                                      fontWeight: FontWeight.w600,
+                                      shadows: const [
+                                        Shadow(
+                                            color: Color(0x99000000),
+                                            blurRadius: 6,
+                                            offset: Offset(0, 1)),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: AppTheme.sm),
+                            if (locked)
+                              _HeroBadge(
+                                child: SvgPicture.asset(
+                                    AdventureIcons.locked,
+                                    width: 20,
+                                    height: 20),
+                              )
+                            else if (completed)
+                              _HeroBadge(
+                                child: SvgPicture.asset(
+                                    AdventureIcons.completed,
+                                    width: 22,
+                                    height: 22),
+                              ),
+                          ],
+                        ),
+                        const Spacer(),
+                        if (!locked)
+                          Row(
+                            children: [
+                              _HeroPill(
+                                // 5 growth steps, 0-5, matching MAX_STAGE in
+                                // backend/adventure.py.
+                                label: 'Stage $stage of '
+                                    '${kStageMilestones.length - 1}',
+                                accent: theme.accent,
+                              ),
+                              const SizedBox(width: AppTheme.sm),
+                              _HeroPill(
+                                label: '$progress% grown',
+                                accent: theme.accent,
+                                filled: true,
+                              ),
+                            ],
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// A round, frosted badge for the hero's top-right corner.
+class _HeroBadge extends StatelessWidget {
+  final Widget child;
+
+  const _HeroBadge({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(7),
+      decoration: BoxDecoration(
+        color: AppTheme.surface.withValues(alpha: 0.9),
+        shape: BoxShape.circle,
+        boxShadow: const [
+          BoxShadow(
+              color: Color(0x40000000), blurRadius: 8, offset: Offset(0, 2)),
+        ],
+      ),
+      child: child,
+    );
+  }
+}
+
+/// A small label sitting on the artwork — stage and percentage.
+class _HeroPill extends StatelessWidget {
+  final String label;
+  final Color accent;
+  final bool filled;
+
+  const _HeroPill({
+    required this.label,
+    required this.accent,
+    this.filled = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding:
+          const EdgeInsets.symmetric(horizontal: AppTheme.md, vertical: 5),
+      decoration: BoxDecoration(
+        color: filled ? accent : AppTheme.surface.withValues(alpha: 0.92),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: const [
+          BoxShadow(
+              color: Color(0x33000000), blurRadius: 6, offset: Offset(0, 2)),
+        ],
+      ),
+      child: Text(
+        label,
+        style: AppTheme.caption.copyWith(
+          fontWeight: FontWeight.w800,
+          color: filled ? Colors.white : accent,
+        ),
+      ),
+    );
+  }
+}
+
+/// The six painted scenes laid out as a growth path, with the percentage each
+/// one arrives at.
+///
+/// The milestones come from [kStageMilestones], which mirrors
+/// `PROGRESS_PER_STAGE` in `backend/adventure.py` — the filmstrip reports the
+/// server's bands rather than inventing its own. Scenes past the child's stage
+/// stay visible but drained of colour, so they read as "coming next" instead of
+/// being hidden.
+class _StageFilmstrip extends StatelessWidget {
   final AreaTheme theme;
   final String? areaId;
   final int stage;
   final bool locked;
 
-  const _AreaScene({
+  const _StageFilmstrip({
     required this.theme,
     required this.areaId,
     required this.stage,
@@ -352,140 +588,141 @@ class _AreaScene extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 220,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [theme.tint, AppTheme.surface],
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-        ),
-        borderRadius: BorderRadius.circular(AppTheme.radiusLg),
-        border: Border.all(color: theme.accent.withValues(alpha: 0.3), width: 2),
-      ),
-      child: hasSceneArt(areaId) ? _buildArtScene() : _buildEmojiScene(),
-    );
-  }
-
-  /// The SVG scene for an arted area. A locked area shows the bare base scene
-  /// dimmed to a silhouette; otherwise the composited stage scene grows in.
-  Widget _buildArtScene() {
     final art = adventureAssetById(areaId);
-    // Guarded by hasSceneArt, so backgroundAsset is non-null; the stage scene
-    // falls back to it defensively.
-    final scene = locked
-        ? art.backgroundAsset!
-        : (art.stageAsset(stage) ?? art.backgroundAsset!);
+    final count = art.stageAssets.length;
+    if (count == 0) return const SizedBox.shrink();
 
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(AppTheme.radiusLg),
-      child: Stack(
+    return Container(
+      padding: const EdgeInsets.all(AppTheme.md),
+      decoration: AppTheme.cardDecoration,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Positioned.fill(
-            child: Opacity(
-              opacity: locked ? 0.35 : 1,
-              child: SvgPicture.asset(
-                scene,
-                fit: BoxFit.cover,
-                alignment: Alignment.bottomCenter,
-              ),
-            ),
-          ),
-          if (!locked)
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: AppTheme.sm,
-              child: Center(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: AppTheme.surface.withValues(alpha: 0.85),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    'Stage $stage of ${theme.decorations.length}',
-                    style: AppTheme.caption.copyWith(
-                      fontWeight: FontWeight.w700,
-                      color: theme.accent,
-                    ),
-                  ),
+          Row(
+            children: [
+              Icon(Icons.eco_rounded, size: 18, color: theme.accent),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  'How this place grows',
+                  style: AppTheme.body.copyWith(fontWeight: FontWeight.w800),
                 ),
               ),
-            ),
-          if (locked)
-            Positioned(
-              right: AppTheme.lg,
-              top: AppTheme.lg,
-              child: SvgPicture.asset(AdventureIcons.locked,
-                  width: 28, height: 28),
-            ),
+            ],
+          ),
+          const SizedBox(height: AppTheme.md),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              const gap = 6.0;
+              final itemW =
+                  (constraints.maxWidth - gap * (count - 1)) / count;
+
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  for (var i = 0; i < count; i++) ...[
+                    if (i > 0) const SizedBox(width: gap),
+                    SizedBox(
+                      width: itemW,
+                      child: _StageThumb(
+                        areaId: areaId,
+                        index: i,
+                        milestone: i < kStageMilestones.length
+                            ? kStageMilestones[i]
+                            : 100,
+                        // A locked area shows the whole path as still to come.
+                        reached: !locked && i <= stage,
+                        isNow: !locked && i == stage,
+                        accent: theme.accent,
+                        width: itemW,
+                      ),
+                    ),
+                  ],
+                ],
+              );
+            },
+          ),
         ],
       ),
     );
   }
+}
 
-  /// Emoji fallback for areas whose art hasn't been produced yet.
-  Widget _buildEmojiScene() {
-    final earned = theme.decorationsForStage(stage);
-    final total = theme.decorations.length;
+class _StageThumb extends StatelessWidget {
+  final String? areaId;
+  final int index;
+  final int milestone;
+  final bool reached;
+  final bool isNow;
+  final Color accent;
+  final double width;
 
-    return Stack(
-      children: [
-        Center(
-          child: Opacity(
-            // A locked area is shown as a silhouette: recognisable enough
-            // to be worth wanting, not so clear it feels already visited.
-            opacity: locked ? 0.25 : 1,
-            child: Text(theme.emoji, style: const TextStyle(fontSize: 78)),
-          ),
-        ),
-        if (!locked)
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: AppTheme.lg,
-            child: Column(
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    for (var i = 0; i < total; i++)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 5),
-                        child: Opacity(
-                          // Not-yet-earned decorations stay faintly visible
-                          // so a child can see exactly what's still coming.
-                          opacity: i < earned.length ? 1 : 0.2,
-                          child: Text(
-                            theme.decorations[i],
-                            style: TextStyle(
-                                fontSize: i < earned.length ? 30 : 24),
-                          ),
+  const _StageThumb({
+    required this.areaId,
+    required this.index,
+    required this.milestone,
+    required this.reached,
+    required this.isNow,
+    required this.accent,
+    required this.width,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final labelSize = (width * 0.22).clamp(8.0, 12.0);
+
+    return Semantics(
+      label: 'Stage $index at $milestone per cent, '
+          '${reached ? 'reached' : 'not yet reached'}',
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          AspectRatio(
+            aspectRatio: 1,
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: isNow
+                      ? accent
+                      : reached
+                          ? accent.withValues(alpha: 0.45)
+                          : AppTheme.textLight.withValues(alpha: 0.25),
+                  width: isNow ? 2.5 : 1.2,
+                ),
+                boxShadow: isNow
+                    ? [
+                        BoxShadow(
+                          color: accent.withValues(alpha: 0.35),
+                          blurRadius: 10,
+                          offset: const Offset(0, 3),
                         ),
-                      ),
-                  ],
+                      ]
+                    : null,
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8.5),
+                child: AreaArtwork(
+                  areaId: areaId,
+                  stage: index,
+                  locked: !reached,
+                  displayWidth: width,
                 ),
-                const SizedBox(height: AppTheme.sm),
-                Text(
-                  'Stage $stage of $total',
-                  style: AppTheme.caption.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: theme.accent,
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
-        if (locked)
-          Positioned(
-            right: AppTheme.lg,
-            top: AppTheme.lg,
-            child: SvgPicture.asset(AdventureIcons.locked,
-                width: 28, height: 28),
+          const SizedBox(height: 4),
+          Text(
+            '$milestone%',
+            maxLines: 1,
+            style: TextStyle(
+              fontSize: labelSize,
+              fontWeight: FontWeight.w800,
+              color: reached ? accent : AppTheme.textLight,
+            ),
           ),
-      ],
+        ],
+      ),
     );
   }
 }

@@ -1,122 +1,180 @@
-/// Asset paths for the flat-vector Adventure art (see `assets/adventure/**`,
+/// Asset paths for the painted Adventure artwork (see `assets/adventure/**`,
 /// `assets/icons/*.svg`, `assets/learning/*.svg`).
 ///
 /// This is the *art* companion to [adventure_config.dart]: same area ids, same
-/// order, but pointing at layered SVG decorations instead of emoji. It lets a
-/// screen replace the emoji `_AreaScene` with real art without changing any of
-/// the numbers — progress, `visual_stage`, keys and status still come from the
-/// backend (`backend/adventure.py`), and this file only says which picture goes
-/// with each of them.
+/// order, but pointing at the painted scenes instead of emoji. It lets a screen
+/// render real art without changing any of the numbers — progress,
+/// `visual_stage`, keys and status still come from the backend
+/// (`backend/adventure.py`), and this file only says which picture goes with
+/// each of them.
 ///
-/// Rendering these needs the `flutter_svg` package:
-///   `flutter pub add flutter_svg`  then  `SvgPicture.asset(theme.iconAsset)`.
+/// Growth model (mirrors `adventure.py`): an area's `visual_stage` is 0-5, one
+/// step per 20 points of progress. [AdventureAssetTheme.stageAssets] holds one
+/// painted scene per stage, so index 0 is the bare starting scene and index 5
+/// the finished one — the place visibly fills in as a child learns.
 ///
-/// Growth model (mirrors `adventure.py`): an area's `visual_stage` is 0–5.
-/// [decorationsForStage] returns the decorations earned so far, so the scene
-/// fills in as a child learns — exactly like [AreaTheme.decorationsForStage],
-/// but with SVG assets instead of emoji. Alternatively, [stageAssets] holds a
-/// pre-composited full scene per stage if you prefer one image over a Stack.
-///
-/// Only Home Village has full art today — it is the one the reference board
-/// detailed. The other five areas carry a map [iconAsset] only; their
-/// backgrounds/decorations are left empty (TODO) so callers can fall back to
-/// the emoji [AreaTheme] until that art exists.
+/// Every area except Animal Forest is fully painted. Animal Forest has no stage
+/// art yet ([AdventureAssetTheme.hasArt] is false for it), so callers fall back
+/// to its [AdventureAssetTheme.iconAsset] badge until the scenes are dropped in.
 library;
 
 class AdventureAssetTheme {
+  /// Must match `AREAS` in `backend/adventure.py` — note the fourth area is
+  /// `home_corner`, not `cozy_home_corner` (that is only the folder name).
   final String areaId;
 
-  /// Circular map/list icon. Always present.
-  final String iconAsset;
+  /// Circular badge, used only where no painted scene exists. Null once an area
+  /// is fully painted: its own artwork makes a better icon than a flat badge.
+  final String? iconAsset;
 
-  /// Base scene (sky, ground, the area's fixed building), or null if not drawn
-  /// yet — layer [decorationsForStage] on top of this in a Stack.
-  final String? backgroundAsset;
-
-  /// Every decoration for the area, in unlock order. Layer them bottom-to-top.
-  final List<String> decorationAssets;
-
-  /// Pre-composited full scene per visual stage (index 0–5), or empty to use
-  /// [backgroundAsset] + [decorationsForStage] instead.
+  /// One painted scene per `visual_stage`, index 0-5. Empty while an area's art
+  /// is still being produced.
   final List<String> stageAssets;
 
-  /// How many of [decorationAssets] are visible at each visual stage (index
-  /// 0–5). Lets a single stage reveal more than one decoration at once — e.g.
-  /// Home Village adds bench *and* lamp together at stage 3.
-  final List<int> stageDecorationCounts;
+  /// Where this area sits on [AdventureArt.mapBackground], as a fraction of the
+  /// map's width and height. These match the spot the background painting
+  /// already draws for the area, so a pin lands on its own island.
+  final double mapX;
+  final double mapY;
 
   const AdventureAssetTheme({
     required this.areaId,
-    required this.iconAsset,
-    this.backgroundAsset,
-    this.decorationAssets = const [],
+    required this.mapX,
+    required this.mapY,
+    this.iconAsset,
     this.stageAssets = const [],
-    this.stageDecorationCounts = const [0, 0, 0, 0, 0, 0],
   });
 
-  /// The decoration assets earned at [visualStage] (0–5), in draw order.
-  List<String> decorationsForStage(int visualStage) {
-    if (decorationAssets.isEmpty || stageDecorationCounts.isEmpty) return const [];
-    final s = visualStage.clamp(0, stageDecorationCounts.length - 1);
-    final count = stageDecorationCounts[s].clamp(0, decorationAssets.length);
-    return decorationAssets.take(count).toList();
-  }
+  /// True once painted scenes exist for this area.
+  bool get hasArt => stageAssets.isNotEmpty;
 
-  /// The pre-composited scene for [visualStage], or null if none was exported.
+  /// The painted scene for [visualStage], or null while the art is pending.
   String? stageAsset(int visualStage) {
     if (stageAssets.isEmpty) return null;
     return stageAssets[visualStage.clamp(0, stageAssets.length - 1)];
   }
+
+  /// The finished scene — the "postcard" of the place. Used where we want to
+  /// show what an area *is* rather than how far this child has grown it.
+  String? get postcardAsset => stageAssets.isEmpty ? null : stageAssets.last;
 }
 
 const String _adv = 'assets/adventure';
 
-/// Same ids and order as `adventure.py` / [kAreaThemes]. Home Village is fully
-/// arted; the rest are icon-only until their art is produced.
+/// Art that belongs to the adventure as a whole rather than to one area.
+class AdventureArt {
+  /// The painted route every area sits on. Its six illustrated spots are in the
+  /// same order as [kAdventureAssetThemes], which is what the `mapX`/`mapY`
+  /// fractions below are measured against.
+  static const String mapBackground =
+      '$_adv/map/AdventureMap_BackgroundPicture.png';
+
+  /// The map painting's own aspect ratio (1448 x 1086), so it is never squashed.
+  static const double mapAspectRatio = 1448 / 1086;
+}
+
+/// The progress percentage each `visual_stage` starts at, mirroring
+/// `PROGRESS_PER_STAGE` in `backend/adventure.py`. Labels a stage filmstrip
+/// without inventing thresholds of its own.
+const List<int> kStageMilestones = [0, 20, 40, 60, 80, 100];
+
+/// The `visual_stage` a 0-100 progress value falls in — the same fixed bands as
+/// `visual_stage()` in `backend/adventure.py`.
+///
+/// For display only, where a screen has a percentage but not the stage the
+/// server already derived from it. Prefer the server's `visual_stage` whenever
+/// the response carries one.
+int visualStageForProgress(int progress) =>
+    (progress.clamp(0, 100) ~/ 20).clamp(0, kStageMilestones.length - 1);
+
+/// Same ids and order as `adventure.py` / [kAreaThemes].
 const List<AdventureAssetTheme> kAdventureAssetThemes = [
   AdventureAssetTheme(
     areaId: 'home_village',
-    iconAsset: '$_adv/home_village/icon.svg',
-    backgroundAsset: '$_adv/home_village/background.svg',
-    decorationAssets: [
-      '$_adv/home_village/decoration_tree.svg',
-      '$_adv/home_village/decoration_flowers.svg',
-      '$_adv/home_village/decoration_bench.svg',
-      '$_adv/home_village/decoration_lamp.svg',
-      '$_adv/home_village/decoration_windmill.svg',
-      '$_adv/home_village/decoration_fountain.svg',
-    ],
+    // Top-left cottage island on the map painting.
+    mapX: 0.155,
+    mapY: 0.340,
     stageAssets: [
-      '$_adv/home_village/stage_0.svg',
-      '$_adv/home_village/stage_1.svg',
-      '$_adv/home_village/stage_2.svg',
-      '$_adv/home_village/stage_3.svg',
-      '$_adv/home_village/stage_4.svg',
-      '$_adv/home_village/stage_5.svg',
+      '$_adv/home_village/HomeVillage_Stage1.png',
+      '$_adv/home_village/HomeVillage_Stage2.png',
+      '$_adv/home_village/HomeVillage_Stage3.png',
+      '$_adv/home_village/HomeVillage_Stage4.png',
+      '$_adv/home_village/HomeVillage_Stage5.png',
+      '$_adv/home_village/HomeVillage_Stage6.png',
     ],
-    // stage: 0  1  2  3  4  5   (bench+lamp both arrive at stage 3)
-    stageDecorationCounts: [0, 1, 2, 4, 5, 6],
   ),
-  // TODO: art pending — icon only. Falls back to the emoji AreaTheme for now.
   AdventureAssetTheme(
     areaId: 'fruit_garden',
-    iconAsset: '$_adv/fruit_garden/icon.svg',
+    // Top-centre orchard island.
+    mapX: 0.505,
+    mapY: 0.330,
+    stageAssets: [
+      '$_adv/fruit_garden/FruitGarden_S1.png',
+      '$_adv/fruit_garden/FruitGarden_S2.png',
+      '$_adv/fruit_garden/FruitGarden_S3.png',
+      '$_adv/fruit_garden/FruitGarden_S4.png',
+      '$_adv/fruit_garden/FruitGarden_S5.png',
+      '$_adv/fruit_garden/FruitGarden_S6.png',
+    ],
   ),
   AdventureAssetTheme(
     areaId: 'animal_forest',
+    // Top-right woodland island, where the deer and rabbit stand.
+    mapX: 0.825,
+    mapY: 0.340,
+    // Art pending. Until then this badge stands in everywhere a scene would go.
+    // To finish the area, drop AnimalForest_S1..S6.png into
+    // `assets/adventure/animal_forest/` and add:
+    //   stageAssets: [
+    //     '$_adv/animal_forest/AnimalForest_S1.png',
+    //     ... through S6 ...
+    //   ],
+    // Nothing else needs to change — every screen picks the scenes up from here.
     iconAsset: '$_adv/animal_forest/icon.svg',
   ),
   AdventureAssetTheme(
-    areaId: 'cozy_home_corner',
-    iconAsset: '$_adv/cozy_home_corner/icon.svg',
+    // `home_corner` server-side; `cozy_home_corner` is only the asset folder.
+    areaId: 'home_corner',
+    // Bottom-left living-room platform.
+    mapX: 0.160,
+    mapY: 0.795,
+    // Already 0-indexed by stage, unlike the other areas' 1-based file names.
+    stageAssets: [
+      '$_adv/cozy_home_corner/CozyHome_S0.png',
+      '$_adv/cozy_home_corner/CozyHome_S1.png',
+      '$_adv/cozy_home_corner/CozyHome_S2.png',
+      '$_adv/cozy_home_corner/CozyHome_S3.png',
+      '$_adv/cozy_home_corner/CozyHome_S4.png',
+      '$_adv/cozy_home_corner/CozyHome_S5.png',
+    ],
   ),
   AdventureAssetTheme(
     areaId: 'vehicle_valley',
-    iconAsset: '$_adv/vehicle_valley/icon.svg',
+    // Bottom-centre road platform with the red car.
+    mapX: 0.505,
+    mapY: 0.805,
+    stageAssets: [
+      '$_adv/vehicle_valley/VehicleValley_S1.png',
+      '$_adv/vehicle_valley/VehicleValley_S2.png',
+      '$_adv/vehicle_valley/VehicleValley_S3.png',
+      '$_adv/vehicle_valley/VehicleValley_S4.png',
+      '$_adv/vehicle_valley/VehicleValley_S5.png',
+      '$_adv/vehicle_valley/VehicleValley_S6.png',
+    ],
   ),
   AdventureAssetTheme(
     areaId: 'treasure_castle',
-    iconAsset: '$_adv/treasure_castle/icon.svg',
+    // Bottom-right castle.
+    mapX: 0.845,
+    mapY: 0.785,
+    stageAssets: [
+      '$_adv/treasure_castle/TreasureCastle_S1.png',
+      '$_adv/treasure_castle/TreasureCastle_S2.png',
+      '$_adv/treasure_castle/TreasureCastle_S3.png',
+      '$_adv/treasure_castle/TreasureCastle_S4.png',
+      '$_adv/treasure_castle/TreasureCastle_S5.png',
+      '$_adv/treasure_castle/TreasureCastle_S6.png',
+    ],
   ),
 ];
 
@@ -129,12 +187,9 @@ AdventureAssetTheme adventureAssetById(String? areaId) {
   return kAdventureAssetThemes.first;
 }
 
-/// True when [areaId] has full scene art (background + decorations), so a
-/// screen can choose between the SVG scene and the emoji fallback.
-bool hasSceneArt(String? areaId) {
-  final t = adventureAssetById(areaId);
-  return t.backgroundAsset != null && t.decorationAssets.isNotEmpty;
-}
+/// True when [areaId] has painted scene art, so a screen can choose between the
+/// real artwork and the badge fallback.
+bool hasSceneArt(String? areaId) => adventureAssetById(areaId).hasArt;
 
 /// UI icons used throughout the adventure (XP, keys, treasure, …).
 class AdventureIcons {

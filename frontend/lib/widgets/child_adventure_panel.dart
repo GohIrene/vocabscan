@@ -4,6 +4,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import '../adventure_assets.dart';
 import '../adventure_config.dart';
 import '../theme/app_theme.dart';
+import 'adventure_art.dart';
 
 /// A compact Adventure preview for the home dashboard.
 ///
@@ -82,17 +83,15 @@ class ChildAdventurePanel extends StatelessWidget {
             ),
             child: Row(
               children: [
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: AppTheme.surface,
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                        color: theme.accent.withValues(alpha: 0.4), width: 2),
-                  ),
-                  alignment: Alignment.center,
-                  child: Text(theme.emoji, style: const TextStyle(fontSize: 24)),
+                // The place as it looks right now. The home summary carries a
+                // percentage but not the stage the server derived from it, so
+                // it is re-derived here with the backend's own bands — display
+                // only, and it can only ever agree with the bar beside it.
+                AreaMedallion(
+                  areaId: currentAreaId,
+                  stage: visualStageForProgress(progressPercentage),
+                  size: 48,
+                  ringColor: theme.accent.withValues(alpha: 0.55),
                 ),
                 const SizedBox(width: AppTheme.md),
                 Expanded(
@@ -209,23 +208,24 @@ class _TrailStop extends StatelessWidget {
   Widget build(BuildContext context) {
     return Tooltip(
       message: theme.name,
-      child: Container(
-        width: 38,
-        height: 38,
-        decoration: BoxDecoration(
-          color: isCurrent ? theme.tint : AppTheme.background,
-          shape: BoxShape.circle,
-          border: Border.all(
-            color: isCurrent
-                ? theme.accent
-                : AppTheme.textLight.withValues(alpha: 0.25),
-            width: isCurrent ? 2 : 1,
-          ),
-        ),
-        alignment: Alignment.center,
-        child: Opacity(
-          opacity: isCurrent ? 1 : 0.55,
-          child: Text(theme.emoji, style: const TextStyle(fontSize: 18)),
+      // Each stop shows the *finished* place rather than this child's progress
+      // in it — the trail is a teaser of where the route goes, and the panel
+      // deliberately makes no per-area status claim. Only the current stop is
+      // brought forward, and the map screen owns the real locked/unlocked view.
+      // Dimmed, not greyscaled: a faded stop reads as "further along the
+      // route", where draining the colour out would read as "locked" — a claim
+      // this panel has no business making.
+      child: Opacity(
+        opacity: isCurrent ? 1 : 0.6,
+        child: AreaMedallion(
+          areaId: theme.areaId,
+          stage: 0,
+          postcard: true,
+          size: 38,
+          ringColor: isCurrent
+              ? theme.accent
+              : AppTheme.textLight.withValues(alpha: 0.3),
+          ringWidth: isCurrent ? 2 : 1,
         ),
       ),
     );

@@ -71,7 +71,10 @@ flutter:
     - assets/images/avatars/
     - assets/learning/
     # Adventure art. Directory entries are not recursive, so each area folder
-    # is listed on its own.
+    # is listed on its own. The design references that live loose in
+    # assets/adventure/ are deliberately not listed — they are mockups, not app
+    # art, and bundling them would add ~15 MB to the build.
+    - assets/adventure/map/
     - assets/adventure/home_village/
     - assets/adventure/fruit_garden/
     - assets/adventure/animal_forest/
