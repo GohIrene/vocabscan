@@ -15,7 +15,7 @@ Built as a final-year capstone project.
 - [Project Structure](#project-structure)
 - [API Reference](#api-reference)
 - [Socket.IO Events](#socketio-events)
-- [Machine Learning Pipeline](#machine-learning-pipeline)
+- [Image Classifier](#image-classifier)
 - [Known Limitations](#known-limitations)
 - [Project Status](#project-status)
 
@@ -101,7 +101,6 @@ vocabscan/
 │   ├── quiz_logic.py         Distractor selection and question assembly
 │   ├── class_sessions.py     Live session state
 │   ├── routes/               REST blueprints (auth, child, parent, quiz, …)
-│   ├── benchmark/            Model comparison harness and report figures
 │   └── static/               Pre-generated gTTS audio
 │
 ├── frontend/                 Flutter Web app
@@ -114,16 +113,10 @@ vocabscan/
 │       ├── widgets/          Shared components
 │       └── theme/
 │
-├── ml/                       Model development — not used at runtime
-│   ├── dataset_scripts/      Dataset download, supplement, merge, cleaning
-│   ├── training/             Training scripts for each candidate model
-│   ├── model_reports/        Classification reports, confusion matrices, logs
-│   └── runs/                 Ultralytics training run outputs
-│
 └── dataset/                  train / val / test splits (images are gitignored)
 ```
 
-`backend/` and `frontend/` are the running application. Everything under `ml/` and `dataset/` supports model development only.
+`backend/` and `frontend/` are the running application. `dataset/` holds the 30-class image corpus the classifier was trained on and is not read at runtime.
 
 ## API Reference
 
@@ -219,19 +212,15 @@ Handlers live in [backend/sockets.py](backend/sockets.py); the client is [fronte
 | `end_session` | Teacher | Close the session and finalise the leaderboard |
 | `disconnect` | — | Clean up participant state |
 
-## Machine Learning Pipeline
+## Image Classifier
 
-The shipped classifier is **MobileNetV3Large** fine-tuned on a custom 30-class dataset of everyday objects.
+The shipped classifier is **MobileNetV3Large** fine-tuned on a custom 30-class dataset of everyday objects, served as `backend/mobilenetv3_final.keras` with the class list in `backend/mobilenetv3_classes.json`.
 
-Three other architectures were trained and benchmarked against it — MobileNetV2, EfficientNetV2-S, and YOLO11n-cls. Classification reports and confusion matrices for all four are in [ml/model_reports/](ml/model_reports/); the comparison harness is in [backend/benchmark/](backend/benchmark/).
+Three other architectures were trained and benchmarked against it during development — MobileNetV2, EfficientNetV2-S, and YOLO11n-cls. MobileNetV3Large was selected on the accuracy-versus-latency trade-off for CPU inference, which is what the Flask server runs on.
 
-```
-ml/dataset_scripts/     download → supplement → merge → clean
-ml/training/            one training script per candidate architecture
-backend/benchmark/      accuracy, latency and end-to-end evaluation
-```
+The dataset preparation scripts, per-architecture training scripts and benchmark harness are no longer part of this repository — they were removed once the model was finalised, since none of them are used at runtime. They remain in the Git history if the comparison needs to be reproduced.
 
-`model_loader.py` does not use a plain `load_model()` call. The model was saved under Keras 2.15, but only Keras 3 installs on Python 3.12, and the legacy shim cannot deserialize the archive — the layer names in `config.json` don't match the weight keys in `model.weights.h5`. The loader rebuilds the architecture from the training script and copies weights across positionally, validating by shape. See the module docstring in [backend/model_loader.py](backend/model_loader.py) for the full explanation.
+`model_loader.py` does not use a plain `load_model()` call. The model was saved under Keras 2.15, but only Keras 3 installs on Python 3.12, and the legacy shim cannot deserialize the archive — the layer names in `config.json` don't match the weight keys in `model.weights.h5`. The loader instead rebuilds the architecture in code (`build_model()` mirrors the original training graph layer for layer) and copies weights across positionally, validating by shape. See the module docstring in [backend/model_loader.py](backend/model_loader.py) for the full explanation.
 
 ## Known Limitations
 
